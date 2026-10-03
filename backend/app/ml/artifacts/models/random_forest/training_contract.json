@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "model": "random_forest",
+  "model_version": "random_forest:d42e3f72f4cf",
+  "target": "late_payment_weekend_adjusted",
+  "features": [
+    "amount",
+    "payment_term",
+    "prior_resolved_invoice_count",
+    "prior_open_invoice_count",
+    "open_invoice_ratio",
+    "has_resolved_history",
+    "historical_late_rate",
+    "historical_avg_days_late",
+    "historical_avg_invoice_amount",
+    "amount_vs_historical_avg_ratio",
+    "customer_tenure_days",
+    "days_since_previous_invoice",
+    "recent_5_late_rate",
+    "recent_5_avg_days_late",
+    "recent_late_streak",
+    "recent_on_time_streak",
+    "recent_5_late_rate_delta",
+    "recent_5_avg_days_late_delta"
+  ],
+  "numeric": [
+    "amount",
+    "payment_term",
+    "prior_resolved_invoice_count",
+    "prior_open_invoice_count",
+    "open_invoice_ratio",
+    "has_resolved_history",
+    "historical_late_rate",
+    "historical_avg_days_late",
+    "historical_avg_invoice_amount",
+    "amount_vs_historical_avg_ratio",
+    "customer_tenure_days",
+    "days_since_previous_invoice",
+    "recent_5_late_rate",
+    "recent_5_avg_days_late",
+    "recent_late_streak",
+    "recent_on_time_streak",
+    "recent_5_late_rate_delta",
+    "recent_5_avg_days_late_delta"
+  ],
+  "categorical": [],
+  "preprocessing": "numeric_only_v1",
+  "category_levels": {},
+  "train_split": {
+    "file": "train.csv.gz",
+    "sha256": "554d6bd896be1cbfa8957102cb3a53f475ed098519afe28509292c8658340c92"
+  },
+  "artifact": {
+    "model_file": "model.joblib",
+    "model_sha256": "d42e3f72f4cfffc858f8d9fc0be05626dd0fee9f3a761028aa62e850ebf9899e",
+    "median_file": "median_impute_values.json",
+    "median_sha256": "8e58a1a1de97bea96d835fbb3e255a8458eaa0969682bc7d61ca2ea23a1d9679"
+  },
+  "trained_at": "2026-10-03T17:16:43.414078+00:00"
+}

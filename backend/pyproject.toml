@@ -1,0 +1,34 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
+
+[tool.ruff.lint.per-file-ignores]
+# SQLAlchemy declarative relationships reference their target class as a
+# string so the mapper can resolve it later; ruff reads those as undefined
+# names. The alternative is a TYPE_CHECKING import block purely to satisfy
+# the linter, which adds noise without adding safety.
+"app/models/*.py" = ["F821"]
+# conftest sets sys.path before importing app modules, so the imports
+# genuinely cannot sit at the top of the file.
+"tests/conftest.py" = ["E402"]
+# Same reason: this module adjusts import state before importing pytest.
+"tests/test_voice_flow.py" = ["E402"]
+
+[tool.coverage.run]
+source = ["app"]
+omit = [
+    "app/seed/*",              # narrative data generation, not application logic
+    "app/ml/train.py",         # one-shot training script, exercised by running it, not asserted on
+    "app/ml/synthetic_data.py", # ditto — inputs to train.py, not application logic
+    "app/ml/common.py",        # shared eval core for the three real-data trainers below
+    "app/ml/train_xgboost.py", # real-data trainers, run manually; their report.json files are the artifact
+    "app/ml/train_random_forest.py",
+    "app/ml/train_gradient_boosting.py",
+    "app/ml/datasets/*",       # offline feature/split build, run manually before training
+    "app/events/consumer.py",  # standalone demo script, not part of the app's request path
+]
+
+[tool.coverage.report]
+skip_empty = true

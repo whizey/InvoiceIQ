@@ -1,0 +1,510 @@
+======================================================================
+RECOVERIQ ENGINEERING CHECKPOINT
+======================================================================
+
+===== FEATURE CONTRACT =====
+target: late_payment_weekend_adjusted
+total features: 18
+numeric: 18
+categorical: 0
+features:
+01. amount
+02. payment_term
+03. prior_resolved_invoice_count
+04. prior_open_invoice_count
+05. open_invoice_ratio
+06. has_resolved_history
+07. historical_late_rate
+08. historical_avg_days_late
+09. historical_avg_invoice_amount
+10. amount_vs_historical_avg_ratio
+11. customer_tenure_days
+12. days_since_previous_invoice
+13. recent_5_late_rate
+14. recent_5_avg_days_late
+15. recent_late_streak
+16. recent_on_time_streak
+17. recent_5_late_rate_delta
+18. recent_5_avg_days_late_delta
+
+===== RANDOMIZED OFFLINE/ONLINE PARITY =====
+.                                                                        [100%]
+1 passed in 6.30s
+
+===== ORIGINAL + RANDOMIZED PARITY =====
+..                                                                       [100%]
+2 passed in 5.99s
+
+===== TOY MODEL / PACKAGER / LOADER / SHAP =====
+........                                                                 [100%]
+8 passed in 1.77s
+
+===== COMPLETE PAYMENT-RISK CORRECTNESS SUITE =====
+...............                                                          [100%]
+15 passed in 6.87s
+
+===== RUNTIME INTEGRITY IMPLEMENTATION =====
+app/ml/payment_risk_model.py:13:from app.ml.artifact_contract import sha256_file
+app/ml/payment_risk_model.py:35:PREPROCESSING_VERSION = "numeric_only_v1"
+app/ml/payment_risk_model.py:99:            "match the current 18-feature "
+app/ml/payment_risk_model.py:147:    model_sha256 = contract.get(
+app/ml/payment_risk_model.py:148:        "model_sha256"
+app/ml/payment_risk_model.py:155:            model_sha256,
+app/ml/payment_risk_model.py:158:        or not model_sha256
+app/ml/payment_risk_model.py:175:        sha256_file(model_path)
+app/ml/payment_risk_model.py:176:        != model_sha256
+app/ml/payment_risk_model.py:188:        median_sha256 = contract.get(
+app/ml/payment_risk_model.py:189:            "median_sha256"
+app/ml/payment_risk_model.py:199:                median_sha256,
+app/ml/payment_risk_model.py:202:            or not median_sha256
+app/ml/payment_risk_model.py:219:            sha256_file(median_path)
+app/ml/payment_risk_model.py:220:            != median_sha256
+app/ml/payment_risk_model.py:322:def _load_shap_explainer(
+app/ml/payment_risk_model.py:334:def _positive_class_shap(
+app/ml/payment_risk_model.py:339:        _load_shap_explainer(
+app/ml/payment_risk_model.py:415:        shap_values = _positive_class_shap(
+app/ml/artifact_contract.py:17:PREPROCESSING_VERSION = "numeric_only_v1"
+app/ml/artifact_contract.py:21:def sha256_file(path: Path) -> str:
+app/ml/artifact_contract.py:62:    model_sha256 = sha256_file(model_path)
+app/ml/artifact_contract.py:66:        "model_sha256": model_sha256,
+app/ml/artifact_contract.py:78:        artifact["median_sha256"] = (
+app/ml/artifact_contract.py:79:            sha256_file(median_path)
+app/ml/artifact_contract.py:87:        "model_version": (
+app/ml/artifact_contract.py:89:            f"{model_sha256[:12]}"
+app/ml/artifact_contract.py:105:            "sha256": sha256_file(
+app/ml/package_payment_risk_artifacts.py:13:    sha256_file,
+app/ml/package_payment_risk_artifacts.py:152:    model_sha256 = artifact.get(
+app/ml/package_payment_risk_artifacts.py:153:        "model_sha256"
+app/ml/package_payment_risk_artifacts.py:156:    if not model_file or not model_sha256:
+app/ml/package_payment_risk_artifacts.py:173:        sha256_file(model_path)
+app/ml/package_payment_risk_artifacts.py:176:    if actual_model_hash != model_sha256:
+app/ml/package_payment_risk_artifacts.py:187:        median_sha256 = artifact.get(
+app/ml/package_payment_risk_artifacts.py:188:            "median_sha256"
+app/ml/package_payment_risk_artifacts.py:193:            or not median_sha256
+app/ml/package_payment_risk_artifacts.py:211:            sha256_file(median_path)
+app/ml/package_payment_risk_artifacts.py:212:            != median_sha256
+app/ml/package_payment_risk_artifacts.py:266:            "model_version": training[
+app/ml/package_payment_risk_artifacts.py:267:                "model_version"
+app/ml/package_payment_risk_artifacts.py:290:            "model_sha256": artifact[
+app/ml/package_payment_risk_artifacts.py:291:                "model_sha256"
+app/ml/package_payment_risk_artifacts.py:316:                "median_sha256"
+app/ml/package_payment_risk_artifacts.py:318:                "median_sha256"
+app/ml/package_payment_risk_artifacts.py:340:                "model_version"
+
+===== RANDOMIZED TEST COVERAGE REFERENCES =====
+15:from app.ml.payment_features import NUMERIC_FEATURES
+22:SEED = 20261003
+23:CASES = 150
+46:    for feature in NUMERIC_FEATURES:
+136:        force_cold_start = True
+143:        force_cold_start = False
+150:        force_cold_start = False
+184:        if force_cold_start:
+263:        not force_cold_start
+411:    same_day_companions = (
+419:        same_day_companions
+568:    rng = random.Random(SEED)
+570:    assert len(NUMERIC_FEATURES) == 18
+572:    saw_cold_start = False
+573:    saw_more_than_10_resolved = False
+574:    saw_open_invoice = False
+575:    saw_same_day_clearing = False
+576:    saw_same_day_invoice = False
+578:    for case_id in range(CASES):
+629:            NUMERIC_FEATURES
+661:            saw_cold_start = True
+664:            saw_more_than_10_resolved = (
+672:            saw_open_invoice = True
+683:            saw_same_day_clearing = True
+690:            saw_same_day_invoice = True
+692:    assert saw_cold_start
+693:    assert saw_more_than_10_resolved
+694:    assert saw_open_invoice
+695:    assert saw_same_day_clearing
+696:    assert saw_same_day_invoice
+
+===== SHAP / TAMPER TEST REFERENCES =====
+552:    packager.main()
+680:            runtime.predict_payment_risk(
+739:def test_shap_additivity_all_three_models(
+759:            runtime.predict_payment_risk(
+947:        runtime.predict_payment_risk(
+990:        runtime.predict_payment_risk(
+996:def test_shap_explainer_is_cached(
+1014:def test_runtime_rejects_model_hash_mismatch(
+1038:        runtime.predict_payment_risk(
+1044:def test_runtime_rejects_median_hash_mismatch(
+1086:        runtime.predict_payment_risk(
+
+===== EVALUATION PROTOCOL =====
+# RecoverIQ Late-Payment Model Evaluation Protocol
+
+Frozen: 2026-10-03
+
+## Scope
+
+This protocol applies to the RecoverIQ posting-time B2B late-payment model.
+
+Target:
+
+`late_payment_weekend_adjusted`
+
+Final feature contract:
+
+- 18 numeric features
+- 0 categorical features
+
+The following are not model inputs:
+
+- customer identifier
+- document identifier
+- region
+- city
+- zipcode
+- payment_method_description
+- clearing information
+- post-outcome leakage fields
+
+The late-payment model is separate from RecoverIQ's overdue recovery-risk model.
+
+---
+
+## Freeze point
+
+This protocol is being committed after the final feature contract and data splits were frozen and after XGBoost and Random Forest were trained.
+
+It is frozen before:
+
+- Gradient Boosting final training
+- final three-model comparison
+- runtime packaging
+- model activation
+- first evaluation on the reserved test split
+
+No hyperparameter tuning or feature changes will be performed after the final three-model comparison unless a correctness bug is discovered.
+
+If a correctness bug changes features, labels, preprocessing, or inference semantics, affected models must be retrained and the reason documented.
+
+---
+
+## Data split policy
+
+Splits are chronological.
+
+Training:
+
+- used to fit models
+- used to fit preprocessing statistics
+
+Validation:
+
+- used for candidate selection
+- used for comparison of the predefined model families
+
+Test:
+
+- reserved from model selection
+- not used for hyperparameter tuning
+- read once after the final model and runtime contract are frozen
+
+The test result will be reported even if it is poor.
+
+---
+
+## Models
+
+Only these three final model families are compared:
+
+1. XGBoost
+2. Random Forest
+3. Gradient Boosting
+
+No additional model families will be added before the final comparison.
+
+No additional hyperparameter search will be performed after this protocol is frozen.
+
+---
+
+## Primary validation metric
+
+The primary model-selection metric is:
+
+`validation within-period ROC-AUC`
+
+This is the same metric used by the existing candidate-selection code.
+
+The selected model is the predefined model family with the highest validation within-period ROC-AUC.
+
+---
+
+## Secondary validation metrics
+
+The following must also be reported:
+
+- pooled ROC-AUC
+- PR-AUC
+- log loss
+- Brier score
+- validation base rate
+- customer-history baseline
+- constant/base-rate baseline
+
+These metrics provide context but do not replace the predefined primary selection metric.
+
+---
+
+## Temporal stability
+
+For every final model, report:
+
+- every temporal-fold AUC
+- minimum temporal-fold AUC
+- mean temporal-fold AUC
+- standard deviation across folds
+- number of folds below 0.50
+
+A fold below 0.50 is reported as an inverted ranking period.
+
+Temporal instability must not be hidden behind a strong aggregate validation score.
+
+A model may still be selected by the predefined validation metric, but if temporal stability is poor it must not be described as production-ready or as having reliable future performance.
+
+---
+
+## Cold-start limitation
+
+Validation currently does not provide a clean unseen-customer evaluation.
+
+Therefore the project must not claim that validation performance demonstrates generalization to completely new customers.
+
+Cold-start behavior may be evaluated separately as a diagnostic, but it is not used for final model selection.
+
+---
+
+## Feature-semantics caveat
+
+Historical behavior features use strict lateness:
+
+`clearing_date > due_date`
+
+The prediction target uses weekend-adjusted lateness.
+
+This difference is intentional and consistent between offline and online feature generation.
+
+It must be documented rather than presented as identical label semantics.
+
+---
+
+## Tenure caveat
+
+`customer_tenure_days` is retained because ablation reduced model performance.
+
+However, it is strongly correlated with calendar position.
+
+Therefore model performance must not be described as pure customer-level credit-risk skill.
+
+---
+
+## Validation-selection caveat
+
+Several candidate configurations were evaluated on the same validation split.
+
+Therefore validation metrics are optimistic relative to a completely untouched evaluation.
+
+The reserved test split is the only final untouched performance estimate.
+
+---
+
+## Baseline policy
+
+The required baselines are:
+
+- constant/base-rate prediction
+- customer-history baseline
+
+A logistic regression baseline is optional and will not be added if doing so changes the frozen comparison process.
+
+---
+
+## Final model-selection procedure
+
+After Gradient Boosting training:
+
+1. Run the existing three-model comparison.
+2. Do not tune any model afterward.
+3. Select the model with the highest validation within-period ROC-AUC.
+4. Record all temporal-fold results beside the validation result.
+5. Complete runtime integrity and inference tests.
+6. Package the selected runtime artifacts.
+7. Freeze model version and artifact hashes.
+8. Evaluate the reserved test split once.
+
+---
+
+## Test-set evaluation
+
+The test split will be read only after:
+
+- model family is selected
+- hyperparameters are frozen
+- feature contract is frozen
+- preprocessing is frozen
+- runtime artifact contract is frozen
+
+The following test metrics will be reported:
+
+- within-period ROC-AUC
+- pooled ROC-AUC
+- PR-AUC
+- log loss
+- Brier score
+
+No changes will be made to improve the reported test result.
+
+If test performance is poor, that result will remain part of the project documentation.
+
+---
+
+## Production-readiness rule
+
+Good validation or test performance alone does not make the model production-ready.
+
+Activation also requires:
+
+- offline/online feature parity
+- randomized parity tests
+- model loader tests
+- SHAP compatibility tests
+- artifact hash verification
+- model-version persistence
+- non-blocking scoring failure handling
+- authenticated approval/rejection endpoints
+- valid invoice-term/date consistency
+- deterministic policy enforcement
+- human review for protected actions
+
+---
+
+## Reporting rule
+
+The project will distinguish between:
+
+- validation performance
+- temporal stability
+- reserved test performance
+- runtime correctness
+- production readiness
+
+These are not interchangeable.
+
+A high AUC will not be used to hide instability, leakage risk, poor unseen-customer evidence, or runtime weaknesses.
+
+===== PYTHON COMPILE =====
+compile: PASSED
+
+===== FULL BACKEND SUITE =====
+........................................................................ [ 48%]
+........................................................................ [ 97%]
+....                                                                     [100%]
+=============================== warnings summary ===============================
+tests/test_llm_client.py::test_google_key_uses_gemini_default_model
+  /Users/riya/Desktop/Recoveriq/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:42: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+148 passed, 1 warning in 12.16s
+
+===== GIT STATUS =====
+ M ../.github/workflows/ci.yml
+ M alembic/versions/d43c032f30e9_initial_schema.py
+ M app/agents/graph.py
+ M app/agents/state.py
+ M app/api/invoices.py
+ M app/api/recovery_cases.py
+ M app/api/voice.py
+ M app/core/config.py
+ M app/core/locks.py
+ M app/events/topics.py
+ M app/ml/artifacts/metrics.json
+ M app/ml/artifacts/recovery_risk_model.json
+ M app/ml/datasets/build_primary_features.py
+ M app/ml/datasets/create_primary_splits.py
+ M app/ml/synthetic_data.py
+ M app/ml/train.py
+ M app/models/company.py
+ M app/models/enums.py
+ M app/models/invoice.py
+ M app/models/recovery.py
+ M app/schemas/company.py
+ M app/schemas/invoice.py
+ M app/schemas/voice.py
+ M app/seed/run.py
+ M app/services/action_policy.py
+ M app/services/policy_engine.py
+ M app/services/promise_tracking.py
+ M app/services/risk_context.py
+ M app/tools/email_provider.py
+ M app/tools/mock_tools.py
+ M pyproject.toml
+ M tests/test_mock_tools.py
+ M tests/test_policy_engine.py
+ M tests/test_recovery_workflow.py
+ M tests/test_risk_context.py
+ M tests/test_risk_engine.py
+ M tests/test_scheduler.py
+ M tests/test_send_reminder_email_api.py
+ M tests/test_simulate_payment_api.py
+ M tests/test_voice_flow.py
+?? EVALUATION_PROTOCOL.md
+?? alembic/versions/2de3952113e0_add_invoice_payment_term.py
+?? alembic/versions/5775ef69e805_connect_payment_risk_runtime.py
+?? alembic/versions/9773b520c91c_add_payment_risk_inference_fields.py
+?? alembic/versions/e1a7c3b94d20_pending_approval_status.py
+?? app/ml/artifact_contract.py
+?? app/ml/artifacts/models/
+?? app/ml/common.py
+?? app/ml/compare_models.py
+?? app/ml/package_payment_risk_artifacts.py
+?? app/ml/payment_features.py
+?? app/ml/payment_risk_model.py
+?? app/ml/rolling_backtest.py
+?? app/ml/train_gradient_boosting.py
+?? app/ml/train_random_forest.py
+?? app/ml/train_xgboost.py
+?? app/services/payment_risk_context.py
+?? app/services/payment_risk_scoring.py
+?? app/services/review_gate.py
+?? gate_patch.py
+?? recoveriq_claude_terminal_check.txt
+?? recoveriq_claude_verification_report.txt
+?? recoveriq_final18_pretrain_audit.txt
+?? recoveriq_payment_risk_audit_bundle.txt
+?? recoveriq_pretraining_for_claude.txt
+?? tests/test_payment_risk_context.py
+?? tests/test_payment_risk_parity.py
+?? tests/test_payment_risk_randomized_parity.py
+?? tests/test_payment_risk_runtime_artifacts.py
+?? tests/test_review_gate.py
+?? ../frontend/public/
+
+======================================================================
+CLAUDE: VERIFY THESE CLAIMS
+======================================================================
+1. Randomized parity genuinely compares all 18 offline vs online features.
+2. Randomized histories cover cold-start, open invoices, >10 outcomes,
+   same-day posting, same-day clearing ties and random ordering.
+3. Toy tests use temporary artifacts and exercise the real RecoverIQ
+   training contract, packager, runtime loader and prediction path.
+4. XGBoost and Gradient Boosting SHAP additivity is checked in log-odds.
+5. Random Forest SHAP additivity is checked in probability space.
+6. SHAP explainers are cached.
+7. Runtime independently checks model SHA-256.
+8. RF/GB runtime independently checks median-file SHA-256.
+9. Deliberately modified artifacts are rejected.
+10. Runtime contract is 18 numeric / 0 categorical / numeric_only_v1.
+11. Evaluation protocol freezes the remaining comparison and test process.
+12. Identify any real correctness blocker, not optional enhancements.
+
+End with exactly one:
+PRE-TRAINING ENGINEERING CHECKPOINT PASSED
+PRE-TRAINING ENGINEERING CHECKPOINT FAILED

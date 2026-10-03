@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: recovery_user
+          POSTGRES_PASSWORD: recovery_pass
+          POSTGRES_DB: recovery_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U recovery_user -d recovery_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Kafka/Redis/OpenAI are intentionally left unconfigured — that's the
+      # path the test suite actually exercises (see the auto-fallback
+      # pattern in app/agents/llm_client.py, app/events/, app/core/locks.py).
+      DATABASE_URL: postgresql+asyncpg://recovery_user:recovery_pass@localhost:5432/recovery_db
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: backend/requirements-dev.txt
+
+      - run: pip install -r requirements-dev.txt
+
+      # ruff is in requirements-dev.txt but was never invoked, so backend
+      # lint was unenforced while the frontend job gated properly.
+      - run: ruff check .
+      # `ruff format --check` is deliberately NOT gated: the codebase was
+      # not written with ruff format, and 37 of 90 files would be rewritten
+      # by it. That is a formatting decision to make on purpose in its own
+      # commit, not something to smuggle in behind a bug-fix branch.
+
+      # Migrations have to be round-trippable, not just forward-applicable.
+      # downgrade base then upgrade head catches a downgrade that drops
+      # tables without dropping the enum types they created, which fails
+      # the second upgrade with 'type already exists'.
+      - run: alembic upgrade head
+      - run: alembic downgrade base
+      - run: alembic upgrade head
+
+      # --cov-fail-under turns coverage from a number nobody reads into a
+      # gate. Set at the current level rather than an aspirational one, so
+      # it fails on regression instead of being permanently red.
+      - run: pytest --cov --cov-report=term-missing --cov-fail-under=80
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+      - run: npx next typegen
+      - run: npx tsc --noEmit
+      - run: npm run lint
+      - run: npm run build
+
+  # Neither image was ever built in CI, so a Dockerfile that no longer
+  # builds would have shipped undetected -- and the Dockerfiles are the
+  # deploy path (infra/docker-compose.yml, and Render's docker runtime for
+  # the backend). Build only; nothing is pushed.
+  images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build backend image
+        run: docker build -f backend/Dockerfile backend
+
+      - name: Build frontend image
+        run: docker build -f frontend/Dockerfile frontend

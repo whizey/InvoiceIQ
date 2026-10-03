@@ -1,0 +1,334 @@
+{
+  "model": "random_forest",
+  "library": "scikit-learn==1.9.0",
+  "target": "late_payment_weekend_adjusted",
+  "test_used": false,
+  "selection_metric": "within_period_auc on validation",
+  "selected_configuration": {
+    "n_estimators": 600,
+    "max_depth": 12,
+    "min_samples_leaf": 40,
+    "max_features": 0.5,
+    "random_state": 42,
+    "n_jobs": -1
+  },
+  "features": {
+    "order": [
+      "amount",
+      "payment_term",
+      "prior_resolved_invoice_count",
+      "prior_open_invoice_count",
+      "open_invoice_ratio",
+      "has_resolved_history",
+      "historical_late_rate",
+      "historical_avg_days_late",
+      "historical_avg_invoice_amount",
+      "amount_vs_historical_avg_ratio",
+      "customer_tenure_days",
+      "days_since_previous_invoice",
+      "recent_5_late_rate",
+      "recent_5_avg_days_late",
+      "recent_late_streak",
+      "recent_on_time_streak",
+      "recent_5_late_rate_delta",
+      "recent_5_avg_days_late_delta"
+    ],
+    "numeric": [
+      "amount",
+      "payment_term",
+      "prior_resolved_invoice_count",
+      "prior_open_invoice_count",
+      "open_invoice_ratio",
+      "has_resolved_history",
+      "historical_late_rate",
+      "historical_avg_days_late",
+      "historical_avg_invoice_amount",
+      "amount_vs_historical_avg_ratio",
+      "customer_tenure_days",
+      "days_since_previous_invoice",
+      "recent_5_late_rate",
+      "recent_5_avg_days_late",
+      "recent_late_streak",
+      "recent_on_time_streak",
+      "recent_5_late_rate_delta",
+      "recent_5_avg_days_late_delta"
+    ],
+    "categorical": []
+  },
+  "preprocessing": {
+    "categorical_handling": "none (0 categorical features)",
+    "nan_handling": "median-imputed from train",
+    "median_values_file": "median_impute_values.json",
+    "note": "Final contract is 18 numeric features and 0 categorical features; no categorical encoding is performed. Missing values use training-split medians."
+  },
+  "candidates": [
+    {
+      "n_estimators": "600",
+      "max_depth": "10",
+      "min_samples_leaf": "40",
+      "max_features": "0.5",
+      "within_period_auc": 0.8507,
+      "pooled_roc_auc": 0.8312,
+      "log_loss": 0.5205
+    },
+    {
+      "n_estimators": "600",
+      "max_depth": "12",
+      "min_samples_leaf": "40",
+      "max_features": "0.5",
+      "within_period_auc": 0.8527,
+      "pooled_roc_auc": 0.8306,
+      "log_loss": 0.5213
+    },
+    {
+      "n_estimators": "600",
+      "max_depth": "16",
+      "min_samples_leaf": "20",
+      "max_features": "0.5",
+      "within_period_auc": 0.846,
+      "pooled_roc_auc": 0.8253,
+      "log_loss": 0.5321
+    },
+    {
+      "n_estimators": "900",
+      "max_depth": "12",
+      "min_samples_leaf": "20",
+      "max_features": "sqrt",
+      "within_period_auc": 0.8523,
+      "pooled_roc_auc": 0.8305,
+      "log_loss": 0.5476
+    },
+    {
+      "n_estimators": "900",
+      "max_depth": "None",
+      "min_samples_leaf": "60",
+      "max_features": "0.5",
+      "within_period_auc": 0.8495,
+      "pooled_roc_auc": 0.8299,
+      "log_loss": 0.5196
+    }
+  ],
+  "train": {
+    "within_period_auc": 0.9922,
+    "pooled_roc_auc": 0.9975,
+    "pooled_pr_auc": 0.9952,
+    "log_loss": 0.0901,
+    "brier": 0.0224,
+    "accuracy": 0.9799,
+    "precision": 0.9652,
+    "recall": 0.974,
+    "f1": 0.9696,
+    "per_month": {
+      "2014-10": {
+        "rows": 80,
+        "late_rate": 0.975,
+        "auc": 0.2628
+      },
+      "2014-11": {
+        "rows": 85,
+        "late_rate": 0.5412,
+        "auc": 0.823
+      },
+      "2014-12": {
+        "rows": 114,
+        "late_rate": 0.3509,
+        "auc": 0.8534
+      },
+      "2015-01": {
+        "rows": 412,
+        "late_rate": 0.216,
+        "auc": 0.9885
+      },
+      "2015-02": {
+        "rows": 1114,
+        "late_rate": 0.1535,
+        "auc": 0.9288
+      },
+      "2015-03": {
+        "rows": 3815,
+        "late_rate": 0.174,
+        "auc": 0.9957
+      },
+      "2015-04": {
+        "rows": 3242,
+        "late_rate": 0.2199,
+        "auc": 0.999
+      },
+      "2015-05": {
+        "rows": 3649,
+        "late_rate": 0.3305,
+        "auc": 0.9989
+      },
+      "2015-06": {
+        "rows": 3439,
+        "late_rate": 0.845,
+        "auc": 0.9989
+      },
+      "2015-07": {
+        "rows": 3762,
+        "late_rate": 0.1483,
+        "auc": 0.9985
+      },
+      "2015-08": {
+        "rows": 3419,
+        "late_rate": 0.1556,
+        "auc": 0.9999
+      },
+      "2015-09": {
+        "rows": 3342,
+        "late_rate": 0.3582,
+        "auc": 0.9973
+      },
+      "2015-10": {
+        "rows": 2716,
+        "late_rate": 0.507,
+        "auc": 0.9966
+      }
+    }
+  },
+  "validation": {
+    "within_period_auc": 0.8527,
+    "pooled_roc_auc": 0.8306,
+    "pooled_pr_auc": 0.7829,
+    "log_loss": 0.5213,
+    "brier": 0.1696,
+    "accuracy": 0.7739,
+    "precision": 0.6755,
+    "recall": 0.8826,
+    "f1": 0.7653,
+    "per_month": {
+      "2015-10": {
+        "rows": 1109,
+        "late_rate": 0.6321,
+        "auc": 0.8308
+      },
+      "2015-11": {
+        "rows": 4303,
+        "late_rate": 0.3902,
+        "auc": 0.831
+      },
+      "2015-12": {
+        "rows": 992,
+        "late_rate": 0.2974,
+        "auc": 0.9715
+      }
+    }
+  },
+  "train_validation_within_period_gap": 0.1395,
+  "temporal_folds": {
+    "min_history_for_scoring": 3,
+    "fold_aucs": [
+      0.3114,
+      0.4408,
+      0.9161,
+      0.5613
+    ],
+    "mean": 0.5574,
+    "min": 0.3114,
+    "max": 0.9161,
+    "std": 0.2252,
+    "inverted_folds": [
+      0.3114,
+      0.4408
+    ],
+    "fold_base_rates": [
+      {
+        "train_late_rate": 0.2001,
+        "test_late_rate": 0.8253
+      },
+      {
+        "train_late_rate": 0.3708,
+        "test_late_rate": 0.1476
+      },
+      {
+        "train_late_rate": 0.3233,
+        "test_late_rate": 0.1863
+      },
+      {
+        "train_late_rate": 0.2985,
+        "test_late_rate": 0.5036
+      }
+    ],
+    "stable": false
+  },
+  "baselines": {
+    "constant_base_rate": {
+      "within_period_auc": 0.5,
+      "pooled_roc_auc": 0.5,
+      "pooled_pr_auc": 0.4177,
+      "log_loss": 0.6968,
+      "brier": 0.2511,
+      "accuracy": 0.5823,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "per_month": {
+        "2015-10": {
+          "rows": 1109,
+          "late_rate": 0.6321,
+          "auc": 0.5
+        },
+        "2015-11": {
+          "rows": 4303,
+          "late_rate": 0.3902,
+          "auc": 0.5
+        },
+        "2015-12": {
+          "rows": 992,
+          "late_rate": 0.2974,
+          "auc": 0.5
+        }
+      }
+    },
+    "customer_history": {
+      "within_period_auc": 0.5896,
+      "pooled_roc_auc": 0.581,
+      "pooled_pr_auc": 0.5183,
+      "log_loss": 0.7003,
+      "brier": 0.2466,
+      "accuracy": 0.6408,
+      "precision": 0.7203,
+      "recall": 0.2292,
+      "f1": 0.3477,
+      "per_month": {
+        "2015-10": {
+          "rows": 1109,
+          "late_rate": 0.6321,
+          "auc": 0.6226
+        },
+        "2015-11": {
+          "rows": 4303,
+          "late_rate": 0.3902,
+          "auc": 0.5795
+        },
+        "2015-12": {
+          "rows": 992,
+          "late_rate": 0.2974,
+          "auc": 0.5962
+        }
+      }
+    }
+  },
+  "feature_importance_impurity": {
+    "customer_tenure_days": 0.3129,
+    "recent_5_avg_days_late": 0.1159,
+    "recent_5_avg_days_late_delta": 0.1033,
+    "historical_avg_days_late": 0.078,
+    "historical_avg_invoice_amount": 0.0709,
+    "recent_5_late_rate_delta": 0.0657,
+    "prior_open_invoice_count": 0.0644,
+    "open_invoice_ratio": 0.053,
+    "historical_late_rate": 0.0448,
+    "payment_term": 0.0366,
+    "days_since_previous_invoice": 0.0274,
+    "prior_resolved_invoice_count": 0.012,
+    "recent_on_time_streak": 0.0075,
+    "recent_late_streak": 0.0023,
+    "amount_vs_historical_avg_ratio": 0.0017,
+    "amount": 0.0016,
+    "recent_5_late_rate": 0.0016,
+    "has_resolved_history": 0.0002
+  },
+  "feature_importance_caveat": "Impurity-based importance is biased toward high-cardinality features, so city and zipcode are overstated here. Not comparable with the XGBoost report's gain values.",
+  "headline_caveat": "Validation within-period AUC is NOT this model's expected performance. Temporal folds span 0.3114-0.9161 and 2 invert below 0.50."
+}

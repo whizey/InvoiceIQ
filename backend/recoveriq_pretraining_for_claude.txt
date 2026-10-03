@@ -1,0 +1,1957 @@
+======================================================================
+RECOVERIQ — PRE-TRAINING ENGINEERING / ML SYSTEM REPORT
+======================================================================
+
+IMPORTANT:
+Judge the project BEFORE considering final model-training results.
+Do not evaluate XGBoost/RF/GB scores.
+
+PROJECT:
+B2B late-payment prediction + agentic collections system
+
+FINAL LATE-PAYMENT CONTRACT:
+target: late_payment_weekend_adjusted
+numeric features: 18
+categorical features: 0
+total features: 18
+COUNT_CAP: 500
+RATIO_CLIP: 20.0
+
+FEATURE ORDER
+01. amount
+02. payment_term
+03. prior_resolved_invoice_count
+04. prior_open_invoice_count
+05. open_invoice_ratio
+06. has_resolved_history
+07. historical_late_rate
+08. historical_avg_days_late
+09. historical_avg_invoice_amount
+10. amount_vs_historical_avg_ratio
+11. customer_tenure_days
+12. days_since_previous_invoice
+13. recent_5_late_rate
+14. recent_5_avg_days_late
+15. recent_late_streak
+16. recent_on_time_streak
+17. recent_5_late_rate_delta
+18. recent_5_avg_days_late_delta
+
+======================================================================
+GIT STATE
+======================================================================
+connect-real-ml-runtime
+ M ../.github/workflows/ci.yml
+ M alembic/versions/d43c032f30e9_initial_schema.py
+ M app/agents/graph.py
+ M app/agents/state.py
+ M app/api/invoices.py
+ M app/api/recovery_cases.py
+ M app/api/voice.py
+ M app/core/config.py
+ M app/core/locks.py
+ M app/events/topics.py
+ M app/ml/artifacts/metrics.json
+ M app/ml/artifacts/recovery_risk_model.json
+ M app/ml/datasets/build_primary_features.py
+ M app/ml/datasets/create_primary_splits.py
+ M app/ml/synthetic_data.py
+ M app/ml/train.py
+ M app/models/company.py
+ M app/models/enums.py
+ M app/models/invoice.py
+ M app/models/recovery.py
+ M app/schemas/company.py
+ M app/schemas/invoice.py
+ M app/schemas/voice.py
+ M app/seed/run.py
+ M app/services/action_policy.py
+ M app/services/policy_engine.py
+ M app/services/promise_tracking.py
+ M app/services/risk_context.py
+ M app/tools/email_provider.py
+ M app/tools/mock_tools.py
+ M pyproject.toml
+ M tests/test_mock_tools.py
+ M tests/test_policy_engine.py
+ M tests/test_recovery_workflow.py
+ M tests/test_risk_context.py
+ M tests/test_risk_engine.py
+ M tests/test_scheduler.py
+ M tests/test_send_reminder_email_api.py
+ M tests/test_simulate_payment_api.py
+ M tests/test_voice_flow.py
+?? alembic/versions/2de3952113e0_add_invoice_payment_term.py
+?? alembic/versions/5775ef69e805_connect_payment_risk_runtime.py
+?? alembic/versions/9773b520c91c_add_payment_risk_inference_fields.py
+?? alembic/versions/e1a7c3b94d20_pending_approval_status.py
+?? app/ml/artifact_contract.py
+?? app/ml/artifacts/models/
+?? app/ml/common.py
+?? app/ml/compare_models.py
+?? app/ml/package_payment_risk_artifacts.py
+?? app/ml/payment_features.py
+?? app/ml/payment_risk_model.py
+?? app/ml/rolling_backtest.py
+?? app/ml/train_gradient_boosting.py
+?? app/ml/train_random_forest.py
+?? app/ml/train_xgboost.py
+?? app/services/payment_risk_context.py
+?? app/services/payment_risk_scoring.py
+?? app/services/review_gate.py
+?? gate_patch.py
+?? recoveriq_claude_verification_report.txt
+?? recoveriq_final18_pretrain_audit.txt
+?? recoveriq_payment_risk_audit_bundle.txt
+?? recoveriq_pretraining_for_claude.txt
+?? tests/test_payment_risk_context.py
+?? tests/test_payment_risk_parity.py
+?? tests/test_review_gate.py
+?? ../frontend/public/
+
+======================================================================
+DATABASE MIGRATIONS
+======================================================================
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+5775ef69e805 (head)
+5775ef69e805 (head)
+
+======================================================================
+FEATURE BUILD / SPLIT MANIFESTS
+======================================================================
+{
+  "version": 3,
+  "source": "b2b_invoice_payment_45839.csv",
+  "observation_horizon": {
+    "horizon_days": 45,
+    "data_cutoff": "2016-03-17",
+    "latest_retained_due_date": "2016-02-01",
+    "rows_before": 45839,
+    "rows_after": 41804,
+    "rows_dropped": 4035,
+    "retained_fraction": 0.912,
+    "observed_late_rate_before": 0.5301,
+    "observed_late_rate_after": 0.5432
+  },
+  "rows": 41804,
+  "customers": 69,
+  "documents": 41804,
+  "target": {
+    "name": "late_payment_weekend_adjusted",
+    "definition": "1 when clearing_date is after the weekend-adjusted due date; Saturday/Sunday due dates are rolled forward to Monday. Holiday adjustment is not applied.",
+    "counts": {
+      "0": 26678,
+      "1": 15126
+    },
+    "positive_rate": 0.3618314036934265,
+    "strict_positive_rate": 0.5431776863458042,
+    "labels_changed_from_strict": 7581
+  },
+  "numeric_features": [
+    "amount",
+    "payment_term",
+    "prior_resolved_invoice_count",
+    "prior_open_invoice_count",
+    "open_invoice_ratio",
+    "has_resolved_history",
+    "historical_late_rate",
+    "historical_avg_days_late",
+    "historical_avg_invoice_amount",
+    "amount_vs_historical_avg_ratio",
+    "customer_tenure_days",
+    "days_since_previous_invoice",
+    "recent_5_late_rate",
+    "recent_5_avg_days_late",
+    "recent_late_streak",
+    "recent_on_time_streak",
+    "recent_5_late_rate_delta",
+    "recent_5_avg_days_late_delta"
+  ],
+  "categorical_features": [],
+  "excluded_calendar_shortcuts": [
+    "posting_weekday",
+    "due_weekday",
+    "posting_month",
+    "posting_quarter"
+  ],
+  "notes": [
+    "V3: an observation horizon of 45 days is applied before splitting. The raw extract only holds invoices that had cleared by its last clearing date, so the slowest payers were missing, and increasingly so the later an invoice was posted -- the old test partition could not contain an invoice taking longer than 22 days to clear. Rows are now kept only when net_due_date + horizon <= data cutoff.",
+    "V3: posting_month and posting_quarter removed for the same reason V2 removed the weekday fields -- they encode absolute position in time and do not extrapolate past the training window.",
+    "Current-invoice weekday fields are excluded after temporal ablation showed strong calendar dependence.",
+    "Historical payment outcomes are used only after their clearing date is strictly earlier than the current invoice posting date.",
+    "Recent 3/5/10 features use resolved invoice outcomes only.",
+    "Weekend adjustment does not claim to represent public holidays."
+  ]
+}
+{
+  "version": 2,
+  "strategy": "chronological whole-posting-date 70/15/15",
+  "fractions": {
+    "train": 0.7,
+    "validation": 0.15,
+    "test": 0.15
+  },
+  "train_cutoff": "2015-10-22",
+  "validation_cutoff": "2015-12-07",
+  "targets": {
+    "calendar": {
+      "column": "late_payment_strict",
+      "definition": "1 when clearing_date > raw net_due_date"
+    },
+    "weekend_adjusted": {
+      "column": "late_payment_weekend_adjusted",
+      "definition": "1 when clearing_date > weekend-adjusted due date; Saturday/Sunday due dates roll forward to Monday"
+    }
+  },
+  "train": {
+    "rows": 29219,
+    "customers": 68,
+    "documents": 29219,
+    "posting_date_min": "2011-11-23",
+    "posting_date_max": "2015-10-22",
+    "calendar_target": {
+      "negative_count": 12251,
+      "positive_count": 16968,
+      "positive_rate": 0.580718025942024
+    },
+    "weekend_adjusted_target": {
+      "negative_count": 19612,
+      "positive_count": 9607,
+      "positive_rate": 0.32879290872377565
+    }
+  },
+  "validation": {
+    "rows": 6404,
+    "customers": 39,
+    "documents": 6404,
+    "posting_date_min": "2015-10-23",
+    "posting_date_max": "2015-12-07",
+    "calendar_target": {
+      "negative_count": 3593,
+      "positive_count": 2811,
+      "positive_rate": 0.4389444097439101
+    },
+    "weekend_adjusted_target": {
+      "negative_count": 3729,
+      "positive_count": 2675,
+      "positive_rate": 0.41770768269831354
+    }
+  },
+  "test": {
+    "rows": 6181,
+    "customers": 38,
+    "documents": 6181,
+    "posting_date_min": "2015-12-08",
+    "posting_date_max": "2016-01-27",
+    "calendar_target": {
+      "negative_count": 3253,
+      "positive_count": 2928,
+      "positive_rate": 0.4737097557029607
+    },
+    "weekend_adjusted_target": {
+      "negative_count": 3337,
+      "positive_count": 2844,
+      "positive_rate": 0.46011972172787574
+    }
+  },
+  "integrity_checks": {
+    "all_rows_preserved": true,
+    "strict_chronology": true,
+    "no_document_overlap": true,
+    "no_posting_date_overlap": true
+  },
+  "test_reserved": true,
+  "notes": [
+    "Both target definitions use the exact same invoice splits.",
+    "Target definition does not influence split membership.",
+    "The test partition is created but must remain unused during model development and tuning."
+  ]
+}
+
+======================================================================
+CURRENT SPLIT SUMMARY — NO MODEL TRAINING
+======================================================================
+
+TRAIN
+rows: 29219
+dates: 2011-11-23 00:00:00 -> 2015-10-22 00:00:00
+features: 18
+target rate: 0.328793
+
+VALIDATION
+rows: 6404
+dates: 2015-10-23 00:00:00 -> 2015-12-07 00:00:00
+features: 18
+target rate: 0.417708
+
+TEST
+rows: 6181
+dates: 2015-12-08 00:00:00 -> 2016-01-27 00:00:00
+features: 18
+target rate: NOT PRINTED — TEST RESERVED
+
+No test performance evaluated.
+
+======================================================================
+OFFLINE ↔ ONLINE FEATURE PARITY
+======================================================================
+......                                                                   [100%]
+6 passed in 0.29s
+
+======================================================================
+FULL BACKEND TEST SUITE
+======================================================================
+........................................................................ [ 51%]
+...................................................................      [100%]
+=============================== warnings summary ===============================
+tests/test_llm_client.py::test_google_key_uses_gemini_default_model
+  /Users/riya/Desktop/Recoveriq/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:42: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+139 passed, 1 warning in 7.14s
+
+======================================================================
+SHARED FEATURE CONTRACT
+======================================================================
+from __future__ import annotations
+
+from dataclasses import asdict, dataclass
+
+
+TARGET_COLUMN = "late_payment_weekend_adjusted"
+
+COUNT_CAP = 500
+RATIO_CLIP = 20.0
+
+
+NUMERIC_FEATURES = [
+    "amount",
+    "payment_term",
+    "prior_resolved_invoice_count",
+    "prior_open_invoice_count",
+    "open_invoice_ratio",
+    "has_resolved_history",
+    "historical_late_rate",
+    "historical_avg_days_late",
+    "historical_avg_invoice_amount",
+    "amount_vs_historical_avg_ratio",
+    "customer_tenure_days",
+    "days_since_previous_invoice",
+    "recent_5_late_rate",
+    "recent_5_avg_days_late",
+    "recent_late_streak",
+    "recent_on_time_streak",
+    "recent_5_late_rate_delta",
+    "recent_5_avg_days_late_delta",
+]
+
+CATEGORICAL_FEATURES: list[str] = []
+
+FEATURES = NUMERIC_FEATURES + CATEGORICAL_FEATURES
+
+
+@dataclass(slots=True)
+class PaymentRiskFeatures:
+    amount: float
+    payment_term: float
+
+    prior_resolved_invoice_count: float
+    prior_open_invoice_count: float
+    open_invoice_ratio: float
+    has_resolved_history: float
+
+    historical_late_rate: float
+    historical_avg_days_late: float
+
+    historical_avg_invoice_amount: float
+    amount_vs_historical_avg_ratio: float
+
+    customer_tenure_days: float
+    days_since_previous_invoice: float
+
+    recent_5_late_rate: float
+    recent_5_avg_days_late: float
+
+    recent_late_streak: float
+    recent_on_time_streak: float
+
+    recent_5_late_rate_delta: float
+    recent_5_avg_days_late_delta: float
+
+    def to_dict(self) -> dict[str, float]:
+        return asdict(self)
+
+    def to_row(self) -> dict[str, float]:
+        values = self.to_dict()
+        return {
+            feature: values[feature]
+            for feature in FEATURES
+        }
+
+
+assert list(
+    PaymentRiskFeatures.__dataclass_fields__
+) == FEATURES
+
+======================================================================
+ONLINE POSTGRES FEATURE BUILDER
+======================================================================
+from __future__ import annotations
+
+from collections import defaultdict
+from dataclasses import dataclass
+from datetime import date
+from decimal import Decimal
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.ml.payment_features import (
+    COUNT_CAP,
+    RATIO_CLIP,
+    PaymentRiskFeatures,
+)
+from app.models import Invoice, Payment
+from app.models.enums import PaymentStatus
+
+
+
+
+class PaymentRiskInputsUnavailable(ValueError):
+    pass
+
+
+@dataclass(frozen=True, slots=True)
+class PriorInvoiceSnapshot:
+    invoice_number: str
+    amount: float
+    posting_date: date
+    due_date: date
+    clearing_date: date | None
+
+
+def _full_resolution_date(
+    invoice: Invoice,
+    payments: list[Payment],
+) -> date | None:
+    paid = Decimal("0")
+    target = Decimal(invoice.amount_total)
+
+    ordered = sorted(
+        payments,
+        key=lambda p: (
+            p.payment_date,
+            str(getattr(p, "id", "")),
+        ),
+    )
+
+    for payment in ordered:
+        paid += Decimal(payment.amount)
+
+        if paid >= target:
+            return payment.payment_date.date()
+
+    return None
+
+
+def compute_payment_risk_features(
+    *,
+    amount: float,
+    posting_date: date,
+    payment_term: int,
+    history: list[PriorInvoiceSnapshot],
+) -> PaymentRiskFeatures:
+    prior = sorted(
+        [
+            row
+            for row in history
+            if row.posting_date < posting_date
+        ],
+        key=lambda row: (
+            row.posting_date,
+            row.invoice_number,
+        ),
+    )
+
+    prior_invoice_count = len(prior)
+    prior_amount_sum = sum(row.amount for row in prior)
+
+    resolved = [
+        row
+        for row in prior
+        if (
+            row.clearing_date is not None
+            and row.clearing_date < posting_date
+        )
+    ]
+
+    outcomes = sorted(
+        [
+            (
+                row.clearing_date,
+                row.posting_date,
+                row.invoice_number,
+                (row.clearing_date - row.due_date).days,
+            )
+            for row in resolved
+            if row.clearing_date is not None
+        ],
+        key=lambda item: (
+            item[0],
+            item[3],
+        ),
+    )
+
+    resolved_count = len(outcomes)
+    open_invoice_count = (
+        prior_invoice_count - resolved_count
+    )
+
+    days_late_values = [
+        float(item[3])
+        for item in outcomes
+    ]
+
+    late_values = [
+        1 if item[3] > 0 else 0
+        for item in outcomes
+    ]
+
+    late_count = sum(late_values)
+
+    if resolved_count:
+        raw_historical_late_rate = (
+            late_count / resolved_count
+        )
+        historical_avg_days_late = (
+            sum(days_late_values) / resolved_count
+        )
+    else:
+        raw_historical_late_rate = 0.5
+        historical_avg_days_late = 0.0
+
+    if prior_invoice_count:
+        historical_avg_invoice_amount = (
+            prior_amount_sum / prior_invoice_count
+        )
+        open_invoice_ratio = (
+            open_invoice_count / prior_invoice_count
+        )
+    else:
+        historical_avg_invoice_amount = 0.0
+        open_invoice_ratio = 0.0
+
+    if prior:
+        first_posting_date = min(
+            row.posting_date
+            for row in prior
+        )
+        previous_posting_date = max(
+            row.posting_date
+            for row in prior
+        )
+    else:
+        first_posting_date = posting_date
+        previous_posting_date = None
+
+    customer_tenure_days = max(
+        (posting_date - first_posting_date).days,
+        0,
+    )
+
+    if previous_posting_date is None:
+        days_since_previous_invoice = 0
+    else:
+        days_since_previous_invoice = max(
+            (
+                posting_date
+                - previous_posting_date
+            ).days,
+            0,
+        )
+
+    recent_10 = outcomes[-10:]
+    recent_5 = recent_10[-5:]
+
+    if recent_5:
+        raw_recent_5_late_rate = (
+            sum(
+                1 if item[3] > 0 else 0
+                for item in recent_5
+            )
+            / len(recent_5)
+        )
+
+        recent_5_avg_days_late = (
+            sum(
+                float(item[3])
+                for item in recent_5
+            )
+            / len(recent_5)
+        )
+    else:
+        raw_recent_5_late_rate = 0.5
+        recent_5_avg_days_late = 0.0
+
+    recent_late_streak = 0
+    recent_on_time_streak = 0
+
+    if recent_10:
+        last_late = recent_10[-1][3] > 0
+        streak = 0
+
+        for item in reversed(recent_10):
+            is_late = item[3] > 0
+
+            if is_late != last_late:
+                break
+
+            streak += 1
+
+        if last_late:
+            recent_late_streak = streak
+        else:
+            recent_on_time_streak = streak
+
+    recent_5_late_rate_delta = (
+        raw_recent_5_late_rate
+        - raw_historical_late_rate
+    )
+
+    recent_5_avg_days_late_delta = (
+        recent_5_avg_days_late
+        - historical_avg_days_late
+    )
+
+    if historical_avg_invoice_amount > 0:
+        amount_ratio = (
+            amount
+            / historical_avg_invoice_amount
+        )
+    else:
+        amount_ratio = 1.0
+
+    amount_ratio = min(
+        max(float(amount_ratio), 0.0),
+        RATIO_CLIP,
+    )
+
+    has_resolved_history = (
+        1.0 if resolved_count > 0 else 0.0
+    )
+
+    if has_resolved_history:
+        historical_late_rate = float(
+            raw_historical_late_rate
+        )
+        recent_5_late_rate = float(
+            raw_recent_5_late_rate
+        )
+    else:
+        historical_late_rate = float("nan")
+        recent_5_late_rate = float("nan")
+
+    return PaymentRiskFeatures(
+        amount=float(amount),
+        payment_term=float(payment_term),
+
+        prior_resolved_invoice_count=float(
+            min(resolved_count, COUNT_CAP)
+        ),
+        prior_open_invoice_count=float(
+            min(open_invoice_count, COUNT_CAP)
+        ),
+        open_invoice_ratio=float(
+            open_invoice_ratio
+        ),
+        has_resolved_history=has_resolved_history,
+
+        historical_late_rate=historical_late_rate,
+        historical_avg_days_late=float(
+            historical_avg_days_late
+        ),
+
+        historical_avg_invoice_amount=float(
+            historical_avg_invoice_amount
+        ),
+        amount_vs_historical_avg_ratio=float(
+            amount_ratio
+        ),
+
+        customer_tenure_days=float(
+            min(customer_tenure_days, COUNT_CAP)
+        ),
+        days_since_previous_invoice=float(
+            min(
+                days_since_previous_invoice,
+                COUNT_CAP,
+            )
+        ),
+
+        recent_5_late_rate=recent_5_late_rate,
+        recent_5_avg_days_late=float(
+            recent_5_avg_days_late
+        ),
+
+        recent_late_streak=float(
+            recent_late_streak
+        ),
+        recent_on_time_streak=float(
+            recent_on_time_streak
+        ),
+
+        recent_5_late_rate_delta=float(
+            recent_5_late_rate_delta
+        ),
+        recent_5_avg_days_late_delta=float(
+            recent_5_avg_days_late_delta
+        ),
+
+    )
+
+
+async def build_payment_risk_features(
+    session: AsyncSession,
+    invoice: Invoice,
+) -> PaymentRiskFeatures:
+    if invoice.posting_date is None:
+        raise PaymentRiskInputsUnavailable(
+            "invoice.posting_date is required"
+        )
+
+    if invoice.payment_term is None:
+        raise PaymentRiskInputsUnavailable(
+            "invoice.payment_term is required"
+        )
+
+    if invoice.payment_term < 0:
+        raise PaymentRiskInputsUnavailable(
+            "invoice.payment_term cannot be negative"
+        )
+
+    prior_stmt = (
+        select(Invoice)
+        .where(
+            Invoice.company_id
+            == invoice.company_id,
+            Invoice.id != invoice.id,
+            Invoice.posting_date.is_not(None),
+            Invoice.posting_date
+            < invoice.posting_date,
+        )
+        .order_by(
+            Invoice.posting_date,
+            Invoice.invoice_number,
+        )
+    )
+
+    prior_invoices = list(
+        (
+            await session.execute(prior_stmt)
+        )
+        .scalars()
+        .all()
+    )
+
+    payments_by_invoice: dict = defaultdict(list)
+
+    if prior_invoices:
+        ids = [
+            item.id
+            for item in prior_invoices
+        ]
+
+        payment_stmt = (
+            select(Payment)
+            .where(
+                Payment.invoice_id.in_(ids),
+                Payment.status
+                == PaymentStatus.SUCCESS,
+            )
+            .order_by(
+                Payment.payment_date,
+                Payment.id,
+            )
+        )
+
+        successful_payments = list(
+            (
+                await session.execute(
+                    payment_stmt
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        for payment in successful_payments:
+            payments_by_invoice[
+                payment.invoice_id
+            ].append(payment)
+
+    history: list[PriorInvoiceSnapshot] = []
+
+    for prior_invoice in prior_invoices:
+        clearing_date = _full_resolution_date(
+            prior_invoice,
+            payments_by_invoice[
+                prior_invoice.id
+            ],
+        )
+
+        history.append(
+            PriorInvoiceSnapshot(
+                invoice_number=(
+                    prior_invoice.invoice_number
+                ),
+                amount=float(
+                    prior_invoice.amount_total
+                ),
+                posting_date=(
+                    prior_invoice.posting_date
+                ),
+                due_date=prior_invoice.due_date,
+                clearing_date=clearing_date,
+            )
+        )
+
+    return compute_payment_risk_features(
+        amount=float(invoice.amount_total),
+        posting_date=invoice.posting_date,
+        payment_term=invoice.payment_term,
+        history=history,
+    )
+
+======================================================================
+RUNTIME SCORING SERVICE
+======================================================================
+from __future__ import annotations
+
+import logging
+import math
+import os
+from datetime import datetime, timezone
+from decimal import Decimal
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.ml.payment_risk_model import (
+    PaymentRiskArtifactError,
+    predict_payment_risk,
+)
+from app.models import Invoice
+from app.services.payment_risk_context import (
+    PaymentRiskInputsUnavailable,
+    build_payment_risk_features,
+)
+
+
+logger = logging.getLogger(__name__)
+
+
+def _json_value(value):
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            return None
+
+    return value
+
+
+async def ensure_payment_risk_score(
+    session: AsyncSession,
+    invoice: Invoice,
+) -> bool:
+    model_name = (
+        os.getenv(
+            "PAYMENT_RISK_MODEL",
+            "",
+        )
+        .strip()
+        .lower()
+    )
+
+    if not model_name:
+        return False
+
+    if (
+        invoice.late_payment_probability
+        is not None
+        and invoice.payment_risk_model
+        == model_name
+    ):
+        return True
+
+    try:
+        features = (
+            await build_payment_risk_features(
+                session,
+                invoice,
+            )
+        )
+
+        prediction = predict_payment_risk(
+            features,
+            model_name,
+        )
+    except PaymentRiskInputsUnavailable as exc:
+        logger.info(
+            "Payment-risk score unavailable "
+            "for invoice %s: %s",
+            invoice.invoice_number,
+            exc,
+        )
+        return False
+    except PaymentRiskArtifactError as exc:
+        logger.warning(
+            "Payment-risk artifact is not "
+            "runtime-ready: %s",
+            exc,
+        )
+        return False
+
+    invoice.late_payment_probability = (
+        Decimal(
+            f"{prediction.late_payment_probability:.6f}"
+        )
+    )
+
+    invoice.payment_risk_model = (
+        prediction.model_name
+    )
+
+    invoice.payment_risk_scored_at = (
+        datetime.now(timezone.utc)
+    )
+
+    invoice.payment_risk_features = {
+        key: _json_value(value)
+        for key, value
+        in features.to_row().items()
+    }
+
+    invoice.payment_risk_drivers = [
+        {
+            "feature": item.feature,
+            "label": item.label,
+            "value": _json_value(
+                item.value
+            ),
+            "shap_value": (
+                item.shap_value
+            ),
+            "direction": (
+                item.direction
+            ),
+        }
+        for item
+        in prediction.contributions[:5]
+    ]
+
+    await session.flush()
+
+    return True
+
+======================================================================
+MODEL ARTIFACT CONTRACT
+======================================================================
+from __future__ import annotations
+
+import hashlib
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Mapping, Sequence
+
+from app.ml.payment_features import (
+    CATEGORICAL_FEATURES,
+    FEATURES,
+    NUMERIC_FEATURES,
+    TARGET_COLUMN,
+)
+
+
+PREPROCESSING_VERSION = "numeric_only_v1"
+TRAINING_CONTRACT_SCHEMA_VERSION = 1
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+
+    with path.open("rb") as handle:
+        for chunk in iter(
+            lambda: handle.read(1024 * 1024),
+            b"",
+        ):
+            digest.update(chunk)
+
+    return digest.hexdigest()
+
+
+def save_training_contract(
+    *,
+    model_name: str,
+    directory: Path,
+    model_path: Path,
+    train_split_path: Path,
+    category_levels: Mapping[
+        str,
+        Sequence[str],
+    ],
+    median_path: Path | None = None,
+) -> Path:
+    if not model_path.exists():
+        raise FileNotFoundError(model_path)
+
+    if not train_split_path.exists():
+        raise FileNotFoundError(
+            train_split_path
+        )
+
+    normalized_levels = {
+        column: [
+            str(value)
+            for value in category_levels[column]
+        ]
+        for column in CATEGORICAL_FEATURES
+    }
+
+    model_sha256 = sha256_file(model_path)
+
+    artifact = {
+        "model_file": model_path.name,
+        "model_sha256": model_sha256,
+    }
+
+    if median_path is not None:
+        if not median_path.exists():
+            raise FileNotFoundError(
+                median_path
+            )
+
+        artifact["median_file"] = (
+            median_path.name
+        )
+        artifact["median_sha256"] = (
+            sha256_file(median_path)
+        )
+
+    contract = {
+        "schema_version": (
+            TRAINING_CONTRACT_SCHEMA_VERSION
+        ),
+        "model": model_name,
+        "model_version": (
+            f"{model_name}:"
+            f"{model_sha256[:12]}"
+        ),
+        "target": TARGET_COLUMN,
+        "features": FEATURES,
+        "numeric": NUMERIC_FEATURES,
+        "categorical": (
+            CATEGORICAL_FEATURES
+        ),
+        "preprocessing": (
+            PREPROCESSING_VERSION
+        ),
+        "category_levels": (
+            normalized_levels
+        ),
+        "train_split": {
+            "file": train_split_path.name,
+            "sha256": sha256_file(
+                train_split_path
+            ),
+        },
+        "artifact": artifact,
+        "trained_at": (
+            datetime.now(timezone.utc)
+            .isoformat()
+        ),
+    }
+
+    path = (
+        directory
+        / "training_contract.json"
+    )
+
+    path.write_text(
+        json.dumps(
+            contract,
+            indent=2,
+        )
+        + "\n"
+    )
+
+    return path
+
+======================================================================
+RUNTIME MODEL LOADER
+======================================================================
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
+
+import joblib
+import numpy as np
+import pandas as pd
+import xgboost as xgb
+
+from app.ml.payment_features import (
+    CATEGORICAL_FEATURES,
+    FEATURES,
+    NUMERIC_FEATURES,
+    TARGET_COLUMN,
+    PaymentRiskFeatures,
+)
+
+
+ARTIFACT_ROOT = (
+    Path(__file__).parent
+    / "artifacts"
+    / "models"
+)
+
+SUPPORTED_MODELS = {
+    "xgboost",
+    "random_forest",
+    "gradient_boosting",
+}
+
+PREPROCESSING_VERSION = "numeric_only_v1"
+
+
+class PaymentRiskArtifactError(RuntimeError):
+    pass
+
+
+@dataclass(slots=True)
+class PaymentRiskContribution:
+    feature: str
+    label: str
+    value: float | str | None
+    shap_value: float
+    direction: str
+
+
+@dataclass(slots=True)
+class PaymentRiskPrediction:
+    late_payment_probability: float
+    model_name: str
+    contributions: list[
+        PaymentRiskContribution
+    ]
+
+
+def _label(name: str) -> str:
+    return name.replace("_", " ").title()
+
+
+@lru_cache(maxsize=3)
+def _load_contract(
+    model_name: str,
+) -> dict:
+    if model_name not in SUPPORTED_MODELS:
+        raise PaymentRiskArtifactError(
+            f"Unsupported model: {model_name}"
+        )
+
+    path = (
+        ARTIFACT_ROOT
+        / model_name
+        / "runtime_contract.json"
+    )
+
+    if not path.exists():
+        raise PaymentRiskArtifactError(
+            f"{model_name} is not runtime-ready. "
+            "Retrain it, then package the "
+            "runtime contract."
+        )
+
+    contract = json.loads(
+        path.read_text()
+    )
+
+    if contract.get("target") != TARGET_COLUMN:
+        raise PaymentRiskArtifactError(
+            "Artifact target does not match "
+            "the current target."
+        )
+
+    if contract.get("features") != FEATURES:
+        raise PaymentRiskArtifactError(
+            "Artifact feature order does not "
+            "match the current 22-feature "
+            "contract."
+        )
+
+    if (
+        contract.get("numeric")
+        != NUMERIC_FEATURES
+    ):
+        raise PaymentRiskArtifactError(
+            "Numeric feature contract mismatch."
+        )
+
+    if (
+        contract.get("categorical")
+        != CATEGORICAL_FEATURES
+    ):
+        raise PaymentRiskArtifactError(
+            "Categorical feature contract mismatch."
+        )
+
+    if (
+        contract.get("preprocessing")
+        != PREPROCESSING_VERSION
+    ):
+        raise PaymentRiskArtifactError(
+            "Preprocessing version mismatch."
+        )
+
+    levels = contract.get(
+        "category_levels",
+        {},
+    )
+
+    for column in CATEGORICAL_FEATURES:
+        if column not in levels:
+            raise PaymentRiskArtifactError(
+                f"Missing category levels for "
+                f"{column}."
+            )
+
+    return contract
+
+
+@lru_cache(maxsize=3)
+def _load_model(model_name: str):
+    directory = (
+        ARTIFACT_ROOT / model_name
+    )
+
+    if model_name == "xgboost":
+        path = directory / "model.json"
+
+        if not path.exists():
+            raise PaymentRiskArtifactError(
+                f"Missing {path}"
+            )
+
+        model = xgb.XGBClassifier()
+        model.load_model(str(path))
+        return model
+
+    path = directory / "model.joblib"
+
+    if not path.exists():
+        raise PaymentRiskArtifactError(
+            f"Missing {path}"
+        )
+
+    return joblib.load(path)
+
+
+def _prepare_frames(
+    model_name: str,
+    features: PaymentRiskFeatures,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    contract = _load_contract(model_name)
+
+    raw = pd.DataFrame(
+        [features.to_row()],
+        columns=FEATURES,
+    )
+
+    prepared = raw.copy()
+
+    levels = contract[
+        "category_levels"
+    ]
+
+    for column in CATEGORICAL_FEATURES:
+        prepared[column] = pd.Categorical(
+            prepared[column].astype("string"),
+            categories=levels[column],
+        )
+
+    if model_name == "xgboost":
+        return raw, prepared
+
+    for column in CATEGORICAL_FEATURES:
+        prepared[column] = (
+            prepared[column]
+            .cat.codes
+            .astype(float)
+        )
+
+    median_path = (
+        ARTIFACT_ROOT
+        / model_name
+        / "median_impute_values.json"
+    )
+
+    if not median_path.exists():
+        raise PaymentRiskArtifactError(
+            f"Missing {median_path}"
+        )
+
+    medians = json.loads(
+        median_path.read_text()
+    )
+
+    for column in NUMERIC_FEATURES:
+        prepared[column] = pd.to_numeric(
+            prepared[column],
+            errors="coerce",
+        )
+
+        if column not in medians:
+            raise PaymentRiskArtifactError(
+                f"Missing training median for "
+                f"{column}."
+            )
+
+        prepared[column] = (
+            prepared[column]
+            .fillna(float(medians[column]))
+        )
+
+    return raw, prepared
+
+
+def _positive_class_shap(
+    model,
+    frame: pd.DataFrame,
+) -> np.ndarray:
+    import shap
+
+    explainer = shap.TreeExplainer(model)
+    values = explainer.shap_values(frame)
+
+    if isinstance(values, list):
+        selected = (
+            values[1]
+            if len(values) > 1
+            else values[0]
+        )
+        return np.asarray(selected)[0]
+
+    array = np.asarray(values)
+
+    if array.ndim == 1:
+        return array
+
+    if array.ndim == 2:
+        return array[0]
+
+    if array.ndim == 3:
+        if (
+            array.shape[0] == 1
+            and array.shape[2] >= 2
+        ):
+            return array[0, :, 1]
+
+        if (
+            array.shape[0] >= 2
+            and array.shape[1] == 1
+        ):
+            return array[1, 0, :]
+
+    raise PaymentRiskArtifactError(
+        "Unsupported SHAP output shape: "
+        f"{array.shape}"
+    )
+
+
+def predict_payment_risk(
+    features: PaymentRiskFeatures,
+    model_name: str,
+) -> PaymentRiskPrediction:
+    model_name = model_name.strip().lower()
+
+    raw, prepared = _prepare_frames(
+        model_name,
+        features,
+    )
+
+    model = _load_model(model_name)
+
+    probability = float(
+        model.predict_proba(prepared)[0][1]
+    )
+
+    if model_name == "xgboost":
+        matrix = xgb.DMatrix(
+            prepared,
+            enable_categorical=True,
+        )
+
+        shap_values = (
+            model
+            .get_booster()
+            .predict(
+                matrix,
+                pred_contribs=True,
+            )[0][:-1]
+        )
+    else:
+        shap_values = _positive_class_shap(
+            model,
+            prepared,
+        )
+
+    contributions = []
+
+    for feature_name, shap_value in zip(
+        FEATURES,
+        shap_values,
+        strict=True,
+    ):
+        raw_value = raw.iloc[0][
+            feature_name
+        ]
+
+        if pd.isna(raw_value):
+            value = None
+        elif feature_name in CATEGORICAL_FEATURES:
+            value = str(raw_value)
+        else:
+            value = float(raw_value)
+
+        shap_float = float(shap_value)
+
+        if shap_float > 0:
+            direction = (
+                "increases_late_payment_probability"
+            )
+        elif shap_float < 0:
+            direction = (
+                "decreases_late_payment_probability"
+            )
+        else:
+            direction = "neutral"
+
+        contributions.append(
+            PaymentRiskContribution(
+                feature=feature_name,
+                label=_label(feature_name),
+                value=value,
+                shap_value=round(
+                    shap_float,
+                    6,
+                ),
+                direction=direction,
+            )
+        )
+
+    contributions.sort(
+        key=lambda item: abs(
+            item.shap_value
+        ),
+        reverse=True,
+    )
+
+    return PaymentRiskPrediction(
+        late_payment_probability=round(
+            probability,
+            6,
+        ),
+        model_name=model_name,
+        contributions=contributions,
+    )
+
+======================================================================
+INVOICE API INTEGRATION
+======================================================================
+from datetime import datetime, timezone
+from decimal import Decimal
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.core.db import get_db
+from app.events import get_publisher
+from app.events import topics
+from app.models import Company, Invoice, Payment, PaymentEvent
+from app.models.enums import InvoiceStatus, PaymentEventType, PaymentMethod, PaymentStatus
+from app.schemas.invoice import InvoiceCreate, InvoiceOut, SimulatePaymentIn
+from app.services.payment_risk_scoring import ensure_payment_risk_score
+
+router = APIRouter(prefix="/invoices", tags=["invoices"])
+
+
+@router.post("", response_model=InvoiceOut, status_code=201)
+async def create_invoice(
+    payload: InvoiceCreate,
+    db: AsyncSession = Depends(get_db),
+) -> Invoice:
+    company = await db.get(
+        Company,
+        payload.company_id,
+    )
+
+    if company is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Company not found",
+        )
+
+    duplicate = (
+        await db.execute(
+            select(Invoice.id).where(
+                Invoice.invoice_number
+                == payload.invoice_number
+            )
+        )
+    ).scalar_one_or_none()
+
+    if duplicate is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="Invoice number already exists",
+        )
+
+    if payload.due_date < payload.posting_date:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "due_date cannot be before "
+                "posting_date"
+            ),
+        )
+
+    invoice = Invoice(
+        company_id=payload.company_id,
+        invoice_number=payload.invoice_number,
+        amount_total=payload.amount_total,
+        amount_paid=Decimal("0.00"),
+        currency=payload.currency,
+        issue_date=payload.issue_date,
+        posting_date=payload.posting_date,
+        due_date=payload.due_date,
+        payment_term=payload.payment_term,
+        payment_method_description=(
+            payload.payment_method_description
+        ),
+        status=InvoiceStatus.SENT,
+    )
+
+    db.add(invoice)
+    await db.flush()
+
+    await ensure_payment_risk_score(
+        db,
+        invoice,
+    )
+
+    await db.commit()
+
+    stmt = (
+        select(Invoice)
+        .options(
+            selectinload(Invoice.company)
+        )
+        .where(
+            Invoice.id == invoice.id
+        )
+    )
+
+    return (
+        await db.execute(stmt)
+    ).scalar_one()
+
+
+@router.get("", response_model=list[InvoiceOut])
+async def list_invoices(
+    status_filter: InvoiceStatus | None = Query(None, alias="status"),
+    company_id: UUID | None = None,
+    limit: int = Query(50, le=200),
+    offset: int = 0,
+    db: AsyncSession = Depends(get_db),
+) -> list[Invoice]:
+    stmt = select(Invoice).options(selectinload(Invoice.company)).order_by(Invoice.due_date.desc())
+    if status_filter is not None:
+        stmt = stmt.where(Invoice.status == status_filter)
+    if company_id is not None:
+        stmt = stmt.where(Invoice.company_id == company_id)
+    stmt = stmt.limit(limit).offset(offset)
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
+
+
+# Must come before /{invoice_id} — otherwise "overdue" is parsed as a UUID and 422s.
+@router.get("/overdue", response_model=list[InvoiceOut])
+async def list_overdue_invoices(db: AsyncSession = Depends(get_db)) -> list[Invoice]:
+    stmt = (
+        select(Invoice)
+        .options(selectinload(Invoice.company))
+        .where(Invoice.status == InvoiceStatus.OVERDUE)
+        .order_by(Invoice.due_date)
+    )
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
+
+
+@router.get("/{invoice_id}", response_model=InvoiceOut)
+async def get_invoice(invoice_id: UUID, db: AsyncSession = Depends(get_db)) -> Invoice:
+    stmt = select(Invoice).options(selectinload(Invoice.company)).where(Invoice.id == invoice_id)
+    result = await db.execute(stmt)
+    invoice = result.scalar_one_or_none()
+    if invoice is None:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    return invoice
+
+
+@router.post("/{invoice_id}/simulate-payment", response_model=InvoiceOut)
+async def simulate_payment(
+    invoice_id: UUID, payload: SimulatePaymentIn | None = None, db: AsyncSession = Depends(get_db)
+) -> Invoice:
+    """Mock payment simulation — stands in for a real payment gateway webhook.
+
+    Lets the demo close the loop on "customer actually pays": records a
+    Payment, updates the invoice, and lets the next `/recovery-cases/{id}/run`
+    call detect it and close the case.
+    """
+    # SELECT ... FOR UPDATE. Without the row lock this was a lost update:
+    # two concurrent calls on a 100,000 invoice with nothing paid both read
+    # amount_paid=0, both clamp their payment to the full 100,000, both
+    # insert a SUCCESS Payment row, and the second UPDATE overwrites the
+    # first -- leaving amount_paid=100,000 against two payment rows totalling
+    # 200,000, so sum(payments) no longer reconciles with the invoice. Every
+    # other mutating endpoint in the app takes a lock; this one did not.
+    locked = await db.execute(
+        select(Invoice).where(Invoice.id == invoice_id).with_for_update()
+    )
+    invoice = locked.scalar_one_or_none()
+    if invoice is None:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+
+    outstanding: Decimal = invoice.amount_total - invoice.amount_paid
+    if outstanding <= 0:
+        raise HTTPException(status_code=400, detail="Invoice has no outstanding balance")
+
+    amount = payload.amount if payload and payload.amount is not None else outstanding
+    amount = min(amount, outstanding)
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="Payment amount must be positive")
+
+    now = datetime.now(timezone.utc)
+    db.add(
+        Payment(
+            invoice_id=invoice.id,
+            amount=amount,
+            payment_date=now,
+            method=PaymentMethod.BANK_TRANSFER,
+            status=PaymentStatus.SUCCESS,
+        )
+    )
+    invoice.amount_paid += amount
+    # Recomputing status from amounts is correct here and is the documented
+    # state machine: mark_overdue_invoices() explicitly flips
+    # SENT/PARTIALLY_PAID invoices past their due date back to OVERDUE, so a
+    # partial payment on a late invoice sets PARTIALLY_PAID and the next
+    # detect sweep restores OVERDUE. The status column holds one value and
+    # the sweep reconciles it.
+    invoice.status = (
+        InvoiceStatus.PAID if invoice.amount_paid >= invoice.amount_total else InvoiceStatus.PARTIALLY_PAID
+    )
+    db.add(
+        PaymentEvent(
+            invoice_id=invoice.id,
+            event_type=PaymentEventType.PAYMENT_RECEIVED,
+            payload={"amount": str(amount), "simulated": True},
+            occurred_at=now,
+        )
+    )
+    await db.commit()
+
+    await get_publisher().publish(
+        topics.PAYMENT_RECEIVED,
+        str(invoice.id),
+        {"invoice_id": str(invoice.id), "amount": str(amount), "simulated": True},
+    )
+
+    stmt = select(Invoice).options(selectinload(Invoice.company)).where(Invoice.id == invoice_id)
+    result = await db.execute(stmt)
+    return result.scalar_one()
+
+======================================================================
+LANGGRAPH INTEGRATION
+======================================================================
+241-    )
+242-
+243-    days_overdue = max(
+244-        (
+245-            utc_today()
+246-            - invoice.due_date
+247-        ).days,
+248-        0,
+249-    )
+250-
+251-    promise = await _latest_promise_summary(
+252-        session,
+253-        case_id,
+254-    )
+255-
+256:    late_payment_probability = (
+257-        float(
+258:            invoice.late_payment_probability
+259-        )
+260:        if invoice.late_payment_probability
+261-        is not None
+262-        else None
+263-    )
+264-
+265-    return {
+266-        "invoice_context": {
+267-            "invoice_number": (
+268-                invoice.invoice_number
+269-            ),
+270-            "amount_total": float(
+271-                invoice.amount_total
+272-            ),
+273-            "amount_paid": float(
+274-                invoice.amount_paid
+275-            ),
+276-            "posting_date": (
+277-                invoice.posting_date.isoformat()
+278-                if invoice.posting_date
+279-                is not None
+280-                else None
+281-            ),
+282-            "due_date": (
+283-                invoice.due_date.isoformat()
+284-            ),
+285-            "days_overdue": days_overdue,
+286-            "currency": invoice.currency,
+287-
+288:            "late_payment_probability": (
+289:                late_payment_probability
+290-            ),
+291-            "payment_risk_model": (
+292-                invoice.payment_risk_model
+293-            ),
+294-            "payment_risk_drivers": (
+295-                invoice.payment_risk_drivers
+296-                or []
+297-            ),
+298-        },
+299-        "customer_context": {
+300-            **features.to_row(),
+301-            "company_name": company.name,
+302-            "segment": (
+303-                company.segment.value
+304-            ),
+305-            "promise_to_pay": promise,
+306-        },
+307-    }
+308-
+309-
+310-async def calculate_recovery_risk_node(state: RecoveryState, session: AsyncSession) -> dict:
+311-    customer_context = state["customer_context"]
+312-    features = RiskFeatures(**{name: customer_context[name] for name in FEATURE_NAMES})
+313-    result = explain_risk(features)
+314-    drivers = [
+315-        {
+316-            "feature": c.feature,
+317-            "label": c.label,
+318-            "value": c.value,
+319-            "shap_value": c.shap_value,
+320-            "direction": c.direction,
+321-        }
+322-        for c in result.contributions[:3]
+323-    ]
+324-    driver_text = "; ".join(f"{d['label']} ({d['shap_value']:+.2f})" for d in drivers)
+325-
+326-    case = await session.get(RecoveryCase, UUID(state["case_id"]))
+327-    case.risk_score = Decimal(str(result.risk_score))
+328-    case.risk_level = result.risk_level
+329-    case.recovery_probability = Decimal(str(result.recovery_probability))
+330-
+331-    session.add(
+332-        AuditLog(
+333-            recovery_case_id=case.id,
+334-            entity_type="recovery_case",
+335-            entity_id=case.id,
+336-            event_type="RISK_SCORED",
+337-            actor=AuditActor.SYSTEM,
+338-            description=(
+339-                f"Risk re-scored via ML model: {result.risk_level.value} ({result.risk_score}), "
+340-                f"recovery probability {result.recovery_probability:.0%}. "
+341-                f"Top SHAP drivers: {driver_text}."
+342-            ),
+343-            occurred_at=_now(),
+344-        )
+345-    )
+346-    await session.flush()
+347-
+348-    return {
+349-        "risk_score": result.risk_score,
+350-        "risk_level": result.risk_level.value,
+351-        "recovery_probability": result.recovery_probability,
+352-        "risk_drivers": drivers,
+353-    }
+354-
+355-
+356-async def diagnose_case_node(state: RecoveryState, session: AsyncSession) -> dict:
+357-    case_id = UUID(state["case_id"])
+358-    result, model_name = await diagnose(state["invoice_context"], state["customer_context"])
+359-
+360-    session.add(
+361-        AgentDecision(
+362-            recovery_case_id=case_id,
+363-            stage=AgentDecisionStage.DIAGNOSIS,
+364-            model_name=model_name,
+365-            input_context={"invoice": state["invoice_context"], "customer": state["customer_context"]},
+366-            output=result.model_dump(),
+367-            rationale=result.reason,
+368-        )
+369-    )
+
+======================================================================
+POLICY / HUMAN REVIEW REFERENCES
+======================================================================
+app/services/metrics.py:14:from app.models import Company, Invoice, PolicyDecision, RecoveryAction, RecoveryCase
+app/services/metrics.py:134:        select(PolicyDecision.rule, func.count(PolicyDecision.id))
+app/services/metrics.py:135:        .join(RecoveryAction, RecoveryAction.id == PolicyDecision.recovery_action_id)
+app/services/metrics.py:136:        .where(RecoveryAction.recommended_action_type.is_not(None), PolicyDecision.rule.is_not(None), is_override)
+app/services/metrics.py:137:        .group_by(PolicyDecision.rule)
+app/services/metrics.py:151:            PolicyDecision.rule,
+app/services/metrics.py:156:        .join(PolicyDecision, PolicyDecision.recovery_action_id == RecoveryAction.id)
+app/services/policy_engine.py:5:auditable (PolicyDecision rows) and nothing here depends on prompting a
+app/services/policy_engine.py:14:from app.models.enums import PolicyDecisionResult, RecoveryActionType, RecoveryCaseStatus
+app/services/policy_engine.py:23:# Machine-readable tags for each branch below, persisted on PolicyDecision.rule
+app/services/policy_engine.py:33:RULE_HIGH_VALUE_REVIEW = "high_value_review"
+app/services/policy_engine.py:42:    decision: PolicyDecisionResult
+app/services/policy_engine.py:62:            decision=PolicyDecisionResult.APPROVED,
+app/services/policy_engine.py:72:            decision=PolicyDecisionResult.APPROVED,
+app/services/policy_engine.py:86:            decision=PolicyDecisionResult.REJECTED,
+app/services/policy_engine.py:96:            decision=PolicyDecisionResult.REJECTED,
+app/services/policy_engine.py:105:                decision=PolicyDecisionResult.REJECTED,
+app/services/policy_engine.py:115:                decision=PolicyDecisionResult.REJECTED,
+app/services/policy_engine.py:128:            # as "action logged, human review flagged in parallel", and a
+app/services/policy_engine.py:131:            # If this ever needs to actually block, execute_action_node in
+app/services/policy_engine.py:135:            # decision called REQUIRES_HUMAN_REVIEW that silently proceeds
+app/services/policy_engine.py:136:            # is the kind of thing a reviewer is right to distrust.
+app/services/policy_engine.py:139:                decision=PolicyDecisionResult.REQUIRES_HUMAN_REVIEW,
+app/services/policy_engine.py:142:                    f"action approved but flagged for human review."
+app/services/policy_engine.py:144:                rule=RULE_HIGH_VALUE_REVIEW,
+app/services/policy_engine.py:148:            decision=PolicyDecisionResult.APPROVED,
+app/services/policy_engine.py:156:        decision=PolicyDecisionResult.APPROVED,
+app/services/review_gate.py:3:The policy engine returns REQUIRES_HUMAN_REVIEW for high-value reminders.
+app/services/review_gate.py:22:class ReviewError(Exception):
+app/services/review_gate.py:39:        raise ReviewError("Action not found", 404)
+app/services/review_gate.py:41:        raise ReviewError(f"Action is {action.status.value}, not waiting for approval")
+app/services/review_gate.py:64:async def approve(session: AsyncSession, action_id: UUID, reviewer: str, note: str | None) -> dict:
+app/services/review_gate.py:79:            event_type="REVIEW_APPROVED",
+app/services/review_gate.py:81:            description=f"{reviewer} approved {action.action_type.value}. {note or ''}".strip(),
+app/services/review_gate.py:91:        "reviewer": reviewer,
+app/services/review_gate.py:95:async def reject(session: AsyncSession, action_id: UUID, reviewer: str, note: str | None) -> dict:
+app/services/review_gate.py:103:            event_type="REVIEW_REJECTED",
+app/services/review_gate.py:105:            description=f"{reviewer} rejected {action.action_type.value}. {note or ''}".strip(),
+app/services/review_gate.py:115:        "reviewer": reviewer,
+app/services/review_gate.py:121:    await publisher.publish(topics.REVIEW_RESOLVED, result["case_id"], result)
+app/services/action_policy.py:1:"""Shared "evaluate_policy → record RecoveryAction/PolicyDecision/AuditLog"
+app/services/action_policy.py:21:from app.models import AuditLog, Contact, Invoice, PolicyDecision, RecoveryAction, RecoveryCase
+app/services/action_policy.py:59:    The action_type filter matters: execute_action_node marks every action
+app/services/action_policy.py:111:    evaluate_and_record_action, minus the RecoveryAction / PolicyDecision /
+app/services/action_policy.py:144:    the same RecoveryAction/PolicyDecision/AuditLog shape policy_check_node
+app/services/action_policy.py:187:        PolicyDecision(
+app/agents/graph.py:12:-> diagnose_case -> recommend_intervention -> policy_check -> execute_action
+app/agents/graph.py:15:in execute_action.
+app/agents/graph.py:41:    PolicyDecision,
+app/agents/graph.py:49:    PolicyDecisionResult,
+app/agents/graph.py:115:    execute_action_node stamps status=EXECUTED and executed_at=now() on
+app/agents/graph.py:205:            "awaiting_review": True,
+app/agents/graph.py:454:    if outcome.decision == PolicyDecisionResult.REJECTED:
+app/agents/graph.py:456:    elif outcome.decision == PolicyDecisionResult.REQUIRES_HUMAN_REVIEW:
+app/agents/graph.py:463:        PolicyDecision(
+app/agents/graph.py:493:async def execute_action_node(state: RecoveryState, session: AsyncSession) -> dict:
+app/agents/graph.py:615:    graph.add_node("execute_action", functools.partial(execute_action_node, session=session))
+app/agents/graph.py:630:        lambda s: "hold" if s.get("policy_decision") == PolicyDecisionResult.REQUIRES_HUMAN_REVIEW.value
+app/agents/graph.py:632:        {"hold": END, "execute": "execute_action"},
+app/agents/graph.py:634:    graph.add_edge("execute_action", "record_outcome")
+app/agents/graph.py:684:        if final_state.get("policy_decision") == PolicyDecisionResult.REQUIRES_HUMAN_REVIEW.value:
+app/agents/graph.py:686:                topics.REVIEW_REQUESTED,
+app/agents/state.py:15:    awaiting_review: bool
+
+======================================================================
+WHAT WAS DELIBERATELY FIXED / DESIGNED
+======================================================================
+
+1. Public B2B invoice data is used for LATE-PAYMENT prediction only.
+   It is not falsely presented as recovery/default data.
+
+2. Target:
+       late_payment_weekend_adjusted
+
+3. Observation-horizon filtering is applied so unresolved/future outcomes
+   near the end of the source dataset do not distort training.
+
+4. Leakage columns such as clearing information are excluded.
+
+5. Customer/document identifiers are not model inputs.
+
+6. Same-day invoices use the same pre-day history snapshot.
+
+7. Only outcomes resolved before the scoring posting date are usable:
+       clearing_date < posting_date
+
+8. Partial payments do not count as resolution until successful cumulative
+   payments cover the invoice total.
+
+9. Offline and online feature generation previously had a tie-order mismatch.
+   It was fixed and a parity regression test was added.
+
+10. Geography was investigated and found to behave strongly like customer ID.
+    region/city/zipcode were removed from ML.
+
+11. payment_method_description was removed because posting-time provenance
+    could not be established confidently.
+
+12. Final model contract:
+        18 numeric
+        0 categorical
+
+13. customer_tenure_days was explicitly ablated rather than blindly retained.
+
+14. COUNT_CAP and RATIO_CLIP are shared between offline and runtime logic.
+
+15. Cold-start history is explicitly represented.
+
+16. Train/validation/test are chronological.
+
+17. Test is reserved from model selection.
+
+18. Training-time artifact contracts record:
+        feature order
+        target
+        preprocessing version
+        training split hash
+        model hash
+        model version
+        RF/GB median hash
+
+19. Runtime prediction is a separate domain from the older recovery model.
+
+20. Late-payment probability is persisted separately from:
+        recovery_probability
+        risk_score
+        risk_level
+
+21. SHAP explanations are wired into runtime prediction.
+
+22. LangGraph receives ML context but deterministic policy and human review
+    remain separate gates before sensitive actions execute.
+
+23. Backend currently has approximately 139 passing tests.
+

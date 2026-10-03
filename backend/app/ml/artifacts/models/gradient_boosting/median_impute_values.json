@@ -1,0 +1,20 @@
+{
+  "amount": 3614.0,
+  "payment_term": 5.0,
+  "prior_resolved_invoice_count": 500.0,
+  "prior_open_invoice_count": 108.0,
+  "open_invoice_ratio": 0.0670134638922888,
+  "has_resolved_history": 1.0,
+  "historical_late_rate": 0.5830869308101715,
+  "historical_avg_days_late": 1.0310020298948146,
+  "historical_avg_invoice_amount": 15658.59586919105,
+  "amount_vs_historical_avg_ratio": 0.243826824504941,
+  "customer_tenure_days": 123.0,
+  "days_since_previous_invoice": 1.0,
+  "recent_5_late_rate": 1.0,
+  "recent_5_avg_days_late": 2.0,
+  "recent_late_streak": 10.0,
+  "recent_on_time_streak": 0.0,
+  "recent_5_late_rate_delta": 0.3899692937563971,
+  "recent_5_avg_days_late_delta": 1.074782608695652
+}

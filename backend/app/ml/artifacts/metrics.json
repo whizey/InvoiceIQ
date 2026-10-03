@@ -1,0 +1,21 @@
+{
+  "auc": 0.8289,
+  "accuracy": 0.8398,
+  "log_loss": 0.3703,
+  "n_train": 20000,
+  "n_test": 5000,
+  "positive_rate": 0.805,
+  "feature_names": [
+    "invoice_amount",
+    "days_overdue",
+    "outstanding_balance",
+    "avg_historical_payment_delay",
+    "num_prior_late_payments",
+    "num_prior_on_time_payments",
+    "customer_tenure_days",
+    "prior_recovery_success_rate",
+    "num_open_invoices"
+  ],
+  "random_seed": 42,
+  "note": "Trained on synthetic data (app/ml/synthetic_data.py) \u2014 not a production financial model."
+}
