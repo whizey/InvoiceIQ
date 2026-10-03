@@ -168,7 +168,7 @@ def main() -> dict:
     model_path = directory / "model.json"
     best_model.save_model(str(model_path))
 
-    training_contract_path = (
+    _training_contract_path = (
         save_training_contract(
             model_name=MODEL_SLUG,
             directory=directory,
