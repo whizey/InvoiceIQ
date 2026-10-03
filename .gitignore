@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Env
+.env
+*.env.local
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+
+# Docker
+*.pid
+
+# OS
+.DS_Store
+
+# Claude Code local runtime state
+.claude/
+
+# IDE
+.vscode/
+.idea/
+
+# ML artifacts
+*.pkl
+*.joblib
+
+# Logs
+*.log
+
+# Local AI/editor metadata
+.refact/
+
+# Temporary project context / archives
+recoveriq-source.zip
+recoveriq-shap-context.txt
+recoveriq-ml-v2-context.txt
+
+# ML datasets and experiment outputs
+data/raw/
+backend/mlruns/
+backend/app/ml/artifacts/experiments/
+
+# Generated ML datasets
+data/processed/
