@@ -12,7 +12,7 @@ _ENV_FILE = _BACKEND_DIR / ".env"
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=_ENV_FILE, env_file_encoding="utf-8")
 
-    app_name: str = "ai-revenue-recovery-agent"
+    app_name: str = "invoiceiq"
     env: str = "local"
     database_url: str = (
         "postgresql+asyncpg://recovery_user:recovery_pass@localhost:5432/recovery_db"
@@ -62,7 +62,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     langchain_tracing_v2: bool = False
     langchain_api_key: str | None = None
-    langchain_project: str = "ai-revenue-recovery-agent"
+    langchain_project: str = "invoiceiq"
 
     # In-process recovery loop (detect overdue + one cycle per active case).
     # Off by default so CI/tests stay deterministic; enable in backend/.env.

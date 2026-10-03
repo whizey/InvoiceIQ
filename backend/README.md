@@ -1,6 +1,6 @@
 # Backend
 
-FastAPI service for the AI Revenue Recovery Agent.
+FastAPI service for the InvoiceIQ.
 
 ## Quickest way to run it
 
