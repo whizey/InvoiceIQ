@@ -1,6 +1,6 @@
 # Architecture
 
-This document is the design reference for the AI Revenue Recovery Agent (V1). It reflects decisions made before implementation started and is updated if a phase changes them.
+This document is the design reference for the InvoiceIQ (V1). It reflects decisions made before implementation started and is updated if a phase changes them.
 
 ## 1. Scope
 

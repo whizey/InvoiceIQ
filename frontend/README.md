@@ -1,6 +1,6 @@
 # Frontend
 
-Next.js (App Router) dashboard for the AI Revenue Recovery Agent — the visual layer over the backend built in Phases 1-14.
+Next.js (App Router) dashboard for the InvoiceIQ — the visual layer over the backend built in Phases 1-14.
 
 ## Quickest way to run it
 

@@ -20,7 +20,7 @@ from app.models.enums import CompanySegment, InvoiceStatus
 from app.core.time import utc_today
 
 NIL_UUID = "00000000-0000-0000-0000-000000000000"
-FAKE_TO = "talepa.rahul6@gmail.com"
+FAKE_TO = "test@example.com"
 
 
 @contextlib.contextmanager

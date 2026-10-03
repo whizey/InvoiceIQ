@@ -38,13 +38,13 @@ async def test_resend_provider_sends_with_correct_payload():
 
     provider = ResendEmailProvider(api_key="re_fake", from_address="demo@example.com")
     with patch("httpx.AsyncClient.post", new=mock_post):
-        status = await provider.send(to="talepa.rahul6@gmail.com", subject="hello", body="world")
+        status = await provider.send(to="test@example.com", subject="hello", body="world")
 
     assert status == "SENT"
     args, kwargs = mock_post.call_args
     assert args[0] == "https://api.resend.com/emails"
     assert kwargs["headers"]["Authorization"] == "Bearer re_fake"
-    assert kwargs["json"]["to"] == ["talepa.rahul6@gmail.com"]
+    assert kwargs["json"]["to"] == ["test@example.com"]
     assert kwargs["json"]["from"] == "demo@example.com"
 
 
@@ -53,5 +53,5 @@ async def test_resend_provider_failure_returns_failed_not_raise():
     mock_post = AsyncMock(side_effect=RuntimeError("network down"))
     provider = ResendEmailProvider(api_key="re_fake", from_address="demo@example.com")
     with patch("httpx.AsyncClient.post", new=mock_post):
-        status = await provider.send(to="talepa.rahul6@gmail.com", subject="s", body="b")
+        status = await provider.send(to="test@example.com", subject="s", body="b")
     assert status == "FAILED"
