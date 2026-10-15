@@ -9,12 +9,12 @@ export default function AccountForm({mode}:{mode:"register"|"login"}){
   const payload=Object.fromEntries(new FormData(event.currentTarget).entries());
   try{const r=await fetch("/api/portal/"+mode,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
    const data=await r.json();if(!r.ok)throw new Error(data.detail||"Unable to continue");
-   router.push("/platform");router.refresh();
+   router.push("/workspace-dashboard");router.refresh();
   }catch(e){setError(e instanceof Error?e.message:"Request failed")}finally{setLoading(false)}
  }
  const register=mode==="register";
  return <main style={{minHeight:"100dvh",display:"grid",placeItems:"center",background:"#f6f6f4",fontFamily:"Arial,sans-serif",color:"#171717",padding:24}}><div style={{background:"white",padding:"clamp(24px,5vw,50px)",border:"1px solid #e5e5e2",borderRadius:16,width:"100%",maxWidth:480}}>
- <Link href="/home" style={{fontWeight:800,color:"inherit",textDecoration:"none"}}>▣ InvoiceIQ</Link><h1 style={{fontSize:30,marginTop:32}}>{register?"Create your workspace":"Welcome back"}</h1><p style={{color:"#666"}}>{register?"Your company's records stay private to your workspace.":"Sign in to access your company workspace."}</p>
+ <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12}}><Link href="/home" style={{fontWeight:800,color:"inherit",textDecoration:"none"}}>▣ InvoiceIQ</Link><button type="button" onClick={()=>router.back()} style={{background:"white",border:"1px solid #ddd",borderRadius:6,padding:"8px 12px",cursor:"pointer"}}>← Back</button></div><h1 style={{fontSize:30,marginTop:32}}>{register?"Create your workspace":"Welcome back"}</h1><p style={{color:"#666"}}>{register?"Your company's records stay private to your workspace.":"Sign in to access your company workspace."}</p>
  <form onSubmit={submit} style={{display:"grid",gap:16,marginTop:28}}>
  {register&&<><label>Full name<input required minLength={2} maxLength={160} name="full_name" autoComplete="name" style={field}/></label><label>Company name<input required minLength={2} maxLength={160} name="company" style={field}/></label></>}
  <label>Email address<input required type="email" name="email" autoComplete="email" style={field}/></label>
