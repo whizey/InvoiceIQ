@@ -14,3 +14,9 @@ html, body {
   min-height: 400px;
   border: 0;
 }
+
+/* Leave reference HTML and existing KPI/chart CSS byte-for-byte intact. */
+.portal-shell .reference-frame {
+  height: calc(100dvh - 75px);
+  min-height: 450px;
+}
