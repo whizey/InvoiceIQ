@@ -279,3 +279,17 @@ async def import_invoices(batch: ImportBatch, subject=Depends(identity), db: Asy
         await db.rollback()
         raise HTTPException(409, "A duplicate invoice number was imported") from None
     return {"imported": len(batch.invoices), "workspace_id": str(workspace.id)}
+
+
+from typing import Annotated  # noqa: E402
+from fastapi import Query  # noqa: E402
+from app.schemas.preserved_dashboard import DashboardSelection  # noqa: E402
+from app.services.portal_dashboard import build_portal_dashboard  # noqa: E402
+
+
+@router.get("/dashboard")
+async def portal_dashboard(
+    selection: Annotated[DashboardSelection, Query()],
+    subject=Depends(identity), db: AsyncSession = Depends(get_db),
+):
+    return await build_portal_dashboard(db, selection, subject)
