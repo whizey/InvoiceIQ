@@ -39,6 +39,8 @@ class HostedMutationAuthMiddleware(BaseHTTPMiddleware):
         # authentication. Requiring an operator key on those routes too would
         # break reviewers without providing a stronger, per-user permission.
         path = request.url.path
+        if path.startswith("/portal/"):
+            return await call_next(request)
         if (request.method.upper() == "POST" and path == "/auth/sessions") or (
             request.method.upper() == "DELETE" and path == "/auth/sessions/current"
         ):

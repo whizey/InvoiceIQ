@@ -72,6 +72,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
+from app.core.portal_guard import PortalLegacyGuard  # noqa: E402
+app.add_middleware(PortalLegacyGuard)
 app.add_middleware(RequestContextMiddleware)
 app.add_middleware(MetricsMiddleware)
 app.add_middleware(HostedMutationAuthMiddleware)
@@ -90,6 +92,8 @@ app.include_router(ml_intelligence_router)
 app.include_router(recovery_cases_router)
 app.include_router(voice_router)
 app.include_router(auth_router)
+from app.api.portal import router as portal_router  # noqa: E402
+app.include_router(portal_router)
 app.include_router(dashboard_router)
 
 
