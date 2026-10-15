@@ -36,3 +36,5 @@ __all__ = [
     "PolicyDecision",
     "AuditLog",
 ]
+
+from app.models.portal import PortalWorkspace, PortalUser, PortalMembership, PortalSession, PortalInvoice, PortalCaseEvent
