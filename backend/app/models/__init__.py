@@ -16,6 +16,12 @@ from app.models.recovery import (
 
 __all__ = [
     "Base",
+    "PortalWorkspace",
+    "PortalUser",
+    "PortalMembership",
+    "PortalSession",
+    "PortalInvoice",
+    "PortalCaseEvent",
     "AnalyticsHistoryState",
     "InvoiceStateSnapshot",
     "CaseStateSnapshot",
