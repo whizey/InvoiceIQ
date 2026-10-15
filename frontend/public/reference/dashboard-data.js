@@ -331,7 +331,7 @@
   let activeInvoiceLogic=null;
   function bind(logic,page){logic.query=new URLSearchParams(global.location.search);logic.page=page;
     if(page==='invoices') activeInvoiceLogic=logic;
-    logic.click=async e=>{const element=controlFor(e,'[data-action],a');if(!element)return;if(element.matches('a')&&!element.hasAttribute('data-action')){if(element.getAttribute('href')?.startsWith('/')&&!element.getAttribute('href').includes('?'))element.href=link(logic,{},element.getAttribute('href'));return;}
+    logic.click=async e=>{const element=controlFor(e,'[data-action],a');if(!element)return;if(element.matches('a')&&!element.hasAttribute('data-action')){const href=element.getAttribute('href');if(href?.startsWith('/')&&(!href.includes('?')||href.endsWith('?')))element.href=link(logic,{},href.split('?')[0]);return;}
       const action=element.dataset.action,value=element.dataset.value;e.preventDefault();
       if(action==='chart-period'){
         const dates=chartDates(value,logic.query.get('grain')||'month');

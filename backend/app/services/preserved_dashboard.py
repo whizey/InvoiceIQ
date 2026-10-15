@@ -194,7 +194,8 @@ def cohort(q, state, as_of, zone):
         ('risk_min', probability >= q.risk_min / 100 if q.risk_min is not None else None),
         ('risk_max', probability <= q.risk_max / 100 if q.risk_max is not None else None),
     ]:
-        if value is not None: filters.append(value)
+        if value is not None:
+            filters.append(value)
     if q.case_presence == 'yes':
         filters.append(c.invoice_id.in_(select(RecoveryCase.invoice_id)))
     elif q.case_presence == 'no':

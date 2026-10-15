@@ -250,7 +250,26 @@ def test_repeat_runs_are_reproducible():
 
 def test_real_bpi_sample_is_row_order_invariant():
     path = Path(__file__).parents[2] / "data/processed/bpi_2019/bpi_survival_features.csv.gz"
-    sample = pd.read_csv(path, nrows=5000)
+    if path.is_file():
+        sample = pd.read_csv(path, nrows=5000)
+    else:
+        # CI does not distribute the 700 MB BPI data product. Exercise the
+        # same input contract and large-cohort ordering invariant locally.
+        n = 5000
+        received = pd.date_range("2020-01-01", periods=250, freq="12h", tz="UTC")
+        receipt = received.take(np.arange(n) % len(received))
+        durations = np.arange(n) % 35 + 1
+        clear = (receipt + pd.to_timedelta(durations, unit="D")).astype("object")
+        clear = pd.Series(clear)
+        clear.loc[np.arange(n) % 7 == 0] = pd.NaT
+        sample = pd.DataFrame({
+            "case_id": [f"fixture-{i}" for i in range(n)],
+            "vendor": [f"vendor-{i % 43}" for i in range(n)],
+            "invoice_timestamp": receipt,
+            "clear_timestamp": clear,
+            "event_observed": (np.arange(n) % 7 != 0).astype(int),
+            "invoice_amount_eur": 100 + (np.arange(n) * 37) % 10000,
+        })
     expected = add_vendor_history_v2(sample)
     cols = list(OUTPUT_COLUMNS)
     left = expected.set_index("case_id")[cols].sort_index()
