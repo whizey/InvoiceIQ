@@ -177,11 +177,12 @@ async def evaluate_and_record_action(
     session.add(action)
     await session.flush()
 
-    action.status = (
-        RecoveryActionStatus.POLICY_REJECTED
-        if outcome.decision.value == "REJECTED"
-        else RecoveryActionStatus.POLICY_APPROVED
-    )
+    if outcome.decision.value == "REJECTED":
+        action.status = RecoveryActionStatus.POLICY_REJECTED
+    elif outcome.decision.value == "REQUIRES_HUMAN_REVIEW":
+        action.status = RecoveryActionStatus.PENDING_APPROVAL
+    else:
+        action.status = RecoveryActionStatus.POLICY_APPROVED
 
     session.add(
         PolicyDecision(

@@ -52,6 +52,7 @@ class PaymentRiskContribution:
 class PaymentRiskPrediction:
     late_payment_probability: float
     model_name: str
+    model_version: str
     contributions: list[
         PaymentRiskContribution
     ]
@@ -227,6 +228,26 @@ def _load_contract(
     return contract
 
 
+def get_payment_risk_model_version(
+    model_name: str,
+) -> str:
+    model_name = model_name.strip().lower()
+    contract = _load_contract(model_name)
+
+    model_version = contract.get("model_version")
+
+    if (
+        not isinstance(model_version, str)
+        or not model_version.strip()
+    ):
+        raise PaymentRiskArtifactError(
+            f"{model_name} runtime contract "
+            "does not contain model_version."
+        )
+
+    return model_version
+
+
 @lru_cache(maxsize=3)
 def _load_model(model_name: str):
     contract = _load_contract(
@@ -385,6 +406,9 @@ def predict_payment_risk(
     model_name: str,
 ) -> PaymentRiskPrediction:
     model_name = model_name.strip().lower()
+    model_version = get_payment_risk_model_version(
+        model_name
+    )
 
     raw, prepared = _prepare_frames(
         model_name,
@@ -474,5 +498,6 @@ def predict_payment_risk(
             6,
         ),
         model_name=model_name,
+        model_version=model_version,
         contributions=contributions,
     )

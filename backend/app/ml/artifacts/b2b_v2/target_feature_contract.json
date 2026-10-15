@@ -1,0 +1,155 @@
+{
+  "version": "b2b_v2",
+  "prediction_point": "invoice/posting time",
+  "core_features": [
+    "amount",
+    "payment_term",
+    "prior_resolved_invoice_count",
+    "prior_open_invoice_count",
+    "open_invoice_ratio",
+    "has_resolved_history",
+    "historical_late_rate",
+    "historical_avg_days_late",
+    "historical_avg_invoice_amount",
+    "amount_vs_historical_avg_ratio",
+    "days_since_previous_invoice",
+    "recent_5_late_rate",
+    "recent_5_avg_days_late",
+    "recent_late_streak",
+    "recent_on_time_streak",
+    "recent_5_late_rate_delta",
+    "recent_5_avg_days_late_delta"
+  ],
+  "ablation_only_features": [
+    "customer_tenure_days"
+  ],
+  "classification_targets": {
+    "target_late_payment": {
+      "train_rows": 29219,
+      "validation_rows": 6404,
+      "train_positive": 9607,
+      "train_negative": 19612,
+      "validation_positive": 2675,
+      "validation_negative": 3729,
+      "train_rate": 0.32879290872377565,
+      "validation_rate": 0.41770768269831354,
+      "absolute_rate_shift": 0.0889147739745379,
+      "enough_support": true
+    },
+    "target_delay_over_7d": {
+      "train_rows": 29219,
+      "validation_rows": 6404,
+      "train_positive": 1863,
+      "train_negative": 27356,
+      "validation_positive": 144,
+      "validation_negative": 6260,
+      "train_rate": 0.06375988226838701,
+      "validation_rate": 0.022485946283572766,
+      "absolute_rate_shift": 0.04127393598481424,
+      "enough_support": true
+    },
+    "target_delay_over_15d": {
+      "train_rows": 29219,
+      "validation_rows": 6404,
+      "train_positive": 933,
+      "train_negative": 28286,
+      "validation_positive": 137,
+      "validation_negative": 6267,
+      "train_rate": 0.031931277593346796,
+      "validation_rate": 0.021392879450343537,
+      "absolute_rate_shift": 0.01053839814300326,
+      "enough_support": true
+    },
+    "target_delay_over_30d": {
+      "train_rows": 29219,
+      "validation_rows": 6404,
+      "train_positive": 808,
+      "train_negative": 28411,
+      "validation_positive": 1,
+      "validation_negative": 6403,
+      "train_rate": 0.027653239330572572,
+      "validation_rate": 0.0001561524047470331,
+      "absolute_rate_shift": 0.027497086925825538,
+      "enough_support": false
+    },
+    "target_delay_over_60d": {
+      "train_rows": 29219,
+      "validation_rows": 6404,
+      "train_positive": 152,
+      "train_negative": 29067,
+      "validation_positive": 0,
+      "validation_negative": 6404,
+      "train_rate": 0.005202094527533454,
+      "validation_rate": 0.0,
+      "absolute_rate_shift": 0.005202094527533454,
+      "enough_support": false
+    },
+    "target_delay_over_90d": {
+      "train_rows": 29219,
+      "validation_rows": 6404,
+      "train_positive": 136,
+      "train_negative": 29083,
+      "validation_positive": 0,
+      "validation_negative": 6404,
+      "train_rate": 0.004654505629898354,
+      "validation_rate": 0.0,
+      "absolute_rate_shift": 0.004654505629898354,
+      "enough_support": false
+    }
+  },
+  "recommended_binary_targets": [
+    "target_late_payment",
+    "target_delay_over_7d",
+    "target_delay_over_15d"
+  ],
+  "regression_target": {
+    "name": "target_days_late_if_late",
+    "population": "late invoices only",
+    "training_objectives": [
+      "conditional mean regression",
+      "quantile P80 for a conservative clearance window"
+    ]
+  },
+  "derived_outputs": [
+    "expected_days_late",
+    "expected_overdue_exposure",
+    "risk_tier",
+    "collection_priority_score",
+    "intervention_recommendation",
+    "escalation_level"
+  ],
+  "evaluation": {
+    "late_risk": [
+      "PR-AUC",
+      "ROC-AUC",
+      "Brier score",
+      "log loss",
+      "calibration",
+      "temporal fold stability"
+    ],
+    "delay_horizons": [
+      "PR-AUC",
+      "ROC-AUC",
+      "Brier score",
+      "calibration"
+    ],
+    "delay_regression": [
+      "MAE",
+      "median absolute error",
+      "RMSE",
+      "pinball loss",
+      "quantile coverage"
+    ],
+    "business": [
+      "Precision@K",
+      "Recall@K",
+      "cash-at-risk captured@K"
+    ]
+  },
+  "test_split_read": false,
+  "notes": [
+    "Existing v1 models remain baseline artifacts.",
+    "customer_tenure_days is excluded from the core model and retained only for controlled ablation.",
+    "Derived business decisions are not trained as independent ML targets without intervention labels."
+  ]
+}

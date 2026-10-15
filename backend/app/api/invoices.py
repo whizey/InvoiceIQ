@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import logging
 from decimal import Decimal
 from uuid import UUID
 
@@ -16,6 +17,8 @@ from app.schemas.invoice import InvoiceCreate, InvoiceOut, SimulatePaymentIn
 from app.services.payment_risk_scoring import ensure_payment_risk_score
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
+
+logger = logging.getLogger(__name__)
 
 
 @router.post("", response_model=InvoiceOut, status_code=201)
@@ -58,6 +61,20 @@ async def create_invoice(
             ),
         )
 
+    expected_payment_term = (
+        payload.due_date - payload.posting_date
+    ).days
+
+    if payload.payment_term != expected_payment_term:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "payment_term must equal the number "
+                "of calendar days between posting_date "
+                f"and due_date ({expected_payment_term})"
+            ),
+        )
+
     invoice = Invoice(
         company_id=payload.company_id,
         invoice_number=payload.invoice_number,
@@ -77,10 +94,18 @@ async def create_invoice(
     db.add(invoice)
     await db.flush()
 
-    await ensure_payment_risk_score(
-        db,
-        invoice,
-    )
+    try:
+        await ensure_payment_risk_score(
+            db,
+            invoice,
+        )
+    except Exception:
+        logger.exception(
+            "Optional payment-risk scoring failed "
+            "for invoice %s. Invoice creation "
+            "will continue.",
+            invoice.invoice_number,
+        )
 
     await db.commit()
 

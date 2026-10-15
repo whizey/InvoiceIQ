@@ -1,0 +1,228 @@
+{
+  "dataset": {
+    "dataset": "BPI Challenge 2019",
+    "raw_events": 1595923,
+    "raw_cases": 251734,
+    "eligible_invoice_cases": 199985,
+    "observed_clears": 172385,
+    "right_censored": 27600,
+    "removed_clear_before_invoice": 4,
+    "prediction_point": "Record Invoice Receipt",
+    "evaluation_horizons_days": [
+      7,
+      15,
+      30,
+      45,
+      60,
+      90
+    ],
+    "serving_horizons_days": [
+      7,
+      30,
+      60,
+      90
+    ]
+  },
+  "temporal_validation": {
+    "strategy": "expanding temporal backtest with fold-specific right re-censoring",
+    "folds": [
+      {
+        "fold": "fold_0",
+        "train_cutoff": "2018-07-01",
+        "eval_start": "2018-07-01",
+        "eval_end": "2018-09-01",
+        "train_invoices": 87253,
+        "eval_invoices": 36905
+      },
+      {
+        "fold": "fold_1",
+        "train_cutoff": "2018-09-01",
+        "eval_start": "2018-09-01",
+        "eval_end": "2018-11-01",
+        "train_invoices": 124158,
+        "eval_invoices": 34985
+      },
+      {
+        "fold": "fold_2",
+        "train_cutoff": "2018-11-01",
+        "eval_start": "2018-11-01",
+        "eval_end": "2018-12-01",
+        "train_invoices": 159143,
+        "eval_invoices": 15588
+      },
+      {
+        "fold": "fold_3",
+        "train_cutoff": "2018-12-01",
+        "eval_start": "2018-12-01",
+        "eval_end": "2019-01-18",
+        "train_invoices": 174731,
+        "eval_invoices": 25253
+      }
+    ]
+  },
+  "production_champion": "lightgbm_hazard",
+  "models": [
+    {
+      "rank": 1,
+      "model": "LightGBM Discrete-Time Hazard",
+      "slug": "lightgbm_hazard",
+      "family": "Discrete-time survival",
+      "training": "Full temporal folds",
+      "training_cap": null,
+      "headline_auc": 0.9156864938688123,
+      "worst_auc": 0.8798525257578799,
+      "brier": 0.07480021823576705,
+      "ece": 0.055738263270804264,
+      "auc_std": 0.015309611981212088,
+      "status": "PRODUCTION",
+      "production": true,
+      "completed": true,
+      "notes": "Production champion. Best overall combination of discrimination, temporal stability and calibration."
+    },
+    {
+      "rank": 2,
+      "model": "XGBoost AFT",
+      "slug": "xgboost_aft",
+      "family": "Accelerated failure time",
+      "training": "Full temporal folds",
+      "training_cap": null,
+      "headline_auc": 0.9006,
+      "worst_auc": 0.8504,
+      "brier": 0.1151,
+      "ece": null,
+      "auc_std": null,
+      "status": "STRONG CHALLENGER",
+      "production": false,
+      "completed": true,
+      "notes": "Strongest nonlinear challenger. Very strong ranking performance, but weaker probability calibration than the LightGBM hazard model."
+    },
+    {
+      "rank": 3,
+      "model": "CoxNet Elastic-Net",
+      "slug": "coxnet",
+      "family": "Regularized proportional hazards",
+      "training": "Full temporal folds",
+      "training_cap": null,
+      "headline_auc": 0.8571,
+      "worst_auc": 0.7401,
+      "brier": 0.0977,
+      "ece": null,
+      "auc_std": null,
+      "status": "CHALLENGER",
+      "production": false,
+      "completed": true,
+      "notes": "Best regularized linear survival challenger. Full-data performance was almost identical to the 50k-per-fold run."
+    },
+    {
+      "rank": 4,
+      "model": "Cox Proportional Hazards",
+      "slug": "cox_ph",
+      "family": "Classical proportional hazards",
+      "training": "Full temporal folds",
+      "training_cap": null,
+      "headline_auc": null,
+      "worst_auc": null,
+      "brier": null,
+      "ece": null,
+      "auc_std": null,
+      "status": "CLASSICAL BASELINE",
+      "production": false,
+      "completed": true,
+      "notes": "Completed all four temporal folds. Fold mean AUCs were 0.8549, 0.8675, 0.8513 and 0.8108. Numerical overflow warnings appeared in later folds, so it was retained as an interpretable baseline rather than production."
+    },
+    {
+      "rank": 5,
+      "model": "Gradient Boosting Survival",
+      "slug": "gradient_boosting_survival",
+      "family": "Boosted survival model",
+      "training": "Resource-controlled temporal folds",
+      "training_cap": 25000,
+      "headline_auc": 0.7989,
+      "worst_auc": 0.6633,
+      "brier": 0.1096,
+      "ece": null,
+      "auc_std": null,
+      "status": "RESOURCE-CONTROLLED CHALLENGER",
+      "production": false,
+      "completed": true,
+      "notes": "Evaluated with a 25k training cap because scikit-survival gradient boosting was substantially slower on the development laptop. Not a strict full-data apples-to-apples comparison."
+    },
+    {
+      "rank": 6,
+      "model": "Logistic Discrete-Time Hazard",
+      "slug": "logistic_hazard",
+      "family": "Discrete-time survival",
+      "training": "Full temporal folds",
+      "training_cap": null,
+      "headline_auc": 0.7348428468063845,
+      "worst_auc": 0.6129348424291533,
+      "brier": 0.20905191849791632,
+      "ece": 0.20906158752319454,
+      "auc_std": 0.03769592383401725,
+      "status": "SIMPLE BASELINE",
+      "production": false,
+      "completed": true,
+      "notes": "Simple hazard baseline used to determine whether nonlinear tree interactions materially improved the survival model."
+    },
+    {
+      "rank": null,
+      "model": "Random Survival Forest",
+      "slug": "random_survival_forest",
+      "family": "Tree survival ensemble",
+      "training": "Full fold attempted",
+      "training_cap": null,
+      "headline_auc": null,
+      "worst_auc": null,
+      "brier": null,
+      "ece": null,
+      "auc_std": null,
+      "status": "RESOURCE CONSTRAINED",
+      "production": false,
+      "completed": false,
+      "notes": "Full-data run was attempted but macOS killed the process because of memory pressure. No performance number is reported because the benchmark did not complete."
+    }
+  ],
+  "experiment_history": [
+    {
+      "model": "CoxNet Elastic-Net",
+      "experiment": "50k-per-fold",
+      "auc": 0.8585,
+      "worst_auc": 0.743,
+      "brier": 0.0973,
+      "purpose": "Laptop-friendly benchmark before the full-data run."
+    },
+    {
+      "model": "CoxNet Elastic-Net",
+      "experiment": "Full temporal data",
+      "auc": 0.8571,
+      "worst_auc": 0.7401,
+      "brier": 0.0977,
+      "purpose": "Final CoxNet comparison."
+    },
+    {
+      "model": "XGBoost AFT",
+      "experiment": "10k / 20 rounds",
+      "auc": 0.558,
+      "worst_auc": 0.2664,
+      "brier": 0.3862,
+      "purpose": "Engineering smoke test only; deliberately undertrained."
+    },
+    {
+      "model": "XGBoost AFT",
+      "experiment": "10k / 200 rounds",
+      "auc": 0.7696,
+      "worst_auc": 0.51,
+      "brier": 0.2437,
+      "purpose": "Development run confirming that the AFT model needed substantially more boosting rounds."
+    },
+    {
+      "model": "XGBoost AFT",
+      "experiment": "Full temporal data / 200 rounds",
+      "auc": 0.9006,
+      "worst_auc": 0.8504,
+      "brier": 0.1151,
+      "purpose": "Final AFT challenger benchmark."
+    }
+  ],
+  "production_model_changed": false
+}

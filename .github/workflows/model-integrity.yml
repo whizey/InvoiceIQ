@@ -1,0 +1,27 @@
+name: ML artifact integrity (manual)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # A read-only token is needed for targeted LFS fetches in private repositories.
+          persist-credentials: true
+          lfs: false
+      - name: Fetch LFS model binaries without downloading raw datasets
+        run: |
+          git lfs install --local
+          git lfs pull --include="backend/app/ml/artifacts/**" --exclude="data/**"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate artifact provenance and SHA256
+        run: python scripts/verification/check_model_artifacts.py --verify-binaries

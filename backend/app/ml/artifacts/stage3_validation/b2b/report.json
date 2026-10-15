@@ -1,0 +1,46 @@
+{
+  "target": "late_payment_weekend_adjusted",
+  "features": [
+    "amount",
+    "payment_term",
+    "prior_resolved_invoice_count",
+    "prior_open_invoice_count",
+    "open_invoice_ratio",
+    "has_resolved_history",
+    "historical_late_rate",
+    "historical_avg_days_late",
+    "historical_avg_invoice_amount",
+    "amount_vs_historical_avg_ratio",
+    "customer_tenure_days",
+    "days_since_previous_invoice",
+    "recent_5_late_rate",
+    "recent_5_avg_days_late",
+    "recent_late_streak",
+    "recent_on_time_streak",
+    "recent_5_late_rate_delta",
+    "recent_5_avg_days_late_delta"
+  ],
+  "models": {
+    "lightgbm": {
+      "mean_temporal_auc": 0.6707113662030444,
+      "worst_temporal_auc": 0.5019119984437552,
+      "inverted_folds": 0,
+      "pooled_oof_brier": 0.4969505135208732
+    },
+    "random_forest": {
+      "mean_temporal_auc": 0.6628423459181,
+      "worst_temporal_auc": 0.5726684953629761,
+      "inverted_folds": 0,
+      "pooled_oof_brier": 0.41867765746621355
+    }
+  },
+  "validation_rows": 6404,
+  "reserved_test_split_read": false,
+  "status": "experimental",
+  "limitations": [
+    "Four temporal folds",
+    "Only 69 customers in the primary B2B dataset",
+    "Retrospectively observed cleared-invoice population",
+    "No model automatically promoted"
+  ]
+}

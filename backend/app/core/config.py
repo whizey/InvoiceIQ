@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     # app/core/observability.py). LangSmith tracing of the LangGraph
     # workflow is opt-in — off by default, no account required to run the app.
     log_level: str = "INFO"
+    # Off by default; metrics endpoint requires a separate collector key in hosted environments.
+    metrics_enabled: bool = False
+    metrics_token: str | None = None
     langchain_tracing_v2: bool = False
     langchain_api_key: str | None = None
     langchain_project: str = "invoiceiq"

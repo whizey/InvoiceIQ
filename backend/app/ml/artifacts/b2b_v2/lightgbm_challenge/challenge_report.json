@@ -1,0 +1,537 @@
+{
+  "classification": {
+    "late_payment": {
+      "current_champion": {
+        "task": "classification",
+        "head": "late_payment",
+        "business_question": "Will this invoice miss its adjusted due date?",
+        "model_family": "gradient_boosting",
+        "feature_set": "behaviour_heavy",
+        "features": [
+          "amount",
+          "payment_term",
+          "prior_open_invoice_count",
+          "has_resolved_history",
+          "historical_late_rate",
+          "historical_avg_days_late",
+          "amount_vs_historical_avg_ratio",
+          "days_since_previous_invoice",
+          "recent_5_late_rate",
+          "recent_5_avg_days_late",
+          "recent_late_streak",
+          "recent_on_time_streak",
+          "recent_5_late_rate_delta",
+          "recent_5_avg_days_late_delta"
+        ],
+        "training_rows": 34437,
+        "positive_rate": 0.35125010889450303,
+        "refit_as_of": "2015-12-08 00:00:00+00:00",
+        "temporal_backtest": {
+          "valid": true,
+          "fold_count": 4,
+          "below_random_folds": 0,
+          "median_roc_auc": 0.6294185414379463,
+          "mean_roc_auc": 0.6555153398952085,
+          "worst_roc_auc": 0.6063210045272059,
+          "roc_auc_std": 0.05930665208611179,
+          "median_pr_auc": 0.5078098076949528,
+          "median_pr_lift": 1.5893863068697942,
+          "mean_brier": 0.22203315784866956,
+          "mean_ece": 0.17942620936861226
+        },
+        "test_used": false
+      },
+      "best_lightgbm": {
+        "feature_set": "behaviour_heavy",
+        "folds": [
+          {
+            "rows": 4405,
+            "prevalence": 0.18251986379114643,
+            "roc_auc": 0.6653831647096371,
+            "pr_auc": 0.365977655547602,
+            "pr_lift": 2.0051387719989884,
+            "brier": 0.21384589726898567,
+            "log_loss": 0.6668118255841169,
+            "ece_10": 0.2106110892282816,
+            "fold": 0,
+            "train_rows": 16546,
+            "train_positive_rate": 0.3355493774930497,
+            "eval_start": "2015-07-16 00:00:00+00:00",
+            "eval_end": "2015-08-21 00:00:00+00:00"
+          },
+          {
+            "rows": 4534,
+            "prevalence": 0.2968681076312307,
+            "roc_auc": 0.6659112179588762,
+            "pr_auc": 0.464584703168872,
+            "pr_lift": 1.5649532274648332,
+            "brier": 0.2436824542865861,
+            "log_loss": 1.1780141869538265,
+            "ece_10": 0.24013127785257665,
+            "fold": 1,
+            "train_rows": 20304,
+            "train_positive_rate": 0.3127462568951931,
+            "eval_start": "2015-08-24 00:00:00+00:00",
+            "eval_end": "2015-10-02 00:00:00+00:00"
+          },
+          {
+            "rows": 4408,
+            "prevalence": 0.5773593466424682,
+            "roc_auc": 0.6200023832950003,
+            "pr_auc": 0.6772478981160635,
+            "pr_lift": 1.1730093260886474,
+            "brier": 0.2854614417089732,
+            "log_loss": 0.9362251171369544,
+            "ece_10": 0.21899799557992053,
+            "fold": 2,
+            "train_rows": 25387,
+            "train_positive_rate": 0.3050380115807303,
+            "eval_start": "2015-10-05 00:00:00+00:00",
+            "eval_end": "2015-11-05 00:00:00+00:00"
+          },
+          {
+            "rows": 4413,
+            "prevalence": 0.33537276229322455,
+            "roc_auc": 0.774089116392219,
+            "pr_auc": 0.6052408408984408,
+            "pr_lift": 1.804680966814067,
+            "brier": 0.19247258306823356,
+            "log_loss": 0.6261588459792853,
+            "ece_10": 0.1263693891765303,
+            "fold": 3,
+            "train_rows": 29669,
+            "train_positive_rate": 0.33179412855168694,
+            "eval_start": "2015-11-06 00:00:00+00:00",
+            "eval_end": "2015-12-07 00:00:00+00:00"
+          }
+        ],
+        "aggregate": {
+          "valid": true,
+          "fold_count": 4,
+          "below_random_folds": 0,
+          "median_roc_auc": 0.6656471913342566,
+          "mean_roc_auc": 0.6813464705889332,
+          "worst_roc_auc": 0.6200023832950003,
+          "roc_auc_std": 0.05669517077068608,
+          "median_pr_auc": 0.5349127720336564,
+          "median_pr_lift": 1.68481709713945,
+          "mean_brier": 0.23386559408319466,
+          "mean_ece": 0.19902743795932726
+        }
+      },
+      "promote_lightgbm": true
+    },
+    "delay_over_7d": {
+      "current_champion": {
+        "task": "classification",
+        "head": "delay_over_7d",
+        "business_question": "Will this invoice become more than 7 days late?",
+        "model_family": "random_forest",
+        "feature_set": "no_open_ratio",
+        "features": [
+          "amount",
+          "payment_term",
+          "prior_resolved_invoice_count",
+          "prior_open_invoice_count",
+          "has_resolved_history",
+          "historical_late_rate",
+          "historical_avg_days_late",
+          "historical_avg_invoice_amount",
+          "amount_vs_historical_avg_ratio",
+          "days_since_previous_invoice",
+          "recent_5_late_rate",
+          "recent_5_avg_days_late",
+          "recent_late_streak",
+          "recent_on_time_streak",
+          "recent_5_late_rate_delta",
+          "recent_5_avg_days_late_delta"
+        ],
+        "training_rows": 33293,
+        "positive_rate": 0.05986243354458895,
+        "refit_as_of": "2015-12-08 00:00:00+00:00",
+        "temporal_backtest": {
+          "valid": true,
+          "fold_count": 4,
+          "below_random_folds": 0,
+          "median_roc_auc": 0.7759654892206184,
+          "mean_roc_auc": 0.7651752804177923,
+          "worst_roc_auc": 0.6243266950424082,
+          "roc_auc_std": 0.10635806695779909,
+          "median_pr_auc": 0.04525374270788492,
+          "median_pr_lift": 3.128918586392609,
+          "mean_brier": 0.05238854553909507,
+          "mean_ece": 0.07427425857751872
+        },
+        "test_used": false
+      },
+      "best_lightgbm": {
+        "feature_set": "behaviour_heavy",
+        "folds": [
+          {
+            "rows": 4405,
+            "prevalence": 0.04199772985244041,
+            "roc_auc": 0.7643390546945049,
+            "pr_auc": 0.07722088402890669,
+            "pr_lift": 1.8386918602558593,
+            "brier": 0.0898468435786571,
+            "log_loss": 0.3637384619354732,
+            "ece_10": 0.09573691524789005,
+            "fold": 0,
+            "train_rows": 15458,
+            "train_positive_rate": 0.08060551170914737,
+            "eval_start": "2015-07-16 00:00:00+00:00",
+            "eval_end": "2015-08-21 00:00:00+00:00"
+          },
+          {
+            "rows": 4534,
+            "prevalence": 0.004852227613586237,
+            "roc_auc": 0.8539349613152805,
+            "pr_auc": 0.04768896621754937,
+            "pr_lift": 9.828262401380401,
+            "brier": 0.02047926817382893,
+            "log_loss": 0.07590062820886237,
+            "ece_10": 0.034952206177129415,
+            "fold": 1,
+            "train_rows": 19645,
+            "train_positive_rate": 0.07834054466785442,
+            "eval_start": "2015-08-24 00:00:00+00:00",
+            "eval_end": "2015-10-02 00:00:00+00:00"
+          },
+          {
+            "rows": 4408,
+            "prevalence": 0.05421960072595281,
+            "roc_auc": 0.6356726425670244,
+            "pr_auc": 0.07538173393082792,
+            "pr_lift": 1.3903041136698304,
+            "brier": 0.07429390785405415,
+            "log_loss": 0.45469343006567425,
+            "ece_10": 0.07777950080959448,
+            "fold": 2,
+            "train_rows": 24451,
+            "train_positive_rate": 0.06784998568565703,
+            "eval_start": "2015-10-05 00:00:00+00:00",
+            "eval_end": "2015-11-05 00:00:00+00:00"
+          },
+          {
+            "rows": 4413,
+            "prevalence": 0.0006798096532970768,
+            "roc_auc": 0.7523809523809524,
+            "pr_auc": 0.0017536086054834477,
+            "pr_lift": 2.5795582586661516,
+            "brier": 0.032985203916187894,
+            "log_loss": 0.1113576069256423,
+            "ece_10": 0.045763372908692354,
+            "fold": 3,
+            "train_rows": 28309,
+            "train_positive_rate": 0.0642551838637889,
+            "eval_start": "2015-11-06 00:00:00+00:00",
+            "eval_end": "2015-12-07 00:00:00+00:00"
+          }
+        ],
+        "aggregate": {
+          "valid": true,
+          "fold_count": 4,
+          "below_random_folds": 0,
+          "median_roc_auc": 0.7583600035377287,
+          "mean_roc_auc": 0.7515819027394406,
+          "worst_roc_auc": 0.6356726425670244,
+          "roc_auc_std": 0.0775797792596118,
+          "median_pr_auc": 0.061535350074188644,
+          "median_pr_lift": 2.2091250594610052,
+          "mean_brier": 0.05440130588068202,
+          "mean_ece": 0.06355799878582657
+        }
+      },
+      "promote_lightgbm": true
+    },
+    "delay_over_15d": {
+      "current_champion": {
+        "task": "classification",
+        "head": "delay_over_15d",
+        "business_question": "Will this invoice become more than 15 days late?",
+        "model_family": "random_forest",
+        "feature_set": "behaviour_heavy",
+        "features": [
+          "amount",
+          "payment_term",
+          "prior_open_invoice_count",
+          "has_resolved_history",
+          "historical_late_rate",
+          "historical_avg_days_late",
+          "amount_vs_historical_avg_ratio",
+          "days_since_previous_invoice",
+          "recent_5_late_rate",
+          "recent_5_avg_days_late",
+          "recent_late_streak",
+          "recent_on_time_streak",
+          "recent_5_late_rate_delta",
+          "recent_5_avg_days_late_delta"
+        ],
+        "training_rows": 31441,
+        "positive_rate": 0.03304602270920136,
+        "refit_as_of": "2015-12-08 00:00:00+00:00",
+        "temporal_backtest": {
+          "valid": true,
+          "fold_count": 3,
+          "below_random_folds": 0,
+          "median_roc_auc": 0.9440781995908161,
+          "mean_roc_auc": 0.8118463382255469,
+          "worst_roc_auc": 0.5080098000814115,
+          "roc_auc_std": 0.21544533116618053,
+          "median_pr_auc": 0.03959980502947603,
+          "median_pr_lift": 9.679797368670465,
+          "mean_brier": 0.029996342854794942,
+          "mean_ece": 0.04545177526363739
+        },
+        "test_used": false
+      },
+      "best_lightgbm": {
+        "feature_set": "no_open_ratio",
+        "folds": [
+          {
+            "rows": 4405,
+            "prevalence": 0.001362088535754824,
+            "roc_auc": 0.9333181783738729,
+            "pr_auc": 0.011074246852568425,
+            "pr_lift": 8.130342897593986,
+            "brier": 0.04546720069240128,
+            "log_loss": 0.18231644956175455,
+            "ece_10": 0.05064777990634473,
+            "fold": 0,
+            "train_rows": 14522,
+            "train_positive_rate": 0.05557085800853877,
+            "eval_start": "2015-07-16 00:00:00+00:00",
+            "eval_end": "2015-08-21 00:00:00+00:00"
+          },
+          {
+            "rows": 4534,
+            "prevalence": 0.0004411116012351125,
+            "roc_auc": 0.9826787290379523,
+            "pr_auc": 0.02603731551099972,
+            "pr_lift": 59.026594263436365,
+            "brier": 0.012565904032258454,
+            "log_loss": 0.03799601778987191,
+            "ece_10": 0.02098389158697022,
+            "fold": 1,
+            "train_rows": 18729,
+            "train_positive_rate": 0.046345240002135725,
+            "eval_start": "2015-08-24 00:00:00+00:00",
+            "eval_end": "2015-10-02 00:00:00+00:00"
+          },
+          {
+            "rows": 4408,
+            "prevalence": 0.03470961887477314,
+            "roc_auc": 0.35338125849634805,
+            "pr_auc": 0.02966123241989654,
+            "pr_lift": 0.8545536765157121,
+            "brier": 0.056207000149922026,
+            "log_loss": 0.395917765814224,
+            "ece_10": 0.06005125215321769,
+            "fold": 2,
+            "train_rows": 23613,
+            "train_positive_rate": 0.037775801465294544,
+            "eval_start": "2015-10-05 00:00:00+00:00",
+            "eval_end": "2015-11-05 00:00:00+00:00"
+          }
+        ],
+        "aggregate": {
+          "valid": true,
+          "fold_count": 3,
+          "below_random_folds": 1,
+          "median_roc_auc": 0.9333181783738729,
+          "mean_roc_auc": 0.7564593886360577,
+          "worst_roc_auc": 0.35338125849634805,
+          "roc_auc_std": 0.28573075932674663,
+          "median_pr_auc": 0.02603731551099972,
+          "median_pr_lift": 8.130342897593986,
+          "mean_brier": 0.03808003495819392,
+          "mean_ece": 0.04389430788217755
+        }
+      },
+      "promote_lightgbm": false
+    }
+  },
+  "regression": {
+    "current_champion": {
+      "task": "conditional_regression",
+      "business_question": "If this invoice is late, how many days late is it expected to be?",
+      "model_family": "xgboost",
+      "feature_set": "no_open_ratio",
+      "features": [
+        "amount",
+        "payment_term",
+        "prior_resolved_invoice_count",
+        "prior_open_invoice_count",
+        "has_resolved_history",
+        "historical_late_rate",
+        "historical_avg_days_late",
+        "historical_avg_invoice_amount",
+        "amount_vs_historical_avg_ratio",
+        "days_since_previous_invoice",
+        "recent_5_late_rate",
+        "recent_5_avg_days_late",
+        "recent_late_streak",
+        "recent_on_time_streak",
+        "recent_5_late_rate_delta",
+        "recent_5_avg_days_late_delta"
+      ],
+      "training_rows": 11700,
+      "temporal_backtest": {
+        "valid": true,
+        "fold_count": 4,
+        "median_mae": 3.187147510091295,
+        "mean_mae": 2.804893938542117,
+        "worst_mae": 3.731841961394495,
+        "mae_std": 1.0018511279853974,
+        "median_medae": 2.4893136620521545
+      },
+      "test_used": false
+    },
+    "best_lightgbm": {
+      "feature_set": "no_open_ratio",
+      "folds": [
+        {
+          "rows": 804,
+          "mae": 3.386287930191737,
+          "median_absolute_error": 3.563675060024231,
+          "rmse": 4.455029413930134,
+          "r2": -0.8709148377091922,
+          "actual_mean": 5.569651741293533,
+          "actual_median": 6.0,
+          "fold": 0,
+          "train_rows": 4743,
+          "eval_start": "2015-07-16 00:00:00+00:00",
+          "eval_end": "2015-08-21 00:00:00+00:00"
+        },
+        {
+          "rows": 1346,
+          "mae": 3.083278991182859,
+          "median_absolute_error": 2.5221157280631115,
+          "rmse": 4.542648635687912,
+          "r2": -3.7145091697260524,
+          "actual_mean": 2.083952451708767,
+          "actual_median": 1.0,
+          "fold": 1,
+          "train_rows": 6132,
+          "eval_start": "2015-08-24 00:00:00+00:00",
+          "eval_end": "2015-10-02 00:00:00+00:00"
+        },
+        {
+          "rows": 2545,
+          "mae": 3.6001024260250594,
+          "median_absolute_error": 2.561431682005874,
+          "rmse": 6.2161482743263745,
+          "r2": -0.5159576958374064,
+          "actual_mean": 3.088801571709234,
+          "actual_median": 1.0,
+          "fold": 2,
+          "train_rows": 7546,
+          "eval_start": "2015-10-05 00:00:00+00:00",
+          "eval_end": "2015-11-05 00:00:00+00:00"
+        },
+        {
+          "rows": 1480,
+          "mae": 0.895459975250482,
+          "median_absolute_error": 0.3032213069232208,
+          "rmse": 1.5151373428058907,
+          "r2": 0.1392837355615788,
+          "actual_mean": 1.8790540540540541,
+          "actual_median": 1.0,
+          "fold": 3,
+          "train_rows": 9660,
+          "eval_start": "2015-11-06 00:00:00+00:00",
+          "eval_end": "2015-12-07 00:00:00+00:00"
+        }
+      ],
+      "aggregate": {
+        "valid": true,
+        "fold_count": 4,
+        "median_mae": 3.234783460687298,
+        "mean_mae": 2.7412823306625342,
+        "worst_mae": 3.6001024260250594,
+        "mae_std": 1.0813910096686203,
+        "median_medae": 2.5417737050344926
+      }
+    },
+    "promote_lightgbm": false
+  },
+  "quantiles": {
+    "p80": {
+      "current": {
+        "task": "quantile_regression",
+        "quantile": 0.8,
+        "business_question": "What is the P80 lateness estimate if the invoice is late?",
+        "feature_set": "behaviour_heavy",
+        "features": [
+          "amount",
+          "payment_term",
+          "prior_open_invoice_count",
+          "has_resolved_history",
+          "historical_late_rate",
+          "historical_avg_days_late",
+          "amount_vs_historical_avg_ratio",
+          "days_since_previous_invoice",
+          "recent_5_late_rate",
+          "recent_5_avg_days_late",
+          "recent_late_streak",
+          "recent_on_time_streak",
+          "recent_5_late_rate_delta",
+          "recent_5_avg_days_late_delta"
+        ],
+        "training_rows": 11700,
+        "temporal_backtest": {
+          "valid": true,
+          "fold_count": 4,
+          "median_pinball": 0.9255420975335739,
+          "worst_pinball": 1.7581874514694495,
+          "median_coverage": 0.8758880190429723,
+          "median_coverage_error": 0.07588801904297232
+        },
+        "test_used": false
+      },
+      "best_lightgbm": {
+        "feature_set": "no_open_ratio",
+        "folds": [
+          {
+            "fold": 0,
+            "rows": 804,
+            "pinball_loss": 1.2465175621976883,
+            "coverage": 0.6417910447761194,
+            "coverage_error": 0.15820895522388068
+          },
+          {
+            "fold": 1,
+            "rows": 1346,
+            "pinball_loss": 0.9591913354587065,
+            "coverage": 0.8759286775631501,
+            "coverage_error": 0.07592867756315003
+          },
+          {
+            "fold": 2,
+            "rows": 2545,
+            "pinball_loss": 1.7823117582987444,
+            "coverage": 0.8082514734774067,
+            "coverage_error": 0.008251473477406623
+          },
+          {
+            "fold": 3,
+            "rows": 1480,
+            "pinball_loss": 0.39128213019851493,
+            "coverage": 0.9304054054054054,
+            "coverage_error": 0.13040540540540535
+          }
+        ],
+        "aggregate": {
+          "valid": true,
+          "fold_count": 4,
+          "median_pinball": 1.1028544488281975,
+          "worst_pinball": 1.7823117582987444,
+          "median_coverage": 0.8420900755202784,
+          "median_coverage_error": 0.10316704148427769
+        }
+      },
+      "promote_lightgbm": false
+    }
+  },
+  "test_used": false
+}

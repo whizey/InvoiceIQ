@@ -29,7 +29,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                 portfolio demo · synthetic data
               </span>
             </Link>
-            <LiveRefresh />
+            <nav className="flex items-center gap-4">
+  <Link href="/ml" className="text-sm font-medium text-slate-600">Model Intelligence</Link>
+  <LiveRefresh />
+</nav>
           </div>
         </header>
         <main className="mx-auto max-w-7xl px-6 py-8">{children}</main>

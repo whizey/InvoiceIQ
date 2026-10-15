@@ -51,22 +51,26 @@ export interface Invoice {
 export type RiskLevel = "LOW" | "MEDIUM" | "HIGH";
 
 export type RiskContributionDirection =
-  | "increases_recovery_probability"
-  | "decreases_recovery_probability";
+  | "increases_late_payment_probability"
+  | "decreases_late_payment_probability";
 
 export interface RiskFeatureContribution {
   feature: string;
   label: string;
-  value: number;
+  value: number | string | null;
   shap_value: number;
   direction: RiskContributionDirection;
 }
 
 export interface RiskExplanation {
-  risk_score: number;
-  risk_level: RiskLevel;
-  recovery_probability: number;
-  base_value: number;
+  prediction_target: "late_payment_weekend_adjusted";
+  experimental: boolean;
+  model_name: string | null;
+  model_version: string | null;
+  scored_at: string | null;
+  late_payment_probability: number | null;
+  risk_score: number | null;
+  risk_level: RiskLevel | null;
   contributions: RiskFeatureContribution[];
 }
 

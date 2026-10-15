@@ -119,7 +119,7 @@ export default async function CaseDetailPage({
                 value={caseDetail.risk_score ? `${caseDetail.risk_score} / 100` : "Not yet scored"}
               />
               <Field
-                label="Recovery probability"
+                label="Recovery probability (not modeled)"
                 value={formatPercent(
                   caseDetail.recovery_probability ? Number(caseDetail.recovery_probability) : null,
                 )}

@@ -1,0 +1,77 @@
+{
+  "dataset": "BPI Challenge 2019",
+  "target": "Purchase-to-pay process clearance",
+  "fold": "fold_0",
+  "evaluation_rows": 36905,
+  "partial_sample": false,
+  "status": "experimental",
+  "landmarks": [
+    {
+      "age": 15,
+      "horizon": 7,
+      "at_risk": 32282,
+      "known": 32282,
+      "coverage": 1.0,
+      "auc": 0.851528125376276,
+      "brier": 0.13398967361624628,
+      "predicted_mean": 0.28733098450608985,
+      "observed_rate": 0.15358404064184375
+    },
+    {
+      "age": 15,
+      "horizon": 30,
+      "at_risk": 32282,
+      "known": 32282,
+      "coverage": 1.0,
+      "auc": 0.8979661108338108,
+      "brier": 0.12908606559717897,
+      "predicted_mean": 0.5528075186057775,
+      "observed_rate": 0.4708506288334056
+    },
+    {
+      "age": 30,
+      "horizon": 7,
+      "at_risk": 22299,
+      "known": 22299,
+      "coverage": 1.0,
+      "auc": 0.8567699696863551,
+      "brier": 0.10187350308720088,
+      "predicted_mean": 0.1950771916137999,
+      "observed_rate": 0.1382124758957801
+    },
+    {
+      "age": 30,
+      "horizon": 30,
+      "at_risk": 22299,
+      "known": 22299,
+      "coverage": 1.0,
+      "auc": 0.8487109576647858,
+      "brier": 0.2416284093988937,
+      "predicted_mean": 0.722608675684658,
+      "observed_rate": 0.4438315619534508
+    },
+    {
+      "age": 60,
+      "horizon": 7,
+      "at_risk": 12350,
+      "known": 12350,
+      "coverage": 1.0,
+      "auc": 0.7875176626095068,
+      "brier": 0.22571099445378912,
+      "predicted_mean": 0.4715903955400895,
+      "observed_rate": 0.11020242914979757
+    },
+    {
+      "age": 60,
+      "horizon": 30,
+      "at_risk": 12350,
+      "known": 12350,
+      "coverage": 1.0,
+      "auc": 0.8646053257177163,
+      "brier": 0.27665178593629564,
+      "predicted_mean": 0.8751082169536935,
+      "observed_rate": 0.5693117408906883
+    }
+  ],
+  "limitation": "Complete-case metrics exclude insufficient follow-up. They are not IPCW-adjusted population calibration estimates. Process clearance is not cash recovery."
+}

@@ -55,3 +55,32 @@ backend/app/ml/artifacts/experiments/
 
 # Generated ML datasets
 data/processed/
+
+gomask.toml
+
+/backend/gomask.toml
+
+*.backup_*
+*.bak
+*.before_coxnet
+*.csv.gz
+
+# Local private project material — never commit
+/.private/
+
+# AI coding-assistant instruction files
+AGENTS.md
+CLAUDE.md
+
+# Local staging credentials (the .example template is safe to track)
+/infra/.env.deploy
+
+# Generated coding-assistant instructions
+/frontend/AGENTS.md
+/frontend/CLAUDE.md
+/data/raw/
+/data/processed/
+/InvoiceIQ/
+/backend/app/ml/artifacts/b2b_v2/calibration/oof_predictions.csv.gz
+/backend/app/ml/artifacts/bpi_survival/policy_backtest_fold_0_cases.csv.gz
+/backend/app/ml/artifacts/stage3_validation/b2b/temporal_predictions.csv.gz

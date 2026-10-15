@@ -1,0 +1,64 @@
+{
+  "version": "b2b_v2",
+  "supported_questions": {
+    "will_invoice_be_late": {
+      "answer": "late_probability",
+      "model_status": "supported"
+    },
+    "will_invoice_clear_by_due_date": {
+      "answer": "clear_by_due_probability",
+      "formula": "1 - late_probability"
+    },
+    "will_invoice_be_more_than_7_days_late": {
+      "answer": "delay_over_7d_probability",
+      "model_status": "supported"
+    },
+    "will_invoice_clear_by_due_plus_7_days": {
+      "answer": "clear_by_due_plus_7d_probability",
+      "formula": "1 - delay_over_7d_probability"
+    },
+    "will_invoice_be_more_than_15_days_late": {
+      "answer": "delay_over_15d_probability",
+      "model_status": "experimental"
+    },
+    "will_invoice_clear_by_due_plus_15_days": {
+      "answer": "clear_by_due_plus_15d_probability",
+      "model_status": "experimental"
+    },
+    "if_late_how_many_days": {
+      "answers": [
+        "conditional_expected_days_late",
+        "conservative_clearance_window_days"
+      ]
+    },
+    "what_is_expected_delay": {
+      "answer": "expected_days_late"
+    },
+    "how_much_cash_is_at_risk": {
+      "answer": "expected_overdue_exposure"
+    },
+    "should_we_intervene": {
+      "answer": "recommended_action",
+      "source": "deterministic policy"
+    },
+    "how_urgent_is_it": {
+      "answers": [
+        "risk_tier",
+        "recommended_action"
+      ]
+    },
+    "when_might_it_clear_if_late": {
+      "answers": [
+        "conditional_expected_clearance_date",
+        "conservative_clearance_date"
+      ]
+    }
+  },
+  "unsupported_from_b2b_v2": {
+    "will_it_ever_be_recovered": "Dataset does not provide a reliable non-recovery population.",
+    "true_time_to_clear_probability_curve": "Use BPI survival/time-to-event model.",
+    "probability_clear_within_7_days_from_today": "Use BPI survival/time-to-event model.",
+    "causal_effect_of_contacting_customer": "Requires historical intervention/control data.",
+    "why_model_predicted_risk": "Requires SHAP/explainability layer; do not infer reasons from probability alone."
+  }
+}

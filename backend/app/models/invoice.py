@@ -39,6 +39,9 @@ class Invoice(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     payment_risk_model: Mapped[str | None] = mapped_column(
         String(100), nullable=True
     )
+    payment_risk_model_version: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )
     payment_risk_scored_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

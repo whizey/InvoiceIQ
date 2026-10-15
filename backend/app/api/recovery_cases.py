@@ -3,7 +3,7 @@ from app.core.time import utc_today
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -12,7 +12,7 @@ from app.agents.graph import run_recovery_cycle
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.locks import LockAcquisitionError, acquire_lock
-from app.ml.risk_model import explain as explain_risk
+from app.core.reviewer_auth import ReviewerIdentity, require_reviewer
 from app.models import AuditLog, Company, Invoice, RecoveryAction, RecoveryCase
 from app.models.enums import AuditActor, ProposedBy, RecoveryActionStatus, RecoveryActionType
 from app.schemas.recovery import (
@@ -26,7 +26,6 @@ from app.schemas.recovery import (
 from app.services import review_gate
 from app.services.action_policy import evaluate_and_record_action, primary_contact
 from app.services.risk_engine import run_detection
-from app.services.risk_context import build_risk_features
 from app.tools.email_provider import send_reminder_email
 from app.tools.mock_tools import execute_mock_action
 
@@ -112,46 +111,68 @@ async def get_risk_explanation(
     case_id: UUID,
     db: AsyncSession = Depends(get_db),
 ) -> RiskExplanationOut:
-    """Explain the current recovery-risk prediction for one case.
-
-    Features are rebuilt from the case's current PostgreSQL invoice,
-    payment and historical recovery context, then passed through the same
-    XGBoost model used by the recovery engine. SHAP explains this individual
-    model prediction.
-
-    SHAP values are model-output contributions, not percentage-point changes.
-    """
+    """Read stored B2B inference, never a synthetic recovery model."""
     case = await _load_case_detail(db, case_id)
-
     if case is None:
         raise HTTPException(
             status_code=404,
             detail="Recovery case not found",
         )
 
-    features = await build_risk_features(db, case.invoice)
-    explanation = explain_risk(features)
-
-    return RiskExplanationOut.model_validate(explanation)
+    invoice = case.invoice
+    return RiskExplanationOut(
+        prediction_target="late_payment_weekend_adjusted",
+        experimental=True,
+        model_name=invoice.payment_risk_model,
+        model_version=invoice.payment_risk_model_version,
+        scored_at=invoice.payment_risk_scored_at,
+        late_payment_probability=(
+            float(invoice.late_payment_probability)
+            if invoice.late_payment_probability is not None
+            else None
+        ),
+        risk_score=(
+            float(case.risk_score)
+            if case.risk_score is not None else None
+        ),
+        risk_level=case.risk_level,
+        contributions=invoice.payment_risk_drivers or [],
+    )
 
 
 class ReviewDecisionIn(BaseModel):
-    reviewer: str = "reviewer"
+    model_config = ConfigDict(extra="forbid")
+
     note: str | None = None
 
 
 @router.get("/pending-reviews")
-async def list_pending_reviews(db: AsyncSession = Depends(get_db)) -> list[dict]:
+async def list_pending_reviews(
+    db: AsyncSession = Depends(get_db),
+    _reviewer: ReviewerIdentity = Depends(
+        require_reviewer
+    ),
+) -> list[dict]:
     """Actions held by the policy engine, waiting for a person to approve or reject."""
     return await review_gate.list_pending(db)
 
 
 @router.post("/actions/{action_id}/approve")
 async def approve_action(
-    action_id: UUID, body: ReviewDecisionIn, db: AsyncSession = Depends(get_db)
+    action_id: UUID,
+    body: ReviewDecisionIn,
+    db: AsyncSession = Depends(get_db),
+    reviewer: ReviewerIdentity = Depends(
+        require_reviewer
+    ),
 ) -> dict:
     try:
-        result = await review_gate.approve(db, action_id, body.reviewer, body.note)
+        result = await review_gate.approve(
+            db,
+            action_id,
+            reviewer.reviewer_id,
+            body.note,
+        )
     except review_gate.ReviewError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from None
     await db.commit()
@@ -161,10 +182,20 @@ async def approve_action(
 
 @router.post("/actions/{action_id}/reject")
 async def reject_action(
-    action_id: UUID, body: ReviewDecisionIn, db: AsyncSession = Depends(get_db)
+    action_id: UUID,
+    body: ReviewDecisionIn,
+    db: AsyncSession = Depends(get_db),
+    reviewer: ReviewerIdentity = Depends(
+        require_reviewer
+    ),
 ) -> dict:
     try:
-        result = await review_gate.reject(db, action_id, body.reviewer, body.note)
+        result = await review_gate.reject(
+            db,
+            action_id,
+            reviewer.reviewer_id,
+            body.note,
+        )
     except review_gate.ReviewError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from None
     await db.commit()
@@ -242,7 +273,13 @@ async def send_reminder_email_endpoint(
             outcome = recorded.outcome
             now = datetime.now(timezone.utc)
 
-            if outcome.final_action == RecoveryActionType.SEND_EMAIL:
+            if action.status == RecoveryActionStatus.PENDING_APPROVAL:
+                # Do not contact anyone until review_gate.approve() resolves it.
+                to = None
+                status = "PENDING_APPROVAL"
+                sent_at = None
+                description = "Reminder queued for human review; no message sent."
+            elif outcome.final_action == RecoveryActionType.SEND_EMAIL:
                 result = await send_reminder_email(db, case, invoice, contact, company.name)
                 action.status = RecoveryActionStatus.EXECUTED
                 action.executed_at = now
@@ -270,7 +307,11 @@ async def send_reminder_email_endpoint(
                     recovery_case_id=case.id,
                     entity_type="recovery_action",
                     entity_id=action.id,
-                    event_type="EMAIL_SENT" if outcome.final_action == RecoveryActionType.SEND_EMAIL else "POLICY_SUBSTITUTED",
+                    event_type=(
+                        "REVIEW_REQUESTED" if status == "PENDING_APPROVAL"
+                        else "EMAIL_SENT" if outcome.final_action == RecoveryActionType.SEND_EMAIL
+                        else "POLICY_SUBSTITUTED"
+                    ),
                     actor=AuditActor.SYSTEM,
                     description=description,
                     occurred_at=now,

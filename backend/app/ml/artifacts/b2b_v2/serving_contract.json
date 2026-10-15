@@ -1,0 +1,22 @@
+{
+  "version": "b2b_v2",
+  "model_outputs": {
+    "late_probability": "P(invoice clears after adjusted due date)",
+    "delay_over_7d_probability": "P(invoice becomes more than 7 days late)",
+    "delay_over_15d_probability": "P(invoice becomes more than 15 days late)",
+    "conditional_expected_days_late": "Expected days late conditional on being late",
+    "conservative_clearance_window_days": "Conservative clearance-window estimate conditional on being late (P80 internally)"
+  },
+  "derived_outputs": {
+    "expected_days_late": "late_probability * conditional_expected_days_late",
+    "expected_overdue_exposure": "invoice_amount * late_probability",
+    "severity": "derived from late_probability, delay_over_7d_probability, delay_over_15d_probability and conditional lateness",
+    "collection_priority": "policy-derived from exposure, risk, severity and due-date urgency",
+    "intervention_recommendation": "deterministic policy output; not an independently trained target"
+  },
+  "important_constraints": [
+    "P(>15d) should never exceed P(>7d) at serving time; enforce monotonic post-processing.",
+    "These models do not estimate causal intervention effectiveness.",
+    "Reserved test split remains untouched during development."
+  ]
+}

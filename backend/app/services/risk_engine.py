@@ -20,11 +20,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.events import get_publisher
 from app.events import topics
-from app.ml.risk_model import score as score_risk
 from app.models import AuditLog, Invoice, PaymentEvent, RecoveryCase
 from app.models.enums import AuditActor, InvoiceStatus, PaymentEventType, RecoveryCaseStatus
+from app.services.invoice_risk_bridge import apply_invoice_risk_to_case
+from app.services.payment_risk_scoring import ensure_payment_risk_score
 from app.services.promise_tracking import PromiseCheckResult, check_promises_to_pay
-from app.services.risk_context import build_risk_features
 
 # TODO(Phase 10): move into the formal deterministic policy engine config,
 # alongside MAX_EMAIL_REMINDERS, HIGH_VALUE_THRESHOLD, etc.
@@ -105,11 +105,8 @@ async def create_recovery_cases_for_overdue_invoices(session: AsyncSession) -> l
             )
         )
 
-        features = await build_risk_features(session, invoice)
-        risk_result = score_risk(features)
-        case.risk_score = Decimal(str(risk_result.risk_score))
-        case.risk_level = risk_result.risk_level
-        case.recovery_probability = Decimal(str(risk_result.recovery_probability))
+        await ensure_payment_risk_score(session, invoice)
+        apply_invoice_risk_to_case(invoice, case)
 
         session.add(
             AuditLog(
@@ -119,9 +116,10 @@ async def create_recovery_cases_for_overdue_invoices(session: AsyncSession) -> l
                 event_type="RISK_SCORED",
                 actor=AuditActor.SYSTEM,
                 description=(
-                    f"Risk scored via ML model (synthetic training data): "
-                    f"{risk_result.risk_level.value} ({risk_result.risk_score}), "
-                    f"recovery probability {risk_result.recovery_probability:.0%}."
+                    f"Historical late-payment risk: "
+                    f"{invoice.late_payment_probability}; "
+                    f"model={invoice.payment_risk_model_version}. "
+                    "This is not a recovery probability."
                 ),
                 occurred_at=now,
             )

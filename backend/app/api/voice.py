@@ -119,17 +119,24 @@ async def _speak_turn(
         recorded = await evaluate_and_record_action(db, case, invoice, recommended, proposed_by=ProposedBy.HUMAN)
         action = recorded.action
         outcome = recorded.outcome
-        exec_result = await execute_mock_action(db, outcome.final_action, case, invoice, contact)
-        action.status = RecoveryActionStatus.EXECUTED
-        action.executed_at = _now()
-        action.result = exec_result
-        await db.flush()
+        if action.status == RecoveryActionStatus.PENDING_APPROVAL:
+            # Human review is a hold, not an advisory flag. No tool executes.
+            await db.flush()
+        else:
+            exec_result = await execute_mock_action(db, outcome.final_action, case, invoice, contact)
+            action.status = RecoveryActionStatus.EXECUTED
+            action.executed_at = _now()
+            action.result = exec_result
+            await db.flush()
         db.add(
             AuditLog(
                 recovery_case_id=case.id,
                 entity_type="recovery_action",
                 entity_id=action.id,
-                event_type="VOICE_CALL_CONCLUDED",
+                event_type=(
+                    "REVIEW_REQUESTED" if action.status == RecoveryActionStatus.PENDING_APPROVAL
+                    else "VOICE_CALL_CONCLUDED"
+                ),
                 actor=AuditActor.SYSTEM,
                 description=f"Voice call concluded: policy {outcome.decision.value} {outcome.final_action.value}.",
                 occurred_at=_now(),

@@ -1,0 +1,275 @@
+{
+  "model": "xgboost_aft",
+  "full_training": false,
+  "max_train_cases": 10000,
+  "rounds": 200,
+  "parameters": {
+    "objective": "survival:aft",
+    "eval_metric": "aft-nloglik",
+    "tree_method": "hist",
+    "learning_rate": 0.05,
+    "max_depth": 4,
+    "min_child_weight": 20,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "reg_lambda": 5.0,
+    "reg_alpha": 0.1,
+    "aft_loss_distribution": "normal",
+    "aft_loss_distribution_scale": 1.2,
+    "nthread": 4,
+    "seed": 42,
+    "verbosity": 0
+  },
+  "folds": [
+    {
+      "fold": "fold_0",
+      "training_invoices": 10000,
+      "evaluation_invoices": 36905,
+      "metrics": {
+        "7": {
+          "known_rows": 36905,
+          "positive_rate": 0.06053380300772253,
+          "brier": 0.04695507070584402,
+          "ece": 0.01961640540890748,
+          "roc_auc": 0.8820826822134459,
+          "pr_auc": 0.33710305963523735
+        },
+        "15": {
+          "known_rows": 36905,
+          "positive_rate": 0.12526757891884568,
+          "brier": 0.09286598094822955,
+          "ece": 0.03661765561654792,
+          "roc_auc": 0.8228705231931404,
+          "pr_auc": 0.40061947488000726
+        },
+        "30": {
+          "known_rows": 36905,
+          "positive_rate": 0.3957729304972226,
+          "brier": 0.2657863754978513,
+          "ece": 0.21349970782054772,
+          "roc_auc": 0.6852527273985209,
+          "pr_auc": 0.5621156648646995
+        },
+        "45": {
+          "known_rows": 36905,
+          "positive_rate": 0.5371358894458745,
+          "brier": 0.31535990702048994,
+          "ece": 0.2792578674945128,
+          "roc_auc": 0.669081324646432,
+          "pr_auc": 0.6759422297821306
+        },
+        "60": {
+          "known_rows": 36905,
+          "positive_rate": 0.6639479745291966,
+          "brier": 0.3566745133214803,
+          "ece": 0.34096879174559336,
+          "roc_auc": 0.6182559467671265,
+          "pr_auc": 0.75455090237795
+        },
+        "90": {
+          "known_rows": 36905,
+          "positive_rate": 0.8544641647473242,
+          "brier": 0.38322352059399195,
+          "ece": 0.4367195182111531,
+          "roc_auc": 0.5100257919516542,
+          "pr_auc": 0.8641054226179589
+        }
+      },
+      "summary": {
+        "mean_horizon_brier": 0.24347756134798118,
+        "mean_horizon_auc": 0.6979281660283866,
+        "worst_horizon_auc": 0.5100257919516542,
+        "mean_horizon_ece": 0.2211133243828771
+      }
+    },
+    {
+      "fold": "fold_1",
+      "training_invoices": 10000,
+      "evaluation_invoices": 34985,
+      "metrics": {
+        "7": {
+          "known_rows": 34985,
+          "positive_rate": 0.04621980848935258,
+          "brier": 0.03771135937219174,
+          "ece": 0.020311582529549427,
+          "roc_auc": 0.9146126432962409,
+          "pr_auc": 0.36560337039370094
+        },
+        "15": {
+          "known_rows": 34985,
+          "positive_rate": 0.08203515792482492,
+          "brier": 0.06027966403446299,
+          "ece": 0.03894212224519847,
+          "roc_auc": 0.905781021058359,
+          "pr_auc": 0.4646832629412325
+        },
+        "30": {
+          "known_rows": 34985,
+          "positive_rate": 0.38350721737887666,
+          "brier": 0.2308924480001709,
+          "ece": 0.19762185704215063,
+          "roc_auc": 0.7699287812817301,
+          "pr_auc": 0.668430372030167
+        },
+        "45": {
+          "known_rows": 34985,
+          "positive_rate": 0.5349149635558096,
+          "brier": 0.2947053729848377,
+          "ece": 0.2791711201970175,
+          "roc_auc": 0.7376643544025646,
+          "pr_auc": 0.7570804213989382
+        },
+        "60": {
+          "known_rows": 34985,
+          "positive_rate": 0.6509075317993426,
+          "brier": 0.328828643975143,
+          "ece": 0.33553321118338353,
+          "roc_auc": 0.7139880991290938,
+          "pr_auc": 0.8151071385376314
+        },
+        "90": {
+          "known_rows": 33392,
+          "positive_rate": 0.870148538572113,
+          "brier": 0.3794344760696277,
+          "ece": 0.4562206824762704,
+          "roc_auc": 0.5784472678474547,
+          "pr_auc": 0.9078060929964197
+        }
+      },
+      "summary": {
+        "mean_horizon_brier": 0.22197532740607231,
+        "mean_horizon_auc": 0.7700703611692407,
+        "worst_horizon_auc": 0.5784472678474547,
+        "mean_horizon_ece": 0.221300095945595
+      }
+    },
+    {
+      "fold": "fold_2",
+      "training_invoices": 10000,
+      "evaluation_invoices": 15588,
+      "metrics": {
+        "7": {
+          "known_rows": 15588,
+          "positive_rate": 0.040928919681806515,
+          "brier": 0.03540214202240252,
+          "ece": 0.025322819998884315,
+          "roc_auc": 0.923802696553821,
+          "pr_auc": 0.3162441431797864
+        },
+        "15": {
+          "known_rows": 15588,
+          "positive_rate": 0.10456761611496022,
+          "brier": 0.07928799888749113,
+          "ece": 0.05831077419439405,
+          "roc_auc": 0.83138534798084,
+          "pr_auc": 0.41676542628128815
+        },
+        "30": {
+          "known_rows": 15588,
+          "positive_rate": 0.35322042596869385,
+          "brier": 0.2777718990534854,
+          "ece": 0.26109870477539715,
+          "roc_auc": 0.7113993261071059,
+          "pr_auc": 0.5787251467932054
+        },
+        "45": {
+          "known_rows": 15588,
+          "positive_rate": 0.5102643058763151,
+          "brier": 0.3795553870700844,
+          "ece": 0.3785547212875221,
+          "roc_auc": 0.6905192889636764,
+          "pr_auc": 0.700845620552334
+        },
+        "60": {
+          "known_rows": 12959,
+          "positive_rate": 0.7186511304884636,
+          "brier": 0.4916959427420726,
+          "ece": 0.530761148760485,
+          "roc_auc": 0.6888265973298109,
+          "pr_auc": 0.8508909356224146
+        },
+        "90": {
+          "known_rows": 10037,
+          "positive_rate": 1.0,
+          "brier": 0.5966627673260513,
+          "ece": 0.716121248485188,
+          "roc_auc": null,
+          "pr_auc": null
+        }
+      },
+      "summary": {
+        "mean_horizon_brier": 0.3100626895169312,
+        "mean_horizon_auc": 0.7691866513870508,
+        "worst_horizon_auc": 0.6888265973298109,
+        "mean_horizon_ece": 0.3283615695836451
+      }
+    },
+    {
+      "fold": "fold_3",
+      "training_invoices": 10000,
+      "evaluation_invoices": 25253,
+      "metrics": {
+        "7": {
+          "known_rows": 22012,
+          "positive_rate": 0.04602035253498092,
+          "brier": 0.04056364088065045,
+          "ece": 0.019993050716233633,
+          "roc_auc": 0.8697949091450649,
+          "pr_auc": 0.2474824045484288
+        },
+        "15": {
+          "known_rows": 17513,
+          "positive_rate": 0.09615714040998116,
+          "brier": 0.0769704510522028,
+          "ece": 0.03620258320160699,
+          "roc_auc": 0.8470791005834476,
+          "pr_auc": 0.3473759685549921
+        },
+        "30": {
+          "known_rows": 12421,
+          "positive_rate": 0.37162869334192095,
+          "brier": 0.2146213902837654,
+          "ece": 0.18964323370867575,
+          "roc_auc": 0.833285291835101,
+          "pr_auc": 0.6997058120551596
+        },
+        "45": {
+          "known_rows": 7564,
+          "positive_rate": 0.9175039661554732,
+          "brier": 0.4399166811839735,
+          "ece": 0.5779569790271913,
+          "roc_auc": 0.952647463607478,
+          "pr_auc": 0.9930433833034045
+        },
+        "60": {
+          "known_rows": 6990,
+          "positive_rate": 1.0,
+          "brier": 0.4010949965413689,
+          "ece": 0.5699890795089689,
+          "roc_auc": null,
+          "pr_auc": null
+        },
+        "90": {
+          "known_rows": 6990,
+          "positive_rate": 1.0,
+          "brier": 0.29054043541002067,
+          "ece": 0.4700767194813952,
+          "roc_auc": null,
+          "pr_auc": null
+        }
+      },
+      "summary": {
+        "mean_horizon_brier": 0.24395126589199698,
+        "mean_horizon_auc": 0.8757016912927729,
+        "worst_horizon_auc": 0.833285291835101,
+        "mean_horizon_ece": 0.31064360760734533
+      }
+    }
+  ],
+  "summary": {
+    "median_mean_horizon_auc": 0.7696285062781457,
+    "worst_horizon_auc_across_folds": 0.5100257919516542,
+    "median_mean_horizon_brier": 0.24371441361998908
+  },
+  "production_model_changed": false
+}

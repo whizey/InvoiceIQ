@@ -51,6 +51,8 @@ async def _local_lock(key: str, ttl_seconds: int) -> AsyncIterator[None]:
 @contextlib.asynccontextmanager
 async def acquire_lock(key: str, ttl_seconds: int = DEFAULT_LOCK_TTL_SECONDS) -> AsyncIterator[None]:
     if not settings.redis_url:
+        if settings.env.lower() in {"production", "staging"}:
+            raise LockAcquisitionError("Distributed lock service is required for hosted writes")
         async with _local_lock(key, ttl_seconds):
             yield
         return
@@ -89,6 +91,8 @@ async def acquire_lock(key: str, ttl_seconds: int = DEFAULT_LOCK_TTL_SECONDS) ->
         # a better failure mode than refusing all traffic.
         with contextlib.suppress(Exception):
             await client.aclose()
+        if settings.env.lower() in {"production", "staging"}:
+            raise LockAcquisitionError("Distributed lock service is unavailable") from None
         async with _local_lock(key, ttl_seconds):
             yield
         return

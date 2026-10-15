@@ -1,0 +1,48 @@
+name: AI guardrails and model contracts
+
+on:
+  push:
+    branches: [main, invoiceiq-integration]
+    paths:
+      - 'backend/app/agents/**'
+      - 'backend/app/core/mutation_auth.py'
+      - 'backend/app/main.py'
+      - 'backend/app/api/**'
+      - 'backend/app/services/action_policy.py'
+      - 'backend/tests/test_ai_guardrails.py'
+      - 'backend/tests/test_mutation_auth.py'
+      - 'backend/tests/test_model_artifact_verification.py'
+      - 'backend/app/ml/artifacts/**/*.json'
+      - 'scripts/verification/**'
+      - '.github/workflows/ai-guardrails.yml'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ai-safety:
+    name: Agent security and model contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      ENV: test
+      SCHEDULER_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          lfs: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+      - name: Install runtime and test dependencies
+        run: python -m pip install -r backend/requirements-dev.txt
+      - name: Test AI guardrails and mutation authorization
+        working-directory: backend
+        run: python -m pytest -q tests/test_ai_guardrails.py tests/test_mutation_auth.py tests/test_model_artifact_verification.py
+      - name: Validate model contracts without downloading LFS objects
+        run: python scripts/verification/check_model_artifacts.py

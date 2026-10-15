@@ -1,0 +1,40 @@
+{
+  "task": "classification",
+  "head": "late_payment",
+  "business_question": "Will this invoice miss its adjusted due date?",
+  "model_family": "gradient_boosting",
+  "feature_set": "behaviour_heavy",
+  "features": [
+    "amount",
+    "payment_term",
+    "prior_open_invoice_count",
+    "has_resolved_history",
+    "historical_late_rate",
+    "historical_avg_days_late",
+    "amount_vs_historical_avg_ratio",
+    "days_since_previous_invoice",
+    "recent_5_late_rate",
+    "recent_5_avg_days_late",
+    "recent_late_streak",
+    "recent_on_time_streak",
+    "recent_5_late_rate_delta",
+    "recent_5_avg_days_late_delta"
+  ],
+  "training_rows": 34437,
+  "positive_rate": 0.35125010889450303,
+  "refit_as_of": "2015-12-08 00:00:00+00:00",
+  "temporal_backtest": {
+    "valid": true,
+    "fold_count": 4,
+    "below_random_folds": 0,
+    "median_roc_auc": 0.6294185414379463,
+    "mean_roc_auc": 0.6555153398952085,
+    "worst_roc_auc": 0.6063210045272059,
+    "roc_auc_std": 0.05930665208611179,
+    "median_pr_auc": 0.5078098076949528,
+    "median_pr_lift": 1.5893863068697942,
+    "mean_brier": 0.22203315784866956,
+    "mean_ece": 0.17942620936861226
+  },
+  "test_used": false
+}

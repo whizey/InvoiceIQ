@@ -1,0 +1,10 @@
+{
+  "p80": {
+    "quantile": 0.8,
+    "adjustment_days": -1.406771876877806,
+    "raw_coverage": 0.8767611336032388,
+    "calibrated_coverage": 0.8019433198380567,
+    "raw_pinball": 1.225975300467431,
+    "calibrated_pinball": 1.1746244155421133
+  }
+}

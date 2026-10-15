@@ -7,7 +7,9 @@ pydantic-settings==2.15.0
 python-dotenv==1.0.1
 alembic==1.19.1
 xgboost==3.4.1
+lightgbm==4.6.0
 scikit-learn==1.9.0
+scikit-survival==0.28.0
 pandas==3.0.5
 numpy==2.5.2
 langgraph==1.2.11
@@ -19,3 +21,6 @@ redis==8.1.0
 httpx==0.28.1
 python-multipart==0.0.20
 shap==0.52.0
+
+# Optional metrics endpoint is disabled until METRICS_ENABLED=true.
+prometheus-client==0.23.1

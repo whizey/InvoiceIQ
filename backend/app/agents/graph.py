@@ -27,11 +27,11 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.llm_client import diagnose, recommend
+from app.agents.guardrails import assert_action_can_execute
 from app.agents.state import RecoveryState
 from app.events import get_publisher
 from app.events import topics
 from app.ml.features import FEATURE_NAMES, RiskFeatures
-from app.ml.risk_model import explain as explain_risk
 from app.models import (
     AgentDecision,
     AuditLog,
@@ -55,6 +55,7 @@ from app.models.enums import (
 from app.services.policy_engine import evaluate_policy
 from app.services.promise_tracking import has_unresolved_broken_promise
 from app.services.risk_context import build_risk_features
+from app.services.invoice_risk_bridge import apply_invoice_risk_to_case
 from app.services.payment_risk_scoring import ensure_payment_risk_score
 from app.tools.mock_tools import execute_mock_action
 
@@ -291,6 +292,9 @@ async def load_customer_context_node(
             "payment_risk_model": (
                 invoice.payment_risk_model
             ),
+            "payment_risk_model_version": (
+                invoice.payment_risk_model_version
+            ),
             "payment_risk_drivers": (
                 invoice.payment_risk_drivers
                 or []
@@ -307,26 +311,25 @@ async def load_customer_context_node(
     }
 
 
-async def calculate_recovery_risk_node(state: RecoveryState, session: AsyncSession) -> dict:
-    customer_context = state["customer_context"]
-    features = RiskFeatures(**{name: customer_context[name] for name in FEATURE_NAMES})
-    result = explain_risk(features)
-    drivers = [
-        {
-            "feature": c.feature,
-            "label": c.label,
-            "value": c.value,
-            "shap_value": c.shap_value,
-            "direction": c.direction,
-        }
-        for c in result.contributions[:3]
-    ]
-    driver_text = "; ".join(f"{d['label']} ({d['shap_value']:+.2f})" for d in drivers)
+async def calculate_recovery_risk_node(
+    state: RecoveryState,
+    session: AsyncSession,
+) -> dict:
+    case = await session.get(
+        RecoveryCase,
+        UUID(state["case_id"]),
+    )
+    if case is None:
+        raise ValueError("Recovery case not found")
 
-    case = await session.get(RecoveryCase, UUID(state["case_id"]))
-    case.risk_score = Decimal(str(result.risk_score))
-    case.risk_level = result.risk_level
-    case.recovery_probability = Decimal(str(result.recovery_probability))
+    invoice = await session.get(Invoice, case.invoice_id)
+    if invoice is None:
+        raise ValueError("Invoice not found")
+
+    await ensure_payment_risk_score(session, invoice)
+    apply_invoice_risk_to_case(invoice, case)
+
+    drivers = invoice.payment_risk_drivers or []
 
     session.add(
         AuditLog(
@@ -336,9 +339,23 @@ async def calculate_recovery_risk_node(state: RecoveryState, session: AsyncSessi
             event_type="RISK_SCORED",
             actor=AuditActor.SYSTEM,
             description=(
-                f"Risk re-scored via ML model: {result.risk_level.value} ({result.risk_score}), "
-                f"recovery probability {result.recovery_probability:.0%}. "
-                f"Top SHAP drivers: {driver_text}."
+                "Using the invoice's historical B2B "
+                "late-payment prediction; "
+                f"model={invoice.payment_risk_model_version}. "
+                "Recovery probability is not estimated. "
+                + (
+                    "Top SHAP drivers: "
+                    + ", ".join(
+                        str(
+                            driver.get("label")
+                            or driver.get("feature")
+                            or "unknown"
+                        )
+                        for driver in drivers[:3]
+                    )
+                    if drivers
+                    else "SHAP drivers unavailable."
+                )
             ),
             occurred_at=_now(),
         )
@@ -346,12 +363,17 @@ async def calculate_recovery_risk_node(state: RecoveryState, session: AsyncSessi
     await session.flush()
 
     return {
-        "risk_score": result.risk_score,
-        "risk_level": result.risk_level.value,
-        "recovery_probability": result.recovery_probability,
+        "risk_score": (
+            float(case.risk_score)
+            if case.risk_score is not None else None
+        ),
+        "risk_level": (
+            case.risk_level.value
+            if case.risk_level is not None else None
+        ),
+        "recovery_probability": None,
         "risk_drivers": drivers,
     }
-
 
 async def diagnose_case_node(state: RecoveryState, session: AsyncSession) -> dict:
     case_id = UUID(state["case_id"])
@@ -492,7 +514,9 @@ async def policy_check_node(state: RecoveryState, session: AsyncSession) -> dict
 
 async def execute_action_node(state: RecoveryState, session: AsyncSession) -> dict:
     action = await session.get(RecoveryAction, UUID(state["action_id"]))
-    case = await session.get(RecoveryCase, UUID(state["case_id"]))
+    case_id = UUID(state["case_id"])
+    assert_action_can_execute(action, case_id)
+    case = await session.get(RecoveryCase, case_id)
     invoice = await session.get(Invoice, case.invoice_id)
     contact = await _primary_contact(session, case.company_id)
 

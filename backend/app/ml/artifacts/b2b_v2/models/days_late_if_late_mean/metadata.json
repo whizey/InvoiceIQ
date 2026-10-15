@@ -1,0 +1,35 @@
+{
+  "task": "conditional_regression",
+  "business_question": "If this invoice is late, how many days late is it expected to be?",
+  "model_family": "xgboost",
+  "feature_set": "no_open_ratio",
+  "features": [
+    "amount",
+    "payment_term",
+    "prior_resolved_invoice_count",
+    "prior_open_invoice_count",
+    "has_resolved_history",
+    "historical_late_rate",
+    "historical_avg_days_late",
+    "historical_avg_invoice_amount",
+    "amount_vs_historical_avg_ratio",
+    "days_since_previous_invoice",
+    "recent_5_late_rate",
+    "recent_5_avg_days_late",
+    "recent_late_streak",
+    "recent_on_time_streak",
+    "recent_5_late_rate_delta",
+    "recent_5_avg_days_late_delta"
+  ],
+  "training_rows": 11700,
+  "temporal_backtest": {
+    "valid": true,
+    "fold_count": 4,
+    "median_mae": 3.187147510091295,
+    "mean_mae": 2.804893938542117,
+    "worst_mae": 3.731841961394495,
+    "mae_std": 1.0018511279853974,
+    "median_medae": 2.4893136620521545
+  },
+  "test_used": false
+}

@@ -1,0 +1,21 @@
+{
+  "late_payment": {
+    "serving_mode": "raw",
+    "status": "SUPPORTED_UNCALIBRATED",
+    "display": "late_risk_score",
+    "reason": "Sequential Platt and isotonic calibration did not improve temporal calibration reliably."
+  },
+  "delay_over_7d": {
+    "serving_mode": "platt",
+    "status": "SUPPORTED_CALIBRATED",
+    "display": "probability",
+    "calibrator": "/Users/riya/Desktop/Recoveriq/backend/app/ml/artifacts/b2b_v2/models/delay_over_7d/calibrator_platt.joblib",
+    "reason": "Sequential Platt materially improved Brier and ECE without harming temporal ranking."
+  },
+  "delay_over_15d": {
+    "serving_mode": "raw",
+    "status": "EXPERIMENTAL",
+    "display": "experimental_risk_score",
+    "reason": "Insufficient temporal positives for honest sequential calibration."
+  }
+}

@@ -1,160 +1,95 @@
 import { Section } from "@/components/Section";
-import { formatCurrency, formatPercent } from "@/lib/format";
-import type {
-  RiskExplanation,
-  RiskFeatureContribution,
-} from "@/lib/types";
-
-
-function formatFeatureValue(feature: string, value: number): string {
-  if (feature === "invoice_amount" || feature === "outstanding_balance") {
-    return formatCurrency(value);
-  }
-
-  if (feature === "prior_recovery_success_rate") {
-    return formatPercent(value);
-  }
-
-  if (feature === "days_overdue" || feature === "customer_tenure_days") {
-    return `${Math.round(value)} days`;
-  }
-
-  if (Number.isInteger(value)) {
-    return String(value);
-  }
-
-  return value.toFixed(2);
-}
-
-
-function contributionText(
-  contribution: RiskFeatureContribution,
-): string {
-  return contribution.direction === "increases_recovery_probability"
-    ? "Pushes prediction toward recovery"
-    : "Pushes prediction away from recovery";
-}
-
+import { formatPercent } from "@/lib/format";
+import type { RiskExplanation } from "@/lib/types";
 
 export function RiskExplanationPanel({
   explanation,
 }: {
   explanation: RiskExplanation | null;
 }) {
-  if (!explanation) {
-    return null;
-  }
+  if (!explanation) return null;
 
-  const visible = explanation.contributions.slice(0, 6);
-
-  const maxMagnitude = Math.max(
-    ...visible.map((item) => Math.abs(item.shap_value)),
+  const drivers = explanation.contributions.slice(0, 5);
+  const maxShap = Math.max(
+    ...drivers.map((d) => Math.abs(d.shap_value)),
     0.000001,
   );
 
   return (
-    <Section title="Why this risk score?">
-      <div className="space-y-5">
-        <div className="rounded-lg border border-slate-100 bg-slate-50 p-3">
-          <div className="grid grid-cols-3 gap-3 text-center">
-            <div>
-              <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                Risk score
-              </p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">
-                {explanation.risk_score.toFixed(2)}
-              </p>
-            </div>
+    <Section title="B2B late-payment prediction · SHAP">
+      <div className="space-y-4">
+        <p className="text-xs text-amber-700">
+          Experimental historical late-payment prediction.
+          This is not a recovery probability.
+        </p>
 
-            <div>
-              <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                Recovery
-              </p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">
-                {formatPercent(explanation.recovery_probability)}
-              </p>
-            </div>
-
-            <div>
-              <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                Risk
-              </p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">
-                {explanation.risk_level}
-              </p>
-            </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <p className="text-xs text-slate-500">
+              Late-payment probability
+            </p>
+            <p className="text-xl font-semibold">
+              {explanation.late_payment_probability === null
+                ? "Unavailable"
+                : formatPercent(explanation.late_payment_probability)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500">Case priority</p>
+            <p className="text-xl font-semibold">
+              {explanation.risk_level ?? "Unscored"}
+            </p>
           </div>
         </div>
 
-        <div className="space-y-4">
-          {visible.map((item) => {
-            const magnitude = Math.abs(item.shap_value);
-            const width = Math.max(
-              4,
-              (magnitude / maxMagnitude) * 100,
-            );
+        <p className="break-all text-xs text-slate-500">
+          Model: {explanation.model_name ?? "Unavailable"}
+          {" · "}Version: {explanation.model_version ?? "Unavailable"}
+        </p>
 
-            const positive =
-              item.direction === "increases_recovery_probability";
+        {drivers.map((item) => {
+          const higher =
+            item.direction === "increases_late_payment_probability";
 
-            return (
-              <div key={item.feature}>
-                <div className="mb-1 flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-medium text-slate-800">
-                      {item.label}
-                    </p>
-
-                    <p className="text-xs text-slate-400">
-                      {formatFeatureValue(item.feature, item.value)}
-                    </p>
-                  </div>
-
-                  <div className="text-right">
-                    <p
-                      className={`text-xs font-semibold ${
-                        positive
-                          ? "text-emerald-600"
-                          : "text-rose-600"
-                      }`}
-                    >
-                      {item.shap_value > 0 ? "+" : ""}
-                      {item.shap_value.toFixed(3)}
-                    </p>
-
-                    <p className="mt-0.5 text-[10px] text-slate-400">
-                      SHAP
-                    </p>
-                  </div>
-                </div>
-
-                <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                  <div
-                    className={`h-full rounded-full ${
-                      positive
-                        ? "bg-emerald-500"
-                        : "bg-rose-500"
-                    }`}
-                    style={{ width: `${width}%` }}
-                  />
-                </div>
-
-                <p className="mt-1 text-[11px] text-slate-500">
-                  {contributionText(item)}
-                </p>
+          return (
+            <div key={item.feature} className="space-y-1">
+              <div className="flex justify-between gap-3 text-sm">
+                <span>{item.label}</span>
+                <span className={
+                  higher ? "text-rose-600" : "text-emerald-700"
+                }>
+                  {item.shap_value >= 0 ? "+" : ""}
+                  {item.shap_value.toFixed(3)}
+                </span>
               </div>
-            );
-          })}
-        </div>
+              <div className="h-2 rounded bg-slate-100">
+                <div
+                  className={
+                    higher
+                      ? "h-2 rounded bg-rose-400"
+                      : "h-2 rounded bg-emerald-500"
+                  }
+                  style={{
+                    width: `${Math.max(
+                      4,
+                      Math.abs(item.shap_value) / maxShap * 100
+                    )}%`,
+                  }}
+                />
+              </div>
+              <p className="text-xs text-slate-500">
+                {higher ? "Increases" : "Decreases"} model output
+                {" · "}Feature value: {item.value ?? "Unavailable"}
+              </p>
+            </div>
+          );
+        })}
 
-        <div className="border-t border-slate-100 pt-3">
-          <p className="text-[11px] leading-5 text-slate-400">
-            Local explanation from the XGBoost recovery model using SHAP.
-            Bar length represents relative SHAP magnitude for this prediction;
-            SHAP values are model-output contributions, not percentage-point
-            changes in recovery probability.
-          </p>
-        </div>
+        <p className="text-xs text-slate-500">
+          SHAP values are model-output contributions, not
+          percentage-point changes. The score alone must not
+          authorize a collection action.
+        </p>
       </div>
     </Section>
   );

@@ -38,6 +38,7 @@ class InvoiceOut(BaseModel):
 
     late_payment_probability: Decimal | None
     payment_risk_model: str | None
+    payment_risk_model_version: str | None
     payment_risk_scored_at: datetime | None
     payment_risk_drivers: list[dict] | None
 

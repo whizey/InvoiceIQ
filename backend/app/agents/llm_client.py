@@ -21,6 +21,7 @@ from app.agents.prompts import (
     build_voice_turn_prompt,
 )
 from app.agents.schemas import DiagnosisResult, InterventionRecommendation, VoiceTurnResult
+from app.agents.guardrails import is_untrusted_instruction, validate_model_output
 from app.core.config import settings
 
 MAX_VOICE_TURNS = 4
@@ -87,7 +88,7 @@ def _log_llm_call(stage: str, provider: str, model_name: str, *, llm_called: boo
 
 
 async def _invoke_structured_llm(
-    structured_llm: Any, messages: list, *, stage: str, provider: str, model_name: str
+    structured_llm: Any, messages: list, *, stage: str, provider: str, model_name: str, schema: type
 ) -> Any | None:
     """Returns the parsed structured result, or None on any failure (rate
     limit, timeout, network error, malformed response) — callers fall back
@@ -105,14 +106,18 @@ async def _invoke_structured_llm(
             exc_info=True,
         )
         return None
+    validated = validate_model_output(result, schema)
+    if validated is None:
+        logger.warning("llm %s returned invalid structured output; using fallback", stage)
+        return None
     _log_llm_call(stage, provider, model_name, llm_called=True)
-    return result
+    return validated
 
 
 async def diagnose(invoice_context: dict, customer_context: dict) -> tuple[DiagnosisResult, str]:
     provider, _configured_model = configured_llm()
     llm, model_name = _llm_chat()
-    if llm is not None:
+    if llm is not None and not is_untrusted_instruction((invoice_context, customer_context)):
         from langchain_core.messages import HumanMessage, SystemMessage
 
         structured_llm = llm.with_structured_output(DiagnosisResult)
@@ -121,7 +126,7 @@ async def diagnose(invoice_context: dict, customer_context: dict) -> tuple[Diagn
             HumanMessage(content=build_diagnosis_prompt(invoice_context, customer_context)),
         ]
         result = await _invoke_structured_llm(
-            structured_llm, messages, stage="diagnose", provider=provider, model_name=model_name
+            structured_llm, messages, stage="diagnose", provider=provider, model_name=model_name, schema=DiagnosisResult
         )
         if result is not None:
             return result, model_name
@@ -135,7 +140,7 @@ async def recommend(
 ) -> tuple[InterventionRecommendation, str]:
     provider, _configured_model = configured_llm()
     llm, model_name = _llm_chat()
-    if llm is not None:
+    if llm is not None and not is_untrusted_instruction((invoice_context, customer_context, diagnosis)):
         from langchain_core.messages import HumanMessage, SystemMessage
 
         structured_llm = llm.with_structured_output(InterventionRecommendation)
@@ -146,7 +151,7 @@ async def recommend(
             ),
         ]
         result = await _invoke_structured_llm(
-            structured_llm, messages, stage="recommend", provider=provider, model_name=model_name
+            structured_llm, messages, stage="recommend", provider=provider, model_name=model_name, schema=InterventionRecommendation
         )
         if result is not None:
             return result, model_name
@@ -217,7 +222,7 @@ async def voice_turn(
     before anything executes, exactly like recommend() above."""
     provider, _configured_model = configured_llm()
     llm, model_name = _llm_chat()
-    if llm is not None:
+    if llm is not None and not is_untrusted_instruction((invoice_context, customer_context, transcript_so_far)):
         from langchain_core.messages import HumanMessage, SystemMessage
 
         structured_llm = llm.with_structured_output(VoiceTurnResult)
@@ -228,7 +233,7 @@ async def voice_turn(
             ),
         ]
         result = await _invoke_structured_llm(
-            structured_llm, messages, stage="voice_turn", provider=provider, model_name=model_name
+            structured_llm, messages, stage="voice_turn", provider=provider, model_name=model_name, schema=VoiceTurnResult
         )
         if result is not None:
             return result, model_name

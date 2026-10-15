@@ -1,0 +1,32 @@
+{
+  "task": "quantile_regression",
+  "quantile": 0.8,
+  "business_question": "What is the P80 lateness estimate if the invoice is late?",
+  "feature_set": "behaviour_heavy",
+  "features": [
+    "amount",
+    "payment_term",
+    "prior_open_invoice_count",
+    "has_resolved_history",
+    "historical_late_rate",
+    "historical_avg_days_late",
+    "amount_vs_historical_avg_ratio",
+    "days_since_previous_invoice",
+    "recent_5_late_rate",
+    "recent_5_avg_days_late",
+    "recent_late_streak",
+    "recent_on_time_streak",
+    "recent_5_late_rate_delta",
+    "recent_5_avg_days_late_delta"
+  ],
+  "training_rows": 11700,
+  "temporal_backtest": {
+    "valid": true,
+    "fold_count": 4,
+    "median_pinball": 0.9255420975335739,
+    "worst_pinball": 1.7581874514694495,
+    "median_coverage": 0.8758880190429723,
+    "median_coverage_error": 0.07588801904297232
+  },
+  "test_used": false
+}

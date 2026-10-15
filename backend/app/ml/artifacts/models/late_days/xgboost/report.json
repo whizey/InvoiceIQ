@@ -1,0 +1,47 @@
+{
+  "task": "conditional_late_days_regression",
+  "business_question": "If the invoice is late, approximately how many days late will it be?",
+  "target": "late_days_if_late",
+  "source_target": "days_late_weekend_adjusted",
+  "training_population": "Invoices where late_payment_weekend_adjusted == 1",
+  "features": [
+    "amount",
+    "payment_term",
+    "prior_resolved_invoice_count",
+    "prior_open_invoice_count",
+    "open_invoice_ratio",
+    "has_resolved_history",
+    "historical_late_rate",
+    "historical_avg_days_late",
+    "historical_avg_invoice_amount",
+    "amount_vs_historical_avg_ratio",
+    "customer_tenure_days",
+    "days_since_previous_invoice",
+    "recent_5_late_rate",
+    "recent_5_avg_days_late",
+    "recent_late_streak",
+    "recent_on_time_streak",
+    "recent_5_late_rate_delta",
+    "recent_5_avg_days_late_delta"
+  ],
+  "train_rows": 9607,
+  "validation_rows": 2675,
+  "train_metrics": {
+    "mae": 2.27748441696167,
+    "median_absolute_error": 0.3167843818664551,
+    "rmse": 19.747988827831065,
+    "r2": 0.4054408669471741
+  },
+  "validation_metrics": {
+    "mae": 1.4791446924209595,
+    "median_absolute_error": 0.487438440322876,
+    "rmse": 3.746605162969856,
+    "r2": 0.31513625383377075
+  },
+  "test_used": false,
+  "notes": [
+    "Model selection uses validation only.",
+    "Test split remains untouched.",
+    "Target is log1p transformed during training because lateness duration is typically right-skewed."
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "task": "classification",
+  "head": "delay_over_15d",
+  "business_question": "Will this invoice become more than 15 days late?",
+  "model_family": "random_forest",
+  "feature_set": "behaviour_heavy",
+  "features": [
+    "amount",
+    "payment_term",
+    "prior_open_invoice_count",
+    "has_resolved_history",
+    "historical_late_rate",
+    "historical_avg_days_late",
+    "amount_vs_historical_avg_ratio",
+    "days_since_previous_invoice",
+    "recent_5_late_rate",
+    "recent_5_avg_days_late",
+    "recent_late_streak",
+    "recent_on_time_streak",
+    "recent_5_late_rate_delta",
+    "recent_5_avg_days_late_delta"
+  ],
+  "training_rows": 31441,
+  "positive_rate": 0.03304602270920136,
+  "refit_as_of": "2015-12-08 00:00:00+00:00",
+  "temporal_backtest": {
+    "valid": true,
+    "fold_count": 3,
+    "below_random_folds": 0,
+    "median_roc_auc": 0.9440781995908161,
+    "mean_roc_auc": 0.8118463382255469,
+    "worst_roc_auc": 0.5080098000814115,
+    "roc_auc_std": 0.21544533116618053,
+    "median_pr_auc": 0.03959980502947603,
+    "median_pr_lift": 9.679797368670465,
+    "mean_brier": 0.029996342854794942,
+    "mean_ece": 0.04545177526363739
+  },
+  "test_used": false
+}

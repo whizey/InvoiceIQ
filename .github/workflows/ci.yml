@@ -1,8 +1,15 @@
 name: CI
 
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
-    branches: [main]
+    branches: [main, invoiceiq-integration]
   pull_request:
 
 jobs:
@@ -32,6 +39,15 @@ jobs:
       DATABASE_URL: postgresql+asyncpg://recovery_user:recovery_pass@localhost:5432/recovery_db
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Read-only repository token permits Git LFS checkout for private repos.
+          persist-credentials: true
+          lfs: false
+
+      - name: Fetch runtime model artifacts (exclude raw datasets)
+        run: |
+          git lfs install --local
+          git lfs pull --include="backend/app/ml/artifacts/**" --exclude="data/**"
 
       - uses: actions/setup-python@v5
         with:
@@ -90,9 +106,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          lfs: false
+
+      - name: Fetch runtime model artifacts (exclude raw datasets)
+        run: |
+          git lfs install --local
+          git lfs pull --include="backend/app/ml/artifacts/**" --exclude="data/**"
 
       - name: Build backend image
         run: docker build -f backend/Dockerfile backend
 
       - name: Build frontend image
         run: docker build -f frontend/Dockerfile frontend
+
+  staging-compose-config:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate staging Compose syntax (disposable CI-only values)
+        env:
+          POSTGRES_PASSWORD: local-ci-nonsecret-dummy-value
+          INVOICEIQ_OPERATOR_API_KEY: local-ci-nonsecret-operator-token-value
+          INVOICEIQ_METRICS_TOKEN: local-ci-nonsecret-collector-token-value
+        run: docker compose -f infra/compose.deploy.yml config --quiet
