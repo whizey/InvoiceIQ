@@ -27,9 +27,15 @@ export default function PortalOperations({section}:{section:Section}){
     if(!response.ok)throw new Error(payload.detail||"Workspace unavailable");
     setData(payload);
   },[router]);
-  useEffect(()=>{let active=true;load().catch(e=>{if(active)setError(e.message)}).finally(()=>{
-    if(active)setLoading(false);
-  });return()=>{active=false}},[load]);
+  useEffect(()=>{
+    let active=true;
+    (async()=>{
+      try{await load()}
+      catch(e){if(active)setError(e instanceof Error?e.message:"Workspace unavailable")}
+      finally{if(active)setLoading(false)}
+    })();
+    return()=>{active=false};
+  },[load]);
 
   const invoices=useMemo(()=>data?.invoices.filter(inv=>
     (inv.number+" "+inv.counterparty).toLowerCase().includes(query.toLowerCase()))||[],[data,query]);
