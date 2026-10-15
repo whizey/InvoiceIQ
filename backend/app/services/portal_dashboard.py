@@ -125,7 +125,7 @@ def band(key, values):
     return {"key": key, "count": len(values), "amount": sum((r["balance"] for r in values), ZERO)}
 
 
-async def build_portal_dashboard(db, q, subject):
+async def build_portal_dashboard(db, q, subject, *, export: bool = False):
     session, workspace = subject
     today = date.today()
     as_of = q.as_of or today
@@ -260,7 +260,9 @@ async def build_portal_dashboard(db, q, subject):
     rows.sort(key=lambda r: (sorters[q.sort](r), str(r["invoice"].id)))
     if q.sort in {"invoice_desc", "company_desc"}:
         rows.reverse()
-    page_rows = rows[(q.page - 1) * q.page_size:q.page * q.page_size]
+    if export and len(rows) > 10000:
+        raise HTTPException(422, "Export exceeds 10,000 invoices; narrow the filters")
+    page_rows = rows if export else rows[(q.page - 1) * q.page_size:q.page * q.page_size]
     out_rows = [{
         "id": r["invoice"].id, "invoice_number": r["invoice"].invoice_number,
         "company_id": workspace.id, "company": r["invoice"].counterparty,
