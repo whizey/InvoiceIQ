@@ -19,11 +19,7 @@ class PortalLegacyGuard(BaseHTTPMiddleware):
         # Only portal business operations and non-financial health remain public.
         if path.startswith("/portal/") or path in {"/health", "/healthz", "/ready"}:
             return await call_next(request)
-        if path.startswith(("/dashboard", "/analytics", "/invoices", "/companies",
-                            "/recovery-cases", "/ml", "/voice")):
-            return JSONResponse({"detail": "Legacy financial API unavailable on public portal"},
-                                status_code=403)
-        if request.method not in {"GET", "HEAD", "OPTIONS"}:
-            return JSONResponse({"detail": "Public portal does not allow legacy mutations"},
-                                status_code=403)
-        return await call_next(request)
+        # Deny all non-portal routes, including future routes not yet in
+        # the legacy denylist; never grant an accidental unauthenticated read.
+        return JSONResponse({"detail": "This service only exposes the isolated portal"},
+                            status_code=403)
