@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_db
 from app.models.portal import (
     PortalWorkspace, PortalUser, PortalMembership, PortalSession, PortalInvoice, PortalCaseEvent,
+    PortalPayment,
 )
 
 router = APIRouter(prefix="/portal", tags=["customer portal"])
@@ -234,10 +235,11 @@ class ImportItem(BaseModel):
     due_date: date
     amount_total: Decimal = Field(ge=0, max_digits=14, decimal_places=2)
     amount_paid: Decimal = Field(ge=0, max_digits=14, decimal_places=2)
+    payment_date: date | None = None
 
     @property
     def valid_balance(self) -> bool:
-        return self.amount_paid <= self.amount_total
+        return self.amount_paid <= self.amount_total and (self.amount_paid == 0 or self.payment_date is not None) and (self.payment_date is None or self.payment_date >= self.issue_date and self.payment_date <= date.today())
 
 
 class ImportBatch(BaseModel):
@@ -261,11 +263,16 @@ async def import_invoices(batch: ImportBatch, subject=Depends(identity), db: Asy
     if exists:
         raise HTTPException(409, "An invoice number already exists in this workspace")
     for item in batch.invoices:
-        db.add(PortalInvoice(workspace_id=workspace.id, invoice_number=item.invoice_number.strip(),
-                            counterparty=item.counterparty.strip(), issue_date=item.issue_date,
-                            posting_date=item.posting_date, due_date=item.due_date,
-                            amount_total=item.amount_total, amount_paid=item.amount_paid,
-                            risk_probability=None, risk_provenance=None))
+        invoice = PortalInvoice(workspace_id=workspace.id, invoice_number=item.invoice_number.strip(),
+                                counterparty=item.counterparty.strip(), issue_date=item.issue_date,
+                                posting_date=item.posting_date, due_date=item.due_date,
+                                amount_total=item.amount_total, amount_paid=item.amount_paid,
+                                risk_probability=None, risk_provenance=None)
+        db.add(invoice)
+        await db.flush()
+        if item.amount_paid > 0:
+            db.add(PortalPayment(workspace_id=workspace.id, invoice_id=invoice.id,
+                                 paid_on=item.payment_date, amount=item.amount_paid))
     try:
         await db.commit()
     except IntegrityError:

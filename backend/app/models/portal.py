@@ -5,6 +5,7 @@ No foreign key or cascade points from a showcase record into customer accounting
 """
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 
 from sqlalchemy import Date, DateTime, ForeignKey, Index, Numeric, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
@@ -83,3 +84,18 @@ class PortalCaseEvent(Base, UUIDPrimaryKeyMixin):
     decision: Mapped[str] = mapped_column(String(16), nullable=False)
     note: Mapped[str] = mapped_column(String(500), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class PortalPayment(Base, UUIDPrimaryKeyMixin):
+    """Dated, reconciled payment movement; never infer a payment date."""
+    __tablename__ = "portal_payments"
+    __table_args__ = (Index("ix_portal_payment_scoped_date", "workspace_id", "paid_on"),)
+
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("portal_workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    invoice_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("portal_invoices.id", ondelete="CASCADE"), nullable=False
+    )
+    paid_on: Mapped[date] = mapped_column(Date, nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
