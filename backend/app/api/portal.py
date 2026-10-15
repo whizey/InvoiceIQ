@@ -8,7 +8,7 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -236,6 +236,12 @@ class ImportItem(BaseModel):
     amount_total: Decimal = Field(ge=0, max_digits=14, decimal_places=2)
     amount_paid: Decimal = Field(ge=0, max_digits=14, decimal_places=2)
     payment_date: date | None = None
+
+    @model_validator(mode="after")
+    def validate_dates(self):
+        if self.issue_date > self.posting_date or self.posting_date > self.due_date:
+            raise ValueError("Issue, posting and due dates must be ordered")
+        return self
 
     @property
     def valid_balance(self) -> bool:

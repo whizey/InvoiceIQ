@@ -61,6 +61,9 @@ async def main():
                     risk_probability=None, risk_provenance=None,
                 )
                 db.add(invoice)
+                # No ORM relationship defines insertion order: save the parent
+                # before any dated payment rows reference its invoice ID.
+                await db.flush()
                 if fraction > 0:
                     paid_on = min(today, posted + timedelta(days=term + rng.randint(-12, 55)))
                     db.add(PortalPayment(id=uuid.uuid5(SHOWCASE_ID, f"payment:{i}"),
