@@ -168,6 +168,7 @@ test('navigation preserves the selected query and never leaks old rows', async t
   await page.waitForURL(/\/invoices/);
   assert.match(page.url(), /start_date=2016-01-01/,
     'Selected historical cohort must survive navigation');
+  await page.frameLocator('iframe').locator('main').waitFor({ state: 'visible' });
   const otherFrame = page.frames().find(item => item.url().includes('/reference/invoices/'));
   assert.ok(otherFrame, 'Invoice Intelligence frame loaded');
   await otherFrame.locator('table.t tbody tr').first().waitFor();
