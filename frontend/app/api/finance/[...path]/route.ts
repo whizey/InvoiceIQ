@@ -11,10 +11,15 @@ export async function GET(request:NextRequest,{params}:{params:Promise<{path:str
  const jar=await cookies();
  const portal=jar.get('invoiceiq_portal_session')?.value;
  if(portal){
-   if(path!=='overview')return Response.json({detail:'This operation is unavailable in the isolated portal'}, {status:403});
+   if(path!=='overview'&&path!=='export')return Response.json({detail:'This operation is unavailable in the isolated portal'}, {status:403});
    try{
-     const upstream=await fetch(backendBase()+'/portal/dashboard'+request.nextUrl.search,{headers:{Authorization:'Bearer '+portal},cache:'no-store',signal:AbortSignal.timeout(30000)});
-     return new Response(upstream.body,{status:upstream.status,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
+     const endpoint=path==='export'?'/portal/export':'/portal/dashboard';
+     const upstream=await fetch(backendBase()+endpoint+request.nextUrl.search,{headers:{Authorization:'Bearer '+portal},cache:'no-store',signal:AbortSignal.timeout(30000)});
+     return new Response(upstream.body,{status:upstream.status,headers:{
+       'Content-Type':upstream.headers.get('content-type')||'application/json',
+       'Cache-Control':'no-store',
+       ...(path==='export'&&upstream.ok?{'Content-Disposition':'attachment; filename="invoiceiq-invoices.csv"'}:{}),
+     }});
    }catch{return Response.json({detail:'Portal financial API unavailable'},{status:503});}
  }
  const token=jar.get('invoiceiq_session')?.value;

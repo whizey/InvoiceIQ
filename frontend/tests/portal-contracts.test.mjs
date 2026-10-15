@@ -26,3 +26,10 @@ test("showcase action and account surfaces are separate",()=>{
  assert.ok(auth.includes("/api/portal/"));
  assert.ok(portal.includes("Illustrative"));
 });
+
+test("portal export is session-scoped and retains existing dashboard export",()=>{
+ const route=read("../app/api/finance/[...path]/route.ts");
+ assert.ok(route.includes("'/portal/export'"));
+ assert.ok(route.includes("'Content-Disposition'"));
+ assert.ok(route.includes("path!=='overview'&&path!=='export'"));
+});

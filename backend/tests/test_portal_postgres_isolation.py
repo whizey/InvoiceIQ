@@ -91,6 +91,16 @@ async def test_portal_customer_journeys_reconcile_and_isolate(monkeypatch):
             assert doc["series"]
             assert doc["invoices"][0]["invoice_number"] == "INV-0001"
 
+            export_a = await client.get("/portal/export", headers=sessions[0])
+            export_b = await client.get("/portal/export", headers=sessions[1])
+            assert export_a.status_code == export_b.status_code == 200
+            assert export_a.headers["content-type"].startswith("text/csv")
+            assert export_a.text.count("INV-0001") == 1
+            assert "Verified Customer" in export_a.text
+            assert "Alpha Finance" not in export_b.text
+            unauthorized_export = await client.get("/portal/export")
+            assert unauthorized_export.status_code == 401
+
             # Cross-tenant mutations must be indistinguishable from an
             # unknown invoice, and leave both customer ledgers untouched.
             forbidden = await client.post("/portal/decisions", headers=sessions[0], json={

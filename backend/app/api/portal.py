@@ -1,5 +1,7 @@
 """Isolated product portal. Never use portal identities for legacy operator routes."""
+import csv
 import hashlib
+import io
 import hmac
 import os
 import secrets
@@ -7,7 +9,7 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -299,3 +301,32 @@ async def portal_dashboard(
     subject=Depends(identity), db: AsyncSession = Depends(get_db),
 ):
     return await build_portal_dashboard(db, selection, subject)
+
+
+def portal_csv_cell(value) -> str:
+    """Prevent formula execution when exported CSV is opened in spreadsheets."""
+    s = "" if value is None else str(value)
+    if s.lstrip().startswith(("=", "+", "-", "@", "\\t", "\\r", "\\n")):
+        return "'" + s
+    return s
+
+
+@router.get("/export")
+async def export_portal_dashboard(
+    selection: Annotated[DashboardSelection, Query()],
+    subject=Depends(identity), db: AsyncSession = Depends(get_db),
+):
+    dashboard = await build_portal_dashboard(db, selection, subject, export=True)
+    output = io.StringIO(newline="")
+    writer = csv.writer(output, lineterminator="\\r\\n")
+    fields = ("invoice_number", "company", "posting_date", "due_date",
+              "amount_total", "amount_paid", "balance", "days_past_due",
+              "status", "probability", "case_id")
+    writer.writerow(fields)
+    for invoice in dashboard.invoices:
+        writer.writerow([portal_csv_cell(getattr(invoice, field)) for field in fields])
+    return Response(
+        content=output.getvalue(), media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="invoiceiq-invoices.csv"',
+                 "Cache-Control": "no-store"},
+    )
