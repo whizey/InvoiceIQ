@@ -64,7 +64,7 @@ class ResendEmailProvider:
                 response.raise_for_status()
             return "SENT"
         except Exception:
-            logger.warning("failed to send reminder email via Resend to=%s", to, exc_info=True)
+            logger.warning("Reminder email provider failed")
             return "FAILED"
 
 
@@ -72,7 +72,7 @@ class SimulatedEmailProvider:
     """Fallback used when RESEND_API_KEY isn't configured — no network call."""
 
     async def send(self, *, to: str, subject: str, body: str, html: str | None = None) -> SendStatus:
-        logger.info("email (no Resend configured) to=%s subject=%s", to, subject)
+        logger.info("Email provider is not configured; no email sent")
         return "FAILED"
 
 
@@ -105,6 +105,9 @@ async def send_reminder_email(
     to avoid a lazy-load in this async session — callers already have the
     company loaded as a flat object, same as app/agents/graph.py's nodes do.
     """
+    from app.core.time import historical_replay_active
+    if historical_replay_active():
+        raise RuntimeError('Outbound email integrations are disabled during historical replay')
     to = settings.demo_notify_email
     assert to, "send_reminder_email requires settings.demo_notify_email to be set"
 

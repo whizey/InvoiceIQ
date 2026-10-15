@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>InvoiceIQ Overview</title>
+<script src="../session-state.js"></script>
+<script src="../vendor/react.js"></script>
+<script src="../vendor/react-dom.js"></script>
+<script src="../support.js"></script>
+<script src="../dashboard-data.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0;background:#F4F4F2}
+*{box-sizing:border-box}
+a{color:#0B0B0B}a:hover{color:#525252}
+.nav{display:flex;align-items:center;gap:12px;padding:9px 10px;color:#B5B5B5;text-decoration:none;font-size:13.5px;border-radius:6px}
+.nav:hover{color:#FFFFFF;background:#1C1C1C}
+.nav.on{color:#FFFFFF;background:#222222}
+.nav .ix{font-family:'Geist Mono',monospace;font-size:11px;color:#8A8A8A;width:18px}
+.card{background:#FFFFFF;border:1px solid #E5E5E2;border-radius:10px}
+.lbl{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:#6B6B6B;font-weight:500}
+.mono{font-family:'Geist Mono',ui-monospace,monospace}
+.num{font-variant-numeric:tabular-nums}
+.pill{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;border:1px solid #D9D9D6;font-size:11.5px;color:#3F3F3F;white-space:nowrap;background:#fff}
+.seg{display:inline-flex;border:1px solid #D9D9D6;border-radius:8px;overflow:hidden;background:#fff}
+.seg button{border:0;border-right:1px solid #ECECEA;background:transparent;padding:0 12px;height:34px;font:inherit;font-size:12.5px;color:#525252;cursor:pointer}
+.seg button:last-child{border-right:0}
+.seg button.on{background:#0B0B0B;color:#fff}
+.btn{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 14px;border-radius:8px;border:1px solid #D9D9D6;background:#fff;font:inherit;font-size:13px;color:#0B0B0B;cursor:pointer;text-decoration:none;white-space:nowrap}
+.btn.dark{background:#0B0B0B;color:#fff;border-color:#0B0B0B}
+.drill{font-size:12px;color:#0B0B0B;text-decoration:underline;text-underline-offset:3px;text-decoration-color:#BDBDBA}
+table.t{width:100%;border-collapse:collapse;font-size:13px}
+table.t th{text-align:left;font-weight:500;color:#6B6B6B;font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:10px 14px;border-bottom:1px solid #E5E5E2;white-space:nowrap}
+table.t td{padding:12px 14px;border-bottom:1px solid #F0F0EE;white-space:nowrap}
+table.t tr:last-child td{border-bottom:0}
+.r{text-align:right !important}
+</style>
+</helmet>
+<div style="display: flex; flex-wrap: wrap; min-height: 100vh; font-family: 'Geist', system-ui, sans-serif; color: #0B0B0B; background: #F4F4F2">
+
+<nav aria-label="Primary" style="flex: 0 1 236px; background: #0B0B0B; padding: 22px 14px; display: flex; flex-direction: column; gap: 2px">
+  <div style="display: flex; align-items: center; gap: 10px; padding: 4px 10px 24px">
+    <div class="mono" style="width: 28px; height: 28px; border: 1.5px solid #FFFFFF; border-radius: 6px; display: grid; place-items: center; color: #FFFFFF; font-size: 11px; font-weight: 500">IQ</div>
+    <div style="color: #FFFFFF; font-weight: 600; font-size: 15px; letter-spacing: -0.01em">InvoiceIQ</div>
+  </div>
+  <div class="lbl" style="color: #8A8A8A; padding: 6px 10px; font-size: 10.5px">Receivables</div>
+  <a class="nav on" href="/" target="_top" aria-current="page"><span class="ix">01</span>Overview</a>
+  <a class="nav" href="/invoices" target="_top"><span class="ix">02</span>Invoice intelligence</a>
+  <div class="lbl" style="color: #8A8A8A; padding: 18px 10px 6px; font-size: 10.5px">Recovery</div>
+  <a class="nav" href="/cases" target="_top"><span class="ix">03</span>Recovery cases<span class="mono" style="margin-left: auto; font-size: 11px; color: #B5B5B5">—</span></a>
+  <a class="nav" href="/approvals" target="_top"><span class="ix">05</span>Approvals<span class="mono" style="margin-left: auto; font-size: 11px; color: #0B0B0B; background: #FFFFFF; border-radius: 999px; padding: 1px 7px">—</span></a>
+  <div style="flex-grow: 1; min-height: 32px"></div>
+  <div style="border: 1px solid #262626; border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 6px">
+    <div class="lbl" style="color: #8A8A8A; font-size: 10.5px">Workspace</div>
+    <div style="color: #FFFFFF; font-size: 13px">{{workspace}}</div>
+    <div style="color: #B5B5B5; font-size: 12px">{{scopeLabel}}</div>
+    <div style="color: #B5B5B5; font-size: 12px">{{status}}</div>
+    <button data-action="access" style="font:inherit;color:inherit;background:none;border:0;padding:0;text-align:left;cursor:pointer">Workspace access</button>
+  </div>
+</nav>
+
+<main aria-busy="{{loading}}" style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 18px 32px; background: #FFFFFF; border-bottom: 1px solid #E5E5E2">
+    <div style="display: flex; flex-direction: column; gap: 4px; flex: 1 1 280px">
+      <div class="lbl">Receivables</div>
+      <h1 style="margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.02em">Overview</h1>
+    </div>
+    <label style="display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border: 1px solid #D9D9D6; border-radius: 8px; flex: 0 1 300px; background: #FAFAF9">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6B6B6B" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+      <span style="position: absolute; left: -9999px">Search</span>
+      <input type="search" placeholder="Invoice, company, case ID" style="border: 0; outline: 0; background: transparent; font: inherit; font-size: 13px; width: 100%">
+    </label>
+    <span class="pill" role="{{statusRole}}"><span style="width: 7px; height: 7px; border-radius: 50%; background: #0B0B0B"></span>{{status}}</span>
+    <button class="btn" data-action="export">Export CSV</button>
+  </header>
+
+  <section aria-label="Reporting period" style="display: flex; flex-wrap: wrap; gap: 12px 22px; align-items: center; padding: 14px 32px; background: #FAFAF9; border-bottom: 1px solid #E5E5E2">
+    <div style="display: flex; align-items: center; gap: 10px">
+      <span class="lbl">Date basis</span>
+      <div class="seg"><button class="on" data-action="basis" data-value="posting">Posting</button><button data-action="basis" data-value="due">Due</button><button data-action="basis" data-value="payment">Payment</button></div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px">
+      <span class="lbl">Group by</span>
+      <div class="seg"><button data-action="grain" data-value="day">Day</button><button data-action="grain" data-value="week">Week</button><button class="on" data-action="grain" data-value="month">Month</button><button data-action="grain" data-value="quarter">Quarter</button><button data-action="grain" data-value="year">Year</button></div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px">
+      <span class="lbl">Range</span>
+      <div class="seg"><button data-action="range" data-value="MTD">MTD</button><button data-action="range" data-value="QTD">QTD</button><button data-action="range" data-value="YTD">YTD</button><button data-action="range" data-value="90D">90D</button><button data-action="range" data-value="12M">12M</button><button class="on" data-action="range" data-value="All data">All data</button></div>
+    </div>
+    <span title="Select a range using the existing presets">Preset range</span>
+    <button class="btn" data-action="asof"><span class="lbl" style="font-size: 10.5px">As of</span><span class="mono num" style="font-size: 12.5px">{{asOf}}</span></button>
+    <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #3F3F3F"><input type="checkbox" data-action="compare" title="Choose a covered historical comparison cutoff" style="accent-color: #0B0B0B; width: 16px; height: 16px">Compare to prior cutoff</label>
+  </section>
+
+  <div style="padding: 10px 32px; font-size: 12.5px; color: #525252; border-bottom: 1px solid #E5E5E2; background: #FFFFFF; display: flex; flex-wrap: wrap; gap: 6px 18px">
+    <span>{{summary}}</span>
+    <span>{{currencyNote}}</span>
+  </div>
+
+  <div style="padding: 24px 32px 48px; display: flex; flex-direction: column; gap: 20px">
+
+    <section aria-label="Key metrics" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px">
+      <sc-for list="{{kpis}}" as="k" hint-placeholder-count="6">
+        <article class="card" style="padding: 16px 16px 14px; display: flex; flex-direction: column; gap: 8px; min-height: 196px">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px">
+            <span class="lbl">{{k.label}}</span>
+            <span class="mono" style="font-size: 10.5px; color: #6B6B6B">{{k.basis}}</span>
+          </div>
+          <div class="num" style="font-size: 30px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.05; color: {{k.color}}">{{k.value}}</div>
+          <div style="font-size: 12.5px; color: #3F3F3F">{{k.sub}}</div>
+          <svg viewBox="0 0 120 32" preserveAspectRatio="none" style="width: 100%; height: 30px" aria-hidden="true"><polyline points="{{k.spark}}" fill="none" stroke="{{k.color}}" stroke-width="1.5" vector-effect="non-scaling-stroke"></polyline></svg>
+          <div style="font-size: 11.5px; color: #6B6B6B; line-height: 1.4">{{k.def}}</div>
+          <a class="drill" href="{{k.href}}" target="_top" style="margin-top: auto">{{k.link}} →</a>
+        </article>
+      </sc-for>
+    </section>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 20px">
+      <section class="card" style="flex: 2 1 620px; min-width: 0; padding: 20px 22px">
+        <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: flex-start">
+          <div style="display: flex; flex-direction: column; gap: 4px">
+            <h2 style="margin: 0; font-size: 15px; font-weight: 600">Invoiced vs collected</h2>
+            <div style="font-size: 12px; color: #6B6B6B">{{chartGrainText}}</div>
+          </div>
+          <div class="seg"><button data-action="grain" data-value="day">Daily</button><button data-action="grain" data-value="week">Weekly</button><button class="on" data-action="grain" data-value="month">Monthly</button><button data-action="grain" data-value="quarter">Quarterly</button></div>
+        </div>
+        <div style="display: flex; gap: 18px; margin: 16px 0 10px; font-size: 12px; color: #3F3F3F">
+          <span style="display: flex; align-items: center; gap: 6px"><span style="width: 10px; height: 10px; background: #0B0B0B"></span>Invoiced</span>
+          <span style="display: flex; align-items: center; gap: 6px"><span style="width: 10px; height: 10px; background: #B5B5B2"></span>Collected</span>
+          <span style="display: flex; align-items: center; gap: 6px"><span style="width: 16px; height: 0; border-top: 2px solid {{accent}}"></span>Open balance</span>
+        </div>
+        <div style="display: flex; gap: 10px">
+          <div class="mono num" style="display: flex; flex-direction: column; justify-content: space-between; height: 220px; font-size: 10.5px; color: #6B6B6B; text-align: right; width: 34px"><span>{{axis.0}}</span><span>{{axis.1}}</span><span>{{axis.2}}</span><span>{{axis.3}}</span><span>{{axis.4}}</span></div>
+          <div style="flex: 1; min-width: 0">
+            <div style="position: relative; height: 220px; border-bottom: 1px solid #0B0B0B">
+              <div style="position: absolute; left: 0; right: 0; top: 0; border-top: 1px dashed #ECECEA"></div>
+              <div style="position: absolute; left: 0; right: 0; top: 25%; border-top: 1px dashed #ECECEA"></div>
+              <div style="position: absolute; left: 0; right: 0; top: 50%; border-top: 1px dashed #ECECEA"></div>
+              <div style="position: absolute; left: 0; right: 0; top: 75%; border-top: 1px dashed #ECECEA"></div>
+              <div style="position: absolute; inset: 0; display: flex; align-items: flex-end">
+                <sc-for list="{{bars}}" as="b" hint-placeholder-count="14">
+                  <div style="flex: 1; display: flex; justify-content: center; align-items: flex-end; gap: 3px; height: 100%">
+                    <div title="{{b.tip}}" role="button" tabindex="0" aria-label="Invoiced: {{b.tip}}" data-action="chart-period" data-value="{{b.m}}" data-basis="posting" style="width: 30%; max-width: 16px; height: {{b.ih}}px; background: #0B0B0B"></div>
+                    <div title="{{b.tip}}" role="button" tabindex="0" aria-label="Collected: {{b.tip}}" data-action="chart-period" data-value="{{b.m}}" data-basis="payment" style="width: 30%; max-width: 16px; height: {{b.ch}}px; background: #B5B5B2"></div>
+                  </div>
+                </sc-for>
+              </div>
+              <svg viewBox="0 0 1400 220" preserveAspectRatio="none" style="position: absolute; inset: 0; width: 100%; height: 100%" role="img" aria-label="{{lineNote}}"><sc-for list="{{openSegments}}" as="line"><polyline points="{{line.points}}" fill="none" stroke="{{accent}}" stroke-width="2.2" vector-effect="non-scaling-stroke" stroke-linejoin="round"></polyline></sc-for></svg>
+            </div>
+            <div style="display: flex">
+              <sc-for list="{{bars}}" as="b" hint-placeholder-count="14">
+                <div class="mono" role="button" tabindex="0" aria-label="Filter overview to period {{b.label}}" title="Show KPI totals for {{b.label}}" data-action="period-scope" data-value="{{b.m}}" style="flex: 1; text-align: center; font-size: 10.5px; color: #6B6B6B; padding-top: 6px; line-height: 1.3; white-space: pre-line; cursor: pointer">{{b.label}}</div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" style="flex: 1 1 360px; min-width: 0; padding: 20px 22px; display: flex; flex-direction: column; gap: 14px">
+        <div style="display: flex; justify-content: space-between; gap: 12px">
+          <div style="display: flex; flex-direction: column; gap: 4px">
+            <h2 style="margin: 0; font-size: 15px; font-weight: 600">Aging schedule</h2>
+            <div style="font-size: 12px; color: #6B6B6B">Open balance by days past due, as of {{asOf}}</div>
+          </div>
+          <div class="num" style="font-size: 20px; font-weight: 600">{{openTotal}}</div>
+        </div>
+        <div style="display: flex; height: 14px; border-radius: 3px; overflow: hidden; gap: 2px" role="img" aria-label="Open balance by aging band">
+          <sc-for list="{{aging}}" as="a"><div title="{{a.band}}: {{a.amt}}" style="width: {{a.w}}%; background: {{a.c}}"></div></sc-for>
+        </div>
+        <table class="t" style="font-size: 12.5px">
+          <thead><tr><th scope="col">Band</th><th scope="col" class="r">Invoices</th><th scope="col" class="r">Balance</th><th scope="col" class="r">Share</th></tr></thead>
+          <tbody>
+            <sc-for list="{{aging}}" as="a" hint-placeholder-count="5">
+              <tr>
+                <td><span style="display: inline-flex; align-items: center; gap: 8px"><span style="width: 9px; height: 9px; background: {{a.c}}"></span>{{a.band}}</span></td>
+                <td class="r num">{{a.n}}</td>
+                <td class="r num" style="font-weight: 500">{{a.amt}}</td>
+                <td class="r num" style="color: #525252">{{a.share}}</td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+        <div style="font-size: 11.5px; color: #6B6B6B; line-height: 1.45; margin-top: auto">{{calendarNote}} Canceled and written-off invoices are excluded from the open balance.</div>
+        <a class="drill" href="/invoices" target="_top">Open the overdue invoices →</a>
+      </section>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px">
+      <section class="card" style="padding: 20px 22px; display: flex; flex-direction: column; gap: 14px">
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <h2 style="margin: 0; font-size: 15px; font-weight: 600">Q3 balance bridge</h2>
+          <div style="font-size: 12px; color: #6B6B6B">{{bridgeNote}}</div>
+        </div>
+        <div style="display: flex; align-items: flex-end; gap: 12px; height: 200px; border-bottom: 1px solid #0B0B0B; padding: 0 4px">
+          <div style="flex: 1; height: 100%; position: relative"><div style="position: absolute; left: 0; right: 0; bottom: 0; height: {{zero}}px; background: #0B0B0B"></div><div class="num" style="position: absolute; left: 0; right: 0; bottom: 58px; text-align: center; font-size: 12px; font-weight: 600">{{unavailable}}</div></div>
+          <div style="flex: 1; height: 100%; position: relative"><div style="position: absolute; left: 0; right: 0; bottom: 52px; height: {{zero}}px; background: #FFFFFF; border: 1.5px solid #0B0B0B"></div><div class="num" style="position: absolute; left: 0; right: 0; bottom: 181px; text-align: center; font-size: 12px; font-weight: 600">{{unavailable}}</div></div>
+          <div style="flex: 1; height: 100%; position: relative"><div style="position: absolute; left: 0; right: 0; bottom: 78px; height: {{zero}}px; background: repeating-linear-gradient(135deg, #8A8A87 0 2px, #FFFFFF 2px 6px); border: 1.5px solid #8A8A87"></div><div class="num" style="position: absolute; left: 0; right: 0; bottom: 181px; text-align: center; font-size: 12px; font-weight: 600">{{unavailable}}</div></div>
+          <div style="flex: 1; height: 100%; position: relative"><div style="position: absolute; left: 0; right: 0; bottom: 0; height: {{zero}}px; background: #F0F0EE; border: 1.5px dashed #BDBDBA"></div><div class="num" style="position: absolute; left: 0; right: 0; bottom: 84px; text-align: center; font-size: 12px; color: #525252">{{unavailable}}</div></div>
+          <div style="flex: 1; height: 100%; position: relative"><div style="position: absolute; left: 0; right: 0; bottom: 0; height: {{zero}}px; background: {{accent}}"></div><div class="num" style="position: absolute; left: 0; right: 0; bottom: 84px; text-align: center; font-size: 12px; font-weight: 600">{{unavailable}}</div></div>
+        </div>
+        <div style="display: flex; gap: 12px; padding: 0 4px; font-size: 11.5px; color: #525252">
+          <span style="flex: 1; text-align: center">Open 30 Jun</span><span style="flex: 1; text-align: center">Invoiced</span><span style="flex: 1; text-align: center">Collected</span><span style="flex: 1; text-align: center">Written off</span><span style="flex: 1; text-align: center">Open 30 Sep</span>
+        </div>
+      </section>
+
+      <section class="card" style="padding: 20px 22px; display: flex; flex-direction: column; gap: 14px">
+        <div style="display: flex; justify-content: space-between; gap: 12px">
+          <div style="display: flex; flex-direction: column; gap: 4px">
+            <h2 style="margin: 0; font-size: 15px; font-weight: 600">Late-payment risk, open invoices</h2>
+            <div style="font-size: 12px; color: #6B6B6B">Stored scores with verified model provenance</div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: flex-end; gap: 10px; height: 170px; border-bottom: 1px solid #0B0B0B">
+          <sc-for list="{{risk}}" as="r" hint-placeholder-count="6">
+            <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px; height: 100%">
+              <span class="num" style="font-size: 12px; font-weight: 600">{{r.n}}</span>
+              <div style="width: 100%; height: {{r.h}}px; {{r.style}}"></div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display: flex; gap: 10px">
+          <sc-for list="{{risk}}" as="r" hint-placeholder-count="6">
+            <span class="mono" style="flex: 1; text-align: center; font-size: 10.5px; color: #525252">{{r.b}}</span>
+          </sc-for>
+        </div>
+        <div style="font-size: 11.5px; color: #6B6B6B; line-height: 1.45">{{riskNote}}</div>
+      </section>
+
+      <section class="card" style="padding: 20px 22px; display: flex; flex-direction: column; gap: 12px">
+        <div style="display: flex; justify-content: space-between; gap: 12px">
+          <div style="display: flex; flex-direction: column; gap: 4px">
+            <h2 style="margin: 0; font-size: 15px; font-weight: 600">Recovery pipeline</h2>
+            <div style="font-size: 12px; color: #6B6B6B">{{pipelineNote}}</div>
+          </div>
+          <a class="drill" href="/cases" target="_top">Cases →</a>
+        </div>
+        <sc-for list="{{funnel}}" as="f" hint-placeholder-count="5">
+          <div style="display: flex; align-items: center; gap: 12px">
+            <span style="width: 128px; font-size: 12.5px; color: #3F3F3F">{{f.s}}</span>
+            <div style="flex: 1; height: 22px; background: #F4F4F2; border-radius: 3px; overflow: hidden"><div style="height: 100%; width: {{f.w}}%; background: {{f.c}}"></div></div>
+            <span class="num" style="width: 64px; text-align: right; font-size: 12.5px; font-weight: 600">{{f.v}}</span>
+          </div>
+        </sc-for>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 6px">
+          <div style="border: 1px solid #E5E5E2; border-radius: 8px; padding: 10px 12px"><div class="lbl" style="font-size: 10.5px">Exposure in cases</div><div class="num" style="font-size: 18px; font-weight: 600; margin-top: 4px">{{unavailable}}</div></div>
+          <a href="/approvals" target="_top" style="border: 1px solid #0B0B0B; border-radius: 8px; padding: 10px 12px; text-decoration: none; color: #0B0B0B"><div class="lbl" style="font-size: 10.5px">Awaiting approval</div><div class="num" style="font-size: 18px; font-weight: 600; margin-top: 4px">Unavailable · Review →</div></a>
+        </div>
+      </section>
+    </div>
+
+    <section class="card" style="padding: 20px 0 6px">
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding: 0 22px 14px">
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <h2 style="margin: 0; font-size: 15px; font-weight: 600">Where the overdue money sits</h2>
+          <div style="font-size: 12px; color: #6B6B6B">{{topNote}}</div>
+        </div>
+        <div style="display: flex; gap: 8px"><span class="pill">Sort: Overdue ↓</span><a class="btn" href="/invoices" target="_top">All companies</a></div>
+      </div>
+      <div style="overflow-x: auto">
+        <table class="t">
+          <thead><tr><th scope="col" style="padding-left: 22px">Company</th><th scope="col" class="r">Open</th><th scope="col" class="r">Overdue</th><th scope="col" style="width: 22%">Share of overdue</th><th scope="col" class="r">Oldest DPD</th><th scope="col" class="r">Late risk</th><th scope="col">Case</th><th scope="col"></th></tr></thead>
+          <tbody>
+            <sc-for list="{{top}}" as="t" hint-placeholder-count="7">
+              <tr>
+                <td style="padding-left: 22px"><div style="font-weight: 500">{{t.name}}</div><div class="mono" style="font-size: 11px; color: #6B6B6B">{{t.id}} · {{t.inv}}</div></td>
+                <td class="r num">{{t.open}}</td>
+                <td class="r num" style="font-weight: 600">{{t.od}}</td>
+                <td><div style="height: 8px; background: #F0F0EE; border-radius: 2px"><div style="height: 100%; width: {{t.share}}%; background: #0B0B0B; border-radius: 2px"></div></div></td>
+                <td class="r num mono" style="font-size: 12px">{{t.dpd}}</td>
+                <td class="r num mono" style="font-size: 12px">{{t.risk}}</td>
+                <td><span class="pill">{{t.case}}</span></td>
+                <td class="r" style="padding-right: 22px"><a href="{{t.href}}" target="_top">View →</a></td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 20px">
+      <section class="card" style="flex: 3 1 560px; min-width: 0; padding: 20px 22px; display: flex; flex-direction: column; gap: 14px">
+        <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px">
+          <div style="display: flex; flex-direction: column; gap: 4px">
+            <h2 style="margin: 0; font-size: 15px; font-weight: 600">Daily collections</h2>
+            <div style="font-size: 12px; color: #6B6B6B">{{heatNote}}</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 4px; font-size: 11px; color: #6B6B6B">None<span style="width: 12px; height: 12px; background: #EDEDEB"></span><span style="width: 12px; height: 12px; background: #C9C9C6"></span><span style="width: 12px; height: 12px; background: #8A8A87"></span><span style="width: 12px; height: 12px; background: #3F3F3F"></span><span style="width: 12px; height: 12px; background: #0B0B0B"></span>{{heatMax}}</div>
+        </div>
+        <div style="overflow-x: auto">
+          <div style="display: flex; gap: 8px; min-width: 520px">
+            <div class="mono" style="display: grid; grid-template-rows: 16px repeat(7, 15px); gap: 3px; font-size: 10px; color: #6B6B6B"><span></span><span>Mon</span><span></span><span>Wed</span><span></span><span>Fri</span><span></span><span>Sun</span></div>
+            <div style="display: flex; gap: 3px; flex: 1">
+              <sc-for list="{{weeks}}" as="w" hint-placeholder-count="26">
+                <div style="flex: 1; display: grid; grid-template-rows: 16px repeat(7, 15px); gap: 3px">
+                  <span class="mono" style="font-size: 10px; color: #6B6B6B; white-space: nowrap">{{w.m}}</span>
+                  <sc-for list="{{w.days}}" as="d" hint-placeholder-count="7">
+                    <a href="{{d.href}}" target="_top" aria-label="{{d.t}}" title="{{d.t}}" style="background: {{d.c}}; border-radius: 2px"></a>
+                  </sc-for>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+        <div style="font-size: 11.5px; color: #6B6B6B">Switch Group by to Day to see this view in any chart. Click a day to list the payments recorded on it.</div>
+      </section>
+
+      <section class="card" style="flex: 2 1 380px; min-width: 0; padding: 20px 22px; display: flex; flex-direction: column; gap: 14px">
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <h2 style="margin: 0; font-size: 15px; font-weight: 600">What comes due next</h2>
+          <div style="font-size: 12px; color: #6B6B6B">Open balance by due week. Contractual dates, not a cash forecast.</div>
+        </div>
+        <div style="display: flex; align-items: flex-end; gap: 6px; height: 170px; border-bottom: 1px solid #0B0B0B">
+          <sc-for list="{{due}}" as="d" hint-placeholder-count="9">
+            <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; height: 100%">
+              <span class="num" style="font-size: 10.5px; font-weight: 600">{{d.v}}</span>
+              <div style="width: 100%; height: {{d.h}}px; background: {{d.c}}"></div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display: flex; gap: 6px">
+          <sc-for list="{{due}}" as="d" hint-placeholder-count="9">
+            <span class="mono" style="flex: 1; text-align: center; font-size: 10px; color: #525252; white-space: pre-line; line-height: 1.3">{{d.l}}</span>
+          </sc-for>
+        </div>
+        <div style="font-size: 11.5px; color: #6B6B6B">{{dueNote}}</div>
+      </section>
+    </div>
+
+    <section aria-label="Metric definitions" style="border-top: 1px solid #D9D9D6; padding-top: 18px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px 28px; font-size: 12px; color: #525252; line-height: 1.5">
+      <div><div class="lbl" style="margin-bottom: 4px">Invoiced</div>Sum of invoice amounts with a posting date inside the range. Canceled invoices excluded.</div>
+      <div><div class="lbl" style="margin-bottom: 4px">Open receivables</div>Unpaid balance of the selected cohort as of the as-of date. Later payments are not counted.</div>
+      <div><div class="lbl" style="margin-bottom: 4px">Overdue</div>Open balance where the due date, adjusted by the policy calendar, is before the as-of date.</div>
+      <div><div class="lbl" style="margin-bottom: 4px">Collected</div>Payments recorded with a payment date inside the range, whatever the invoice posting date.</div>
+      <div><div class="lbl" style="margin-bottom: 4px">Currency</div>{{currencyNote}}</div>
+    </section>
+
+  </div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#C2410C","options":["#C2410C","#B91C1C","#1D4ED8","#0B0B0B"]},"$preview":{"width":1440,"height":2300}}'>
+class Component extends DCLogic {
+  componentDidMount() { window.InvoiceIQ.bind(this, "overview"); }
+  componentDidUpdate() { window.InvoiceIQ.sync(this); }
+  componentWillUnmount() { window.InvoiceIQ.unbind(this); }
+  renderVals() { return window.InvoiceIQ.vals(this); }
+}
+</script>
+
+</body>
+</html>

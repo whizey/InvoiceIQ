@@ -1,19 +1,22 @@
-from datetime import datetime, timezone
+from typing import Annotated
+from datetime import date, datetime, timezone
 import logging
 from decimal import Decimal
-from uuid import UUID
+from uuid import UUID, uuid5, NAMESPACE_URL
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Header
+from fastapi import Request
+from app.core.invoice_company_scope import authorize_invoice_mutation
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.db import get_db
-from app.events import get_publisher
+from app.events.outbox import TransactionalEventPublisher
 from app.events import topics
-from app.models import Company, Invoice, Payment, PaymentEvent
-from app.models.enums import InvoiceStatus, PaymentEventType, PaymentMethod, PaymentStatus
-from app.schemas.invoice import InvoiceCreate, InvoiceOut, SimulatePaymentIn
+from app.models import AuditLog, Company, Invoice, Payment, PaymentEvent
+from app.models.enums import AuditActor, InvoiceStatus, PaymentEventType, PaymentMethod, PaymentStatus
+from app.schemas.invoice import InvoiceCreate, InvoiceOut, SimulatePaymentIn, InvoiceEvidenceOut
 from app.services.payment_risk_scoring import ensure_payment_risk_score
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
@@ -24,8 +27,10 @@ logger = logging.getLogger(__name__)
 @router.post("", response_model=InvoiceOut, status_code=201)
 async def create_invoice(
     payload: InvoiceCreate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> Invoice:
+    authorize_invoice_mutation(request, payload.company_id, resource="company")
     company = await db.get(
         Company,
         payload.company_id,
@@ -128,8 +133,8 @@ async def create_invoice(
 async def list_invoices(
     status_filter: InvoiceStatus | None = Query(None, alias="status"),
     company_id: UUID | None = None,
-    limit: int = Query(50, le=200),
-    offset: int = 0,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
 ) -> list[Invoice]:
     stmt = select(Invoice).options(selectinload(Invoice.company)).order_by(Invoice.due_date.desc())
@@ -167,7 +172,8 @@ async def get_invoice(invoice_id: UUID, db: AsyncSession = Depends(get_db)) -> I
 
 @router.post("/{invoice_id}/simulate-payment", response_model=InvoiceOut)
 async def simulate_payment(
-    invoice_id: UUID, payload: SimulatePaymentIn | None = None, db: AsyncSession = Depends(get_db)
+    invoice_id: UUID, request: Request, payload: SimulatePaymentIn | None = None, db: AsyncSession = Depends(get_db),
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key", min_length=1, max_length=100)] = None,
 ) -> Invoice:
     """Mock payment simulation — stands in for a real payment gateway webhook.
 
@@ -189,6 +195,23 @@ async def simulate_payment(
     if invoice is None:
         raise HTTPException(status_code=404, detail="Invoice not found")
 
+    authorize_invoice_mutation(request, invoice.company_id)
+
+    from app.core.config import settings
+    if settings.env.lower() in {"production", "staging", "prod"}:
+        raise HTTPException(403, "Payment simulation is disabled in hosted environments")
+    if invoice.status in {InvoiceStatus.CANCELLED, InvoiceStatus.WRITTEN_OFF, InvoiceStatus.DRAFT}:
+        raise HTTPException(409, "Invoice is not eligible for payment simulation")
+
+    requested_amount = str(payload.amount.normalize()) if payload and payload.amount is not None else None
+    receipt_id = uuid5(NAMESPACE_URL, f"invoiceiq:simulate-payment:{invoice_id}:{idempotency_key}") if idempotency_key else None
+    if receipt_id:
+        receipt = await db.get(AuditLog, receipt_id)
+        if receipt:
+            if receipt.metadata_.get("requested_amount") != requested_amount:
+                raise HTTPException(409, "Idempotency key already used with a different payment request")
+            return (await db.execute(select(Invoice).options(selectinload(Invoice.company)).where(Invoice.id == invoice_id))).scalar_one()
+
     outstanding: Decimal = invoice.amount_total - invoice.amount_paid
     if outstanding <= 0:
         raise HTTPException(status_code=400, detail="Invoice has no outstanding balance")
@@ -202,6 +225,7 @@ async def simulate_payment(
     db.add(
         Payment(
             invoice_id=invoice.id,
+            currency=invoice.currency,
             amount=amount,
             payment_date=now,
             method=PaymentMethod.BANK_TRANSFER,
@@ -226,14 +250,58 @@ async def simulate_payment(
             occurred_at=now,
         )
     )
-    await db.commit()
-
-    await get_publisher().publish(
+    await TransactionalEventPublisher(db).publish(
         topics.PAYMENT_RECEIVED,
         str(invoice.id),
         {"invoice_id": str(invoice.id), "amount": str(amount), "simulated": True},
     )
+    if receipt_id:
+        db.add(AuditLog(id=receipt_id, entity_type="invoice", entity_id=invoice_id,
+            event_type="SIMULATED_PAYMENT_REQUEST", actor=AuditActor.SYSTEM,
+            description="Idempotent simulated payment; no payment gateway called.",
+            metadata_={"requested_amount": requested_amount, "simulated": True}))
+    await db.commit()
 
     stmt = select(Invoice).options(selectinload(Invoice.company)).where(Invoice.id == invoice_id)
     result = await db.execute(stmt)
     return result.scalar_one()
+
+
+@router.get('/{invoice_id}/evidence', response_model=InvoiceEvidenceOut)
+async def invoice_evidence(invoice_id: UUID, as_of: date | None = None,
+                           db: AsyncSession = Depends(get_db)):
+    """Read stored evidence; never score, mutate, or invent missing payment history."""
+    from datetime import date, time, timedelta
+    from app.models import DatasetImport
+    from app.schemas.invoice import InvoiceEvidenceOut
+    from app.services.persisted_predictions import valid_score
+    invoice = await get_invoice(invoice_id, db)
+    imported = await db.get(DatasetImport, 'public_b2b_dataset')
+    trusted = bool(await db.scalar(select(valid_score()).where(Invoice.id == invoice_id)))
+    reconstructable = imported is not None and invoice.invoice_number.startswith('B2B-')
+    cutoff = min(as_of or imported.dataset_as_of, imported.dataset_as_of) if reconstructable else None
+    if as_of and not date(1900,1,1) <= as_of <= date(2100,12,30):
+        raise HTTPException(422, 'Unsupported historical date')
+    records = (await db.scalars(select(Payment).where(Payment.invoice_id == invoice_id)
+        .order_by(Payment.payment_date,Payment.id))).all()
+    balance = None
+    if cutoff is not None and invoice.posting_date <= cutoff:
+        stop = datetime.combine(cutoff+timedelta(days=1),time.min,timezone.utc)
+        observed = sum((p.amount for p in records if p.status == PaymentStatus.SUCCESS
+            and p.currency == invoice.currency and p.payment_date < stop),Decimal(0))
+        balance = Decimal(0) if invoice.status in [InvoiceStatus.CANCELLED, InvoiceStatus.WRITTEN_OFF] else max(invoice.amount_total-observed,Decimal(0))
+    explanation = None
+    if trusted and invoice.payment_risk_explanation_metadata:
+        from app.ml.champion_serving import verified_contract
+        from app.services.recommendation_evidence import verified_shap
+        explanation = verified_shap(
+            invoice.late_payment_probability, invoice.payment_risk_explanation_metadata,
+            invoice.payment_risk_drivers, verified_contract()['metadata']['features'],
+        )
+    return InvoiceEvidenceOut(invoice=InvoiceOut.model_validate(invoice), trusted_prediction=trusted,
+        artifact_sha256=invoice.payment_risk_artifact_sha256 if trusted else None,
+        explanation=explanation,
+        payments=[{'amount':p.amount,'currency':p.currency,'payment_date':p.payment_date,
+            'status':p.status.value,'observable_at_cutoff':p.payment_date.date()<=cutoff if cutoff else None} for p in records],
+        dataset_as_of=imported.dataset_as_of if imported else None,historical_cutoff=cutoff,historical_balance=balance,
+        historical_reason='Original payment events through historical cutoff; later payments shown separately' if balance is not None else 'Not available: no reconstructable source history or invoice not yet posted at cutoff')

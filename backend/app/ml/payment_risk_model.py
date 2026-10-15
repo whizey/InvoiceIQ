@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import time
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -39,6 +41,13 @@ class PaymentRiskArtifactError(RuntimeError):
     pass
 
 
+def selected_payment_risk_model() -> str:
+    # Explicit blank disables serving; unset resolves the existing evaluated champion.
+    from app.core.config import settings
+
+    return os.getenv("PAYMENT_RISK_MODEL", settings.payment_risk_model).strip().lower()
+
+
 @dataclass(slots=True)
 class PaymentRiskContribution:
     feature: str
@@ -56,6 +65,8 @@ class PaymentRiskPrediction:
     contributions: list[
         PaymentRiskContribution
     ]
+    artifact_sha256: str | None = None
+    explanation_base_value: float | None = None
 
 
 def _label(name: str) -> str:
@@ -166,6 +177,8 @@ def _load_contract(
     model_path = (
         directory / model_file
     )
+    if model_file != ("model.json" if model_name == "xgboost" else "model.joblib"):
+        raise PaymentRiskArtifactError("Runtime model path must be the packaged model filename")
 
     if not model_path.exists():
         raise PaymentRiskArtifactError(
@@ -210,6 +223,8 @@ def _load_contract(
         median_path = (
             directory / median_file
         )
+        if median_file != "median_impute_values.json":
+            raise PaymentRiskArtifactError("Runtime median path must be the packaged median filename")
 
         if not median_path.exists():
             raise PaymentRiskArtifactError(
@@ -232,6 +247,10 @@ def get_payment_risk_model_version(
     model_name: str,
 ) -> str:
     model_name = model_name.strip().lower()
+    if model_name == "b2b_v2":
+        from app.ml.champion_serving import verified_contract
+
+        return verified_contract()["version"]
     contract = _load_contract(model_name)
 
     model_version = contract.get("model_version")
@@ -262,6 +281,10 @@ def _load_model(model_name: str):
         directory
         / contract["model_file"]
     )
+    # A cached parsed contract does not attest to bytes subsequently replaced
+    # on disk. Recheck immediately before deserialization, even on cache hits.
+    if sha256_file(path) != contract["model_sha256"]:
+        raise PaymentRiskArtifactError("Model changed before deserialization")
 
     if model_name == "xgboost":
         model = xgb.XGBClassifier()
@@ -314,6 +337,9 @@ def _prepare_frames(
         raise PaymentRiskArtifactError(
             f"Missing {median_path}"
         )
+
+    if sha256_file(median_path) != contract["median_sha256"]:
+        raise PaymentRiskArtifactError("Training medians changed before preprocessing")
 
     medians = json.loads(
         median_path.read_text()
@@ -401,11 +427,15 @@ def _positive_class_shap(
     )
 
 
-def predict_payment_risk(
+def _predict_payment_risk(
     features: PaymentRiskFeatures,
     model_name: str,
 ) -> PaymentRiskPrediction:
     model_name = model_name.strip().lower()
+    if model_name == "b2b_v2":
+        from app.ml.champion_serving import champion_predict
+
+        return champion_predict(features)
     model_version = get_payment_risk_model_version(
         model_name
     )
@@ -501,3 +531,20 @@ def predict_payment_risk(
         model_version=model_version,
         contributions=contributions,
     )
+
+
+def predict_payment_risk(features: PaymentRiskFeatures, model_name: str) -> PaymentRiskPrediction:
+    from app.core.metrics import MODEL_DURATION, MODEL_FAILURES
+    from app.core.config import settings
+
+    label = model_name if model_name in SUPPORTED_MODELS | {"b2b_v2"} else "unsupported"
+    start = time.perf_counter()
+    try:
+        return _predict_payment_risk(features, model_name)
+    except Exception:
+        if settings.metrics_enabled:
+            MODEL_FAILURES.labels(label).inc()
+        raise
+    finally:
+        if settings.metrics_enabled:
+            MODEL_DURATION.labels(label).observe(time.perf_counter() - start)

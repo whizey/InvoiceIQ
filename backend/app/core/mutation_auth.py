@@ -15,7 +15,7 @@ from starlette.responses import JSONResponse
 
 from app.core.config import settings
 
-_HOSTED_ENVIRONMENTS = {"production", "staging"}
+_HOSTED_ENVIRONMENTS = {"production", "staging", "prod"}
 _READ_METHODS = {"GET", "HEAD", "OPTIONS"}
 
 
@@ -25,7 +25,7 @@ def is_write_authorized(*, environment: str, configured_key: str | None, provide
         return "local"
     if not configured_key or len(configured_key) < 24:
         return "misconfigured"
-    if provided_key is None or not hmac.compare_digest(configured_key, provided_key):
+    if provided_key is None or not hmac.compare_digest(configured_key.encode(), provided_key.encode()):
         return "unauthorized"
     return "authorized"
 
@@ -39,6 +39,10 @@ class HostedMutationAuthMiddleware(BaseHTTPMiddleware):
         # authentication. Requiring an operator key on those routes too would
         # break reviewers without providing a stronger, per-user permission.
         path = request.url.path
+        if (request.method.upper() == "POST" and path == "/auth/sessions") or (
+            request.method.upper() == "DELETE" and path == "/auth/sessions/current"
+        ):
+            return await call_next(request)
         if path.startswith("/recovery-cases/actions/") and path.endswith(("/approve", "/reject")):
             return await call_next(request)
 

@@ -12,6 +12,9 @@ on:
       - 'backend/tests/test_ai_guardrails.py'
       - 'backend/tests/test_mutation_auth.py'
       - 'backend/tests/test_model_artifact_verification.py'
+      - 'backend/tests/test_request_limits.py'
+      - 'backend/tests/test_llm_telemetry.py'
+      - 'backend/tests/fixtures/agent_safety_v1.json'
       - 'backend/app/ml/artifacts/**/*.json'
       - 'scripts/verification/**'
       - '.github/workflows/ai-guardrails.yml'
@@ -43,6 +46,9 @@ jobs:
         run: python -m pip install -r backend/requirements-dev.txt
       - name: Test AI guardrails and mutation authorization
         working-directory: backend
-        run: python -m pytest -q tests/test_ai_guardrails.py tests/test_mutation_auth.py tests/test_model_artifact_verification.py
+        run: python -m pytest -q tests/test_ai_guardrails.py tests/test_mutation_auth.py tests/test_model_artifact_verification.py tests/test_request_limits.py tests/test_llm_telemetry.py
+      - name: Evaluate versioned offline agent safety cases
+        working-directory: backend
+        run: python -m app.agents.evaluation "$RUNNER_TEMP/invoiceiq-agent-evaluation.json"
       - name: Validate model contracts without downloading LFS objects
         run: python scripts/verification/check_model_artifacts.py

@@ -14,15 +14,23 @@ PUBLISH_TIMEOUT_SECONDS = 5
 
 
 class KafkaEventPublisher:
+    delivery_mode = "kafka"
+
     def __init__(self, bootstrap_servers: str) -> None:
         self._bootstrap_servers = bootstrap_servers
         self._producer: AIOKafkaProducer | None = None
+        self._start_lock = asyncio.Lock()
 
     async def _get_producer(self) -> AIOKafkaProducer:
-        if self._producer is None:
-            producer = AIOKafkaProducer(bootstrap_servers=self._bootstrap_servers)
-            await producer.start()
-            self._producer = producer
+        async with self._start_lock:
+            if self._producer is None:
+                producer = AIOKafkaProducer(bootstrap_servers=self._bootstrap_servers, enable_idempotence=True)
+                try:
+                    await producer.start()
+                except BaseException:
+                    await producer.stop()
+                    raise
+                self._producer = producer
         return self._producer
 
     async def publish(self, topic: str, key: str, payload: dict) -> None:
@@ -38,6 +46,9 @@ class KafkaEventPublisher:
             key=key.encode("utf-8"),
             value=json.dumps(payload, default=str).encode("utf-8"),
         )
+
+    async def publish_reliably(self, topic: str, key: str, payload: dict) -> None:
+        await asyncio.wait_for(self._publish(topic, key, payload), timeout=PUBLISH_TIMEOUT_SECONDS)
 
     async def close(self) -> None:
         if self._producer is not None:

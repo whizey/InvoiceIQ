@@ -44,12 +44,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import (
     accuracy_score,
-    average_precision_score,
     brier_score_loss,
-    f1_score,
-    log_loss,
-    precision_score,
-    recall_score,
     roc_auc_score,
 )
 
@@ -86,8 +81,9 @@ def load(name: str) -> pd.DataFrame:
 
 
 def load_splits() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """train, validation, test. Test is returned so category levels can be
-    aligned across all three; no trainer may read its target."""
+    """Frozen train, validation, test; vocabulary is fitted on train only.
+    Test labels must not be used for fitting, selection, or calibration.
+    """
     return load("train"), load("validation"), load("test")
 
 
@@ -187,19 +183,21 @@ def within_period_auc(frame: pd.DataFrame, probabilities: np.ndarray) -> tuple[f
 
 
 def evaluate(frame: pd.DataFrame, probabilities: np.ndarray, threshold: float = 0.5) -> dict:
+    from app.ml.model_risk import classification_metrics
+    scored = classification_metrics(frame[TARGET_COLUMN].to_numpy(), probabilities, thresholds=(threshold,))
     y = frame[TARGET_COLUMN]
     predicted = (probabilities >= threshold).astype(int)
     weighted, per_month = within_period_auc(frame, probabilities)
     return {
-        "within_period_auc": round(weighted, 4),
-        "pooled_roc_auc": round(float(roc_auc_score(y, probabilities)), 4),
-        "pooled_pr_auc": round(float(average_precision_score(y, probabilities)), 4),
-        "log_loss": round(float(log_loss(y, probabilities)), 4),
+        "within_period_auc": round(weighted, 4) if np.isfinite(weighted) else None,
+        "pooled_roc_auc": scored["roc_auc"],
+        "pooled_pr_auc": scored["pr_auc"],
+        "log_loss": scored["log_loss"],
         "brier": round(float(brier_score_loss(y, probabilities)), 4),
         "accuracy": round(float(accuracy_score(y, predicted)), 4),
-        "precision": round(float(precision_score(y, predicted, zero_division=0)), 4),
-        "recall": round(float(recall_score(y, predicted, zero_division=0)), 4),
-        "f1": round(float(f1_score(y, predicted, zero_division=0)), 4),
+        "precision": scored["operational_thresholds"][0]["precision"],
+        "recall": scored["operational_thresholds"][0]["recall"],
+        "f1": scored["operational_thresholds"][0]["f1"],
         "per_month": per_month,
     }
 
@@ -218,12 +216,27 @@ def temporal_folds(frame: pd.DataFrame, n_folds: int = 4) -> list[tuple[np.ndarr
         test_mask = (frame["posting_date"] > cutoffs[index]) & (
             frame["posting_date"] <= cutoffs[index + 1]
         )
+        if test_mask.any():
+            train_mask &= known_outcome_mask(frame, frame.loc[test_mask, "posting_date"].min())
         if test_mask.sum() == 0 or frame.loc[train_mask, TARGET_COLUMN].nunique() < 2:
             continue
         folds.append(
             (np.flatnonzero(train_mask.to_numpy()), np.flatnonzero(test_mask.to_numpy()))
         )
     return folds
+
+
+def known_outcome_mask(frame: pd.DataFrame, cutoff: pd.Timestamp) -> pd.Series:
+    """Conservative legacy evaluation purge: only already cleared outcomes.
+
+    Posting chronology alone cannot establish that a training label was known.
+    Reconstruct clearing from the signed strict delay, never the clipped target.
+    """
+    if not {"net_due_date", "days_late_strict", "posting_date"}.issubset(frame.columns):
+        raise ValueError("Outcome availability requires due date and signed strict delay")
+    delay = pd.to_numeric(frame["days_late_strict"], errors="raise")
+    clearing = pd.to_datetime(frame["net_due_date"]) + pd.to_timedelta(delay, unit="D")
+    return (frame["posting_date"] < cutoff) & (clearing < cutoff) & delay.notna()
 
 
 def stability_report(fold_aucs: list[float], fold_base_rates: list[dict]) -> dict:
@@ -292,6 +305,9 @@ def baselines(train: pd.DataFrame, validation: pd.DataFrame) -> dict:
     rate. The second is the one that matters: if a model cannot beat a
     per-customer lookup table, it is a lookup table with extra steps.
     """
+    train = train.loc[known_outcome_mask(train, validation["posting_date"].min())]
+    if train.empty:
+        raise ValueError("No training outcomes known before validation")
     base_rate = float(train[TARGET_COLUMN].mean())
     history = train.groupby("cust_num")[TARGET_COLUMN].mean()
     return {

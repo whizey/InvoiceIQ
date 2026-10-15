@@ -31,14 +31,14 @@ services:
       CLUSTER_ID: "MTIzNDU2Nzg5MGFiY2RlZg"
     ports:
       # Host access (e.g. running app/events/consumer.py locally, outside Docker).
-      - "9094:9094"
+      - "127.0.0.1:9094:9094"
 
   redis:
     image: redis:7-alpine
     ports:
       # Host access; mapped off the default 6379 in case Redis is already
       # running natively (same reasoning as Postgres's 5433 mapping).
-      - "6380:6379"
+      - "127.0.0.1:6380:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -47,16 +47,18 @@ services:
 
   api:
     build:
-      context: ../backend
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: backend/Dockerfile
     environment:
+      RUN_MIGRATIONS: "true"
       DATABASE_URL: postgresql+asyncpg://recovery_user:recovery_pass@db:5432/recovery_db
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      OUTBOX_DISPATCH_ENABLED: "true"
       REDIS_URL: redis://redis:6379/0
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       LLM_MODEL: ${LLM_MODEL:-}
-      SCHEDULER_ENABLED: ${SCHEDULER_ENABLED:-true}
+      SCHEDULER_ENABLED: ${SCHEDULER_ENABLED:-false}
       SCHEDULER_INTERVAL_SECONDS: ${SCHEDULER_INTERVAL_SECONDS:-60}
     ports:
       - "8000:8000"

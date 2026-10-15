@@ -8,6 +8,14 @@ import pytest
 import app.services.payment_risk_scoring as scoring
 
 
+@pytest.fixture(autouse=True)
+def unit_telemetry_boundary(monkeypatch):
+    # These are isolated scoring unit tests; database telemetry is integration-tested separately.
+    async def tracked(operation, **kwargs):
+        return await operation()
+    monkeypatch.setattr(scoring, "tracked_inference", tracked)
+
+
 MODEL = "random_forest"
 VERSION = "random_forest:d42e3f72f4cf"
 
@@ -36,6 +44,7 @@ def make_invoice(
     version=None,
 ):
     return SimpleNamespace(
+        id=None, company_id=None, currency="INR",
         invoice_number="INV-HARDENING-001",
         late_payment_probability=probability,
         payment_risk_model=model,

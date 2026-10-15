@@ -25,6 +25,43 @@ HTTP_DURATION = Histogram(
 )
 
 
+MODEL_DURATION = Histogram("invoiceiq_model_inference_seconds", "Model inference latency", ("model",),
+                           buckets=(.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5))
+MODEL_FAILURES = Counter("invoiceiq_model_inference_failures_total", "Model inference failures", ("model",))
+
+LLM_CALLS = Counter(
+    "invoiceiq_llm_calls_total", "Actual provider calls by validated outcome",
+    ("stage", "provider", "outcome"),
+)
+LLM_DURATION = Histogram(
+    "invoiceiq_llm_call_seconds", "Actual provider call latency",
+    ("stage", "provider"),
+    buckets=(.05, .1, .25, .5, 1, 2.5, 5, 10, 15, 30),
+)
+LLM_FALLBACKS = Counter(
+    "invoiceiq_llm_fallbacks_total", "Deterministic LLM fallback selections",
+    ("stage", "provider"),
+)
+
+
+def record_llm_call(stage: str, provider: str, outcome: str, duration: float) -> None:
+    if not settings.metrics_enabled:
+        return
+    stage = stage if stage in {"diagnose", "recommend", "voice_turn"} else "other"
+    provider = provider if provider in {"gemini", "openai", "groq"} else "other"
+    outcome = outcome if outcome in {"success", "error", "invalid"} else "other"
+    LLM_CALLS.labels(stage, provider, outcome).inc()
+    LLM_DURATION.labels(stage, provider).observe(max(0, duration))
+
+
+def record_llm_fallback(stage: str, provider: str) -> None:
+    if not settings.metrics_enabled:
+        return
+    stage = stage if stage in {"diagnose", "recommend", "voice_turn"} else "other"
+    provider = provider if provider in {"gemini", "openai", "groq", "fallback"} else "other"
+    LLM_FALLBACKS.labels(stage, provider).inc()
+
+
 def route_family(path: str) -> str:
     """Never expose case IDs, invoice IDs or attacker-controlled paths as labels."""
     segment = path.strip("/").split("/")[0]

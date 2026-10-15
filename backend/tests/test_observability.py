@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import uuid
 
 from fastapi.testclient import TestClient
 
@@ -55,6 +56,19 @@ def test_json_formatter_includes_arbitrary_extra_fields():
     assert payload["duration_ms"] == 12.3
 
 
+def test_json_formatter_redacts_credentials_and_contact_details():
+    formatted = JSONFormatter().format(_record(
+        "Bearer disposable-test-token for demo@example.com",
+        database_url="postgresql://reader:disposable-password@db.example/invoiceiq_demo",
+        nested={"api_key": "disposable-secret", "note": "Call demo@example.com"},
+    ))
+    assert "disposable-test-token" not in formatted
+    assert "disposable-password" not in formatted
+    assert "disposable-secret" not in formatted
+    assert "demo@example.com" not in formatted
+    assert "[REDACTED]" in formatted
+
+
 def test_configure_langsmith_is_a_noop_when_disabled(monkeypatch):
     monkeypatch.setattr(settings, "langchain_tracing_v2", False)
     monkeypatch.delenv("LANGCHAIN_TRACING_V2", raising=False)
@@ -83,3 +97,6 @@ def test_request_id_header_present_and_echoed():
 
         resp2 = client.get("/health", headers={"X-Request-ID": "my-custom-id"})
         assert resp2.headers["x-request-id"] == "my-custom-id"
+
+        invalid = client.get("/health", headers={"X-Request-ID": "A" * 100})
+        assert str(uuid.UUID(invalid.headers["x-request-id"])) == invalid.headers["x-request-id"]

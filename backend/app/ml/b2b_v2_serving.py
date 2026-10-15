@@ -19,6 +19,8 @@ import joblib
 import numpy as np
 import pandas as pd
 
+from app.ml.named_inference import inference_input
+
 
 BASE = (
     Path(__file__).resolve().parent
@@ -168,13 +170,8 @@ def classifier_probability(
         features,
     )
 
-    raw = float(
-        load_model(
-            name
-        ).predict_proba(
-            frame
-        )[0, 1]
-    )
+    estimator, prepared = inference_input(load_model(name), frame)
+    raw = float(estimator.predict_proba(prepared)[0, 1])
 
     policy = load_json(
         str(
@@ -248,13 +245,8 @@ def regression_prediction(
         ],
     )
 
-    value = float(
-        load_model(
-            name
-        ).predict(
-            frame
-        )[0]
-    )
+    estimator, prepared = inference_input(load_model(name), frame)
+    value = float(estimator.predict(prepared)[0])
 
     return max(
         value,

@@ -1,13 +1,16 @@
 import asyncio
 from datetime import timedelta
 from decimal import Decimal
+from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import select
 
 from app.agents.graph import run_recovery_cycle
 from app.core.db import async_session_factory, engine
-from app.models import Company, Invoice, PromiseToPay, RecoveryAction, RecoveryCase
+from app.models import Company, Invoice, PromiseToPay, RecoveryAction, RecoveryCase, AuditLog, CommunicationLog
+from app.models.outbox import OutboxEvent
+from app.events import topics
 from app.models.enums import (
     CompanySegment,
     InvoiceStatus,
@@ -25,8 +28,13 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 @pytest.fixture(scope="module", autouse=True)
 def seeded_db():
-    asyncio.run(seed())
-    asyncio.run(engine.dispose())
+    async def prepare():
+        try:
+            await seed()
+        finally:
+            await engine.dispose()
+
+    asyncio.run(prepare())
     yield
     asyncio.run(engine.dispose())
 
@@ -120,13 +128,22 @@ async def test_high_value_overdue_case_gets_escalated_regardless_of_recommendati
         assert action.recommended_action_type == action.action_type == RecoveryActionType.ESCALATE
 
 
-async def test_payment_recovered_closes_the_case_on_next_cycle():
+async def test_payment_recovered_closes_the_case_on_next_cycle(monkeypatch):
     case = await _create_overdue_case(
         "Workflow Test Co C", "INV-WFTEST-C001", Decimal("80000.00"), days_overdue=10
     )
 
     async with async_session_factory() as session:
         await run_recovery_cycle(session, case.id)  # first cycle: sends a reminder
+
+    async with async_session_factory() as session:
+        communication_ids = set((await session.scalars(select(CommunicationLog.id).where(
+            CommunicationLog.recovery_case_id == case.id))).all())
+        action_ids = set((await session.scalars(select(RecoveryAction.id).where(
+            RecoveryAction.recovery_case_id == case.id))).all())
+
+    forbidden_action = AsyncMock(side_effect=AssertionError("Settled cases must not execute actions"))
+    monkeypatch.setattr("app.agents.graph.execute_mock_action", forbidden_action)
 
     # Simulate the customer paying in full, outside the graph entirely.
     async with async_session_factory() as session:
@@ -139,13 +156,65 @@ async def test_payment_recovered_closes_the_case_on_next_cycle():
         final_state = await run_recovery_cycle(session, case.id)
 
     assert final_state["case_status"] == "CLOSED"
-    assert final_state["outcome_summary"] == "recovered"
+    # Payment happened outside the graph: terminal reconciliation closes the
+    # case before recommending or executing another communication.
+    assert final_state["outcome_summary"] == "reconciled_full_payment"
+    assert final_state["terminal"] is True
+    assert "action_id" not in final_state
 
     async with async_session_factory() as session:
         refreshed = await session.get(RecoveryCase, case.id)
         assert refreshed.status == RecoveryCaseStatus.CLOSED
         assert refreshed.recovered_amount == Decimal("80000.00")
         assert refreshed.closed_at is not None
+        closed_at = refreshed.closed_at
+        assert refreshed.recovered_amount == refreshed.revenue_at_risk
+        invoice = await session.get(Invoice, case.invoice_id)
+        assert invoice.amount_paid == invoice.amount_total == Decimal("80000.00")
+        assert invoice.status == InvoiceStatus.PAID
+
+    async def snapshot():
+        async with async_session_factory() as session:
+            audits = (await session.scalars(select(AuditLog).where(
+                AuditLog.recovery_case_id == case.id))).all()
+            closures = [row for row in audits if row.event_type == "CASE_CLOSED"]
+            assert len(closures) == 1
+            assert closures[0].description == "Case closed after verified full invoice settlement."
+            events = (await session.scalars(select(OutboxEvent).where(
+                OutboxEvent.key == str(case.id)))).all()
+            closed_events = [row for row in events if row.topic == topics.RECOVERY_CASE_CLOSED]
+            assert len(closed_events) == 1
+            envelope = closed_events[0].payload
+            assert isinstance(envelope, dict)
+            assert isinstance(envelope.get("event_id"), str)
+            assert isinstance(envelope.get("correlation_id"), str)
+            assert envelope["data"] == {
+                "case_id": str(case.id),
+                "status": "CLOSED",
+                "recovered_amount": "80000.00",
+            }
+            actions = (await session.scalars(select(RecoveryAction).where(
+                RecoveryAction.recovery_case_id == case.id))).all()
+            assert len(actions) == 1
+            assert actions[0].action_type == RecoveryActionType.SEND_EMAIL
+            communications = (await session.scalars(select(CommunicationLog).where(
+                CommunicationLog.recovery_case_id == case.id))).all()
+            return tuple(frozenset(row.id for row in rows)
+                         for rows in (audits, events, actions, communications))
+
+    before = await snapshot()
+    assert before[2] == action_ids
+    assert before[3] == communication_ids
+    for _ in range(2):
+        async with async_session_factory() as session:
+            repeated = await run_recovery_cycle(session, case.id)
+            assert repeated["terminal"] is True
+            refreshed = await session.get(RecoveryCase, case.id)
+            assert refreshed.status == RecoveryCaseStatus.CLOSED
+            assert refreshed.closed_at == closed_at
+            assert refreshed.recovered_amount == Decimal("80000.00")
+        assert await snapshot() == before
+    forbidden_action.assert_not_awaited()
 
 
 async def test_broken_promise_forces_escalation_on_next_cycle():

@@ -1,7 +1,7 @@
 """Standalone demo consumer — proves Kafka messages are actually flowing.
 
 Not part of the FastAPI app's request path. V1 has no long-running consumer
-driving the app itself (see docs/architecture.md decision #2) — this is
+driving the app itself (see docs/ARCHITECTURE.md) — this is
 purely to demonstrate that the publish side of the outbox pattern works.
 
 Run with: python -m app.events.consumer
@@ -32,9 +32,11 @@ async def main() -> None:
     print("(Ctrl+C to stop)\n", flush=True)
     try:
         async for message in consumer:
-            key = message.key.decode("utf-8") if message.key else None
             payload = json.loads(message.value.decode("utf-8"))
-            print(f"[{message.topic}] key={key} {json.dumps(payload)}", flush=True)
+            # Domain events may include private predictions and invoice facts.
+            # This observational demo never dumps payloads or executes actions.
+            event_id = payload.get("event_id") if isinstance(payload, dict) else None
+            print(f"[{message.topic}] event_id={event_id or 'legacy'} received", flush=True)
     finally:
         await consumer.stop()
 

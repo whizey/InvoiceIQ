@@ -12,13 +12,13 @@ Model" stage. AI diagnosis/recommendation (Phase 8/9) still attach later.
 import logging
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
-from decimal import Decimal
+from uuid import UUID
 from app.core.time import utc_today
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.events import get_publisher
+from app.events.outbox import TransactionalEventPublisher
 from app.events import topics
 from app.models import AuditLog, Invoice, PaymentEvent, RecoveryCase
 from app.models.enums import AuditActor, InvoiceStatus, PaymentEventType, RecoveryCaseStatus
@@ -40,13 +40,15 @@ class DetectionResult:
     promises_checked: PromiseCheckResult
 
 
-async def mark_overdue_invoices(session: AsyncSession, *, today: date | None = None) -> list[Invoice]:
+async def mark_overdue_invoices(session: AsyncSession, *, today: date | None = None, invoice_ids: set[UUID] | None = None) -> list[Invoice]:
     """Flip SENT/PARTIALLY_PAID invoices whose due date has passed to OVERDUE."""
     today = today or utc_today()
     stmt = select(Invoice).where(
         Invoice.due_date < today,
         Invoice.status.in_([InvoiceStatus.SENT, InvoiceStatus.PARTIALLY_PAID]),
     )
+    if invoice_ids is not None:
+        stmt = stmt.where(Invoice.id.in_(invoice_ids))
     result = await session.execute(stmt)
     invoices = list(result.scalars().all())
 
@@ -65,13 +67,15 @@ async def mark_overdue_invoices(session: AsyncSession, *, today: date | None = N
     return invoices
 
 
-async def create_recovery_cases_for_overdue_invoices(session: AsyncSession) -> list[RecoveryCase]:
+async def create_recovery_cases_for_overdue_invoices(session: AsyncSession, *, invoice_ids: set[UUID] | None = None) -> list[RecoveryCase]:
     """Create a recovery case for every OVERDUE invoice that doesn't already have one."""
     stmt = (
         select(Invoice)
         .outerjoin(RecoveryCase, RecoveryCase.invoice_id == Invoice.id)
         .where(Invoice.status == InvoiceStatus.OVERDUE, RecoveryCase.id.is_(None))
     )
+    if invoice_ids is not None:
+        stmt = stmt.where(Invoice.id.in_(invoice_ids))
     result = await session.execute(stmt)
     invoices = list(result.scalars().all())
 
@@ -131,15 +135,14 @@ async def create_recovery_cases_for_overdue_invoices(session: AsyncSession) -> l
     return created
 
 
-async def run_detection(session: AsyncSession, *, today: date | None = None) -> DetectionResult:
+async def run_detection(session: AsyncSession, *, today: date | None = None, invoice_ids: set[UUID] | None = None) -> DetectionResult:
     """Run the full deterministic housekeeping pass: mark overdue invoices, open
     cases for them, and resolve any pending promise-to-pay commitments whose
     date has come and gone."""
     logger.info("detection sweep starting")
-    invoices_marked = await mark_overdue_invoices(session, today=today)
-    cases_created = await create_recovery_cases_for_overdue_invoices(session)
+    invoices_marked = await mark_overdue_invoices(session, today=today, invoice_ids=invoice_ids)
+    cases_created = await create_recovery_cases_for_overdue_invoices(session, invoice_ids=invoice_ids)
     promises_checked = await check_promises_to_pay(session, today=today)
-    await session.commit()
     logger.info(
         "detection sweep finished",
         extra={
@@ -150,9 +153,8 @@ async def run_detection(session: AsyncSession, *, today: date | None = None) -> 
         },
     )
 
-    # Publish only after the commit succeeds — the DB write is the source of
-    # truth, Kafka is a best-effort broadcast on top of it.
-    publisher = get_publisher()
+    # Event intent and business state must commit in the same transaction.
+    publisher = TransactionalEventPublisher(session)
     for invoice in invoices_marked:
         await publisher.publish(
             topics.INVOICE_OVERDUE,
@@ -188,6 +190,7 @@ async def run_detection(session: AsyncSession, *, today: date | None = None) -> 
             },
         )
 
+    await session.commit()
     return DetectionResult(
         invoices_marked_overdue=invoices_marked,
         cases_created=cases_created,

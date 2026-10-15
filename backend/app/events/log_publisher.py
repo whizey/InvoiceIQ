@@ -6,8 +6,14 @@ logger = logging.getLogger("app.events")
 
 
 class LogEventPublisher:
+    delivery_mode = "log"
+
+    async def publish_reliably(self, topic: str, key: str, payload: dict) -> None:
+        await self.publish(topic, key, payload)
+
     async def publish(self, topic: str, key: str, payload: dict) -> None:
-        logger.info("event (no Kafka configured) topic=%s key=%s payload=%s", topic, key, payload)
+        # Payloads can contain private invoice facts; log delivery metadata only.
+        logger.info("event logged (Kafka unavailable) topic=%s", topic)
 
     async def close(self) -> None:
         pass

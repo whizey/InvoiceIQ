@@ -51,6 +51,8 @@ class Invoice(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     payment_risk_features: Mapped[dict | None] = mapped_column(
         JSONB, nullable=True
     )
+    payment_risk_artifact_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    payment_risk_explanation_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     status: Mapped[InvoiceStatus] = mapped_column(
         SAEnum(InvoiceStatus, name="invoice_status"), nullable=False, default=InvoiceStatus.SENT

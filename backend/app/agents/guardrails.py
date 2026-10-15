@@ -55,7 +55,10 @@ def validate_model_output(output: object, schema: type[T]) -> T | None:
     Never accept new action names, extra tool-call fields, or unbounded text.
     """
     if isinstance(output, schema):
-        result = output
+        try:
+            result = schema.model_validate(output.model_dump())
+        except ValidationError:
+            return None
     elif isinstance(output, dict) and set(output).issubset(schema.model_fields):
         try:
             result = schema.model_validate(output)
@@ -64,6 +67,9 @@ def validate_model_output(output: object, schema: type[T]) -> T | None:
     else:
         return None
 
+    if any(redact_text(getattr(result, field, "")) != getattr(result, field, "")
+           for field in ("diagnosis", "reason", "rationale", "agent_line_hi")):
+        return None
     if len(result.model_dump_json()) > MAX_MODEL_RESPONSE_CHARS:
         return None
     return result
@@ -90,3 +96,38 @@ def assert_action_can_execute(action: object, case_id: object) -> None:
     ):
         return
     raise PermissionError("Action has no executable policy authorization")
+
+
+_PII = re.compile(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|(?<!\w)(?!\d{4}-\d{2}-\d{2}(?!\d))\+?\d[\d ()-]{7,}\d(?!\w)|\b(?:sk-|AIza)[A-Za-z0-9_-]{12,}")
+
+
+def redact_text(value: str) -> str:
+    """Redact contact/account-like numbers and credential patterns in free text only."""
+    return _PII.sub("[REDACTED]", value)
+
+
+def grounded_claims(output, invoice: dict) -> bool:
+    """Only the current server-loaded invoice may support structured financial claims."""
+    from decimal import Decimal, InvalidOperation
+    for claim in getattr(output, "financial_claims", []):
+        if claim.source_invoice_id != invoice.get("invoice_id"):
+            return False
+        expected = invoice.get(claim.field)
+        if expected is None:
+            return False
+        if claim.field in {"amount_total", "amount_paid"}:
+            try:
+                actual, supported = Decimal(claim.value), Decimal(str(expected))
+                if not actual.is_finite() or actual != supported:
+                    return False
+            except (InvalidOperation, ValueError):
+                return False
+        elif claim.value != str(expected):
+            return False
+    return True
+
+
+def minimal_diagnosis(diagnosis: dict) -> dict:
+    return {key: redact_text(value) if isinstance(value, str) else value
+            for key, value in diagnosis.items()
+            if key in {"diagnosis", "reason", "recommended_priority"}}

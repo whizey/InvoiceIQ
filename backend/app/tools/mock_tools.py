@@ -2,7 +2,7 @@
 
 Intentionally simple, DB-writing simulations — not real integrations. Built
 behind this interface so Stripe/Resend/Twilio can replace them later
-without touching the graph or policy logic (see docs/architecture.md).
+without touching the graph or policy logic (see docs/ARCHITECTURE.md).
 """
 
 from datetime import datetime, timedelta, timezone
@@ -98,6 +98,9 @@ async def execute_mock_action(
     invoice: Invoice,
     contact: Contact | None,
 ) -> dict:
+    from app.core.config import settings
+    if settings.env.lower() in {"production", "staging", "prod"}:
+        raise RuntimeError("Simulation tools are disabled in hosted environments")
     if action_type == RecoveryActionType.SEND_EMAIL:
         return await send_email(session, case, invoice, contact)
     if action_type == RecoveryActionType.SEND_PAYMENT_LINK:

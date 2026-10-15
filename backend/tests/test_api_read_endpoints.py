@@ -13,11 +13,14 @@ NIL_UUID = "00000000-0000-0000-0000-000000000000"
 
 @pytest.fixture(scope="module")
 def client():
-    asyncio.run(seed())
-    # The engine's pooled connections are bound to the event loop that just
-    # closed with asyncio.run(); dispose so the TestClient's requests (on
-    # its own portal loop) open fresh connections instead of reusing dead ones.
-    asyncio.run(engine.dispose())
+    async def prepare():
+        try:
+            await seed()
+        finally:
+            # The TestClient portal must open its own pooled connections.
+            await engine.dispose()
+
+    asyncio.run(prepare())
 
     # Used as a context manager so all requests share one background event
     # loop (a "portal") for the lifetime of the fixture — without this,
@@ -128,6 +131,13 @@ def test_list_recovery_cases_matches_dashboard_shape(client):
     assert resp.status_code == 200
     data = resp.json()
     assert len(data) == 5
+    invoices = {invoice["id"]: invoice for invoice in client.get("/invoices").json()}
+    for case in data:
+        invoice = invoices[case["invoice_id"]]
+        assert case["invoice_number"] == invoice["invoice_number"]
+        assert Decimal(case["outstanding_amount"]) == max(Decimal(invoice["amount_total"]) - Decimal(invoice["amount_paid"]), 0)
+        detail = client.get(f"/recovery-cases/{case['id']}").json()
+        assert case["pending_approval"] == any(action["status"] == "PENDING_APPROVAL" for action in detail["actions"])
 
     by_invoice = {c["invoice_number"]: c for c in data}
     assert by_invoice["INV-VERTEX-3010"]["status"] == "ESCALATED"

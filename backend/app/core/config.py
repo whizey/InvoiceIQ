@@ -12,8 +12,19 @@ _ENV_FILE = _BACKEND_DIR / ".env"
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=_ENV_FILE, env_file_encoding="utf-8")
 
+    business_timezone: str = "Asia/Kolkata"
+
+    @field_validator("business_timezone")
+    @classmethod
+    def valid_business_timezone(cls, value: str) -> str:
+        from zoneinfo import ZoneInfo
+        ZoneInfo(value)
+        return value
+
     app_name: str = "invoiceiq"
     env: str = "local"
+    # An explicit blank disables serving; otherwise use the evaluated champion.
+    payment_risk_model: str = "b2b_v2"
     database_url: str = (
         "postgresql+asyncpg://recovery_user:recovery_pass@localhost:5432/recovery_db"
     )
@@ -44,12 +55,16 @@ class Settings(BaseSettings):
     # Gemini (GOOGLE_API_KEY) is preferred when both keys are present.
     google_api_key: str | None = None
     openai_api_key: str | None = None
+    groq_api_key: str | None = None
+    # Groq requires an explicit model because available model IDs change.
+    groq_model: str | None = None
     # Optional override. If omitted, Gemini uses gemini-2.5-flash and OpenAI uses gpt-4o-mini.
     llm_model: str | None = None
 
     # Event publishing: if unset, domain events are logged instead of
     # published (see app/events/) — no Kafka required to run the app.
     kafka_bootstrap_servers: str | None = None
+    outbox_dispatch_enabled: bool = False
 
     # Locking/idempotency: if unset, falls back to an in-process lock
     # (see app/core/locks.py) — no Redis required to run the app, but the
@@ -90,6 +105,8 @@ class Settings(BaseSettings):
     @field_validator(
         "google_api_key",
         "openai_api_key",
+        "groq_api_key",
+        "groq_model",
         "llm_model",
         "demo_notify_email",
         "resend_api_key",

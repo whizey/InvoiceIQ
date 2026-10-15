@@ -86,6 +86,8 @@ FIXED = dict(random_state=RANDOM_STATE, n_jobs=-1)
 
 def main() -> dict:
     train, validation, test = load_splits()
+    from app.ml.common import known_outcome_mask
+    train = train.loc[known_outcome_mask(train, validation.posting_date.min())].copy()
     category_levels = category_levels_from_train(train)
     X_train_cat, X_validation_cat, X_test_cat = prepare_categorical(
         [train, validation, test]

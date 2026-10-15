@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.llm_client import MAX_VOICE_TURNS, voice_turn
 from app.agents.schemas import VoiceTurnResult
 from app.core.db import get_db
+from app.core.case_company_scope import require_case_company_scope
 from app.core.locks import LockAcquisitionError, acquire_lock
 from app.models import AuditLog, Company, Contact, CommunicationLog, Invoice, RecoveryCase
 from app.models.enums import (
@@ -149,7 +150,7 @@ async def _speak_turn(
     return result, audio_b64, outcome_out
 
 
-@router.post("/{case_id}/voice/start", response_model=VoiceStartOut)
+@router.post("/{case_id}/voice/start", response_model=VoiceStartOut, dependencies=[Depends(require_case_company_scope)])
 async def start_voice_call(case_id: UUID, db: AsyncSession = Depends(get_db)) -> VoiceStartOut:
     """Human-triggered only (case-page "Start Hinglish recovery call" button).
     Gated by evaluate_policy() exactly like every other action — blocked if
@@ -201,7 +202,7 @@ async def start_voice_call(case_id: UUID, db: AsyncSession = Depends(get_db)) ->
     )
 
 
-@router.post("/{case_id}/voice/turn", response_model=VoiceTurnOut)
+@router.post("/{case_id}/voice/turn", response_model=VoiceTurnOut, dependencies=[Depends(require_case_company_scope)])
 async def submit_voice_turn(
     case_id: UUID,
     turn_number: int = Form(...),

@@ -1,4 +1,7 @@
+from app.models.analytics_history import AnalyticsHistoryState, InvoiceStateSnapshot, CaseStateSnapshot, InferenceRecord
 from app.models.base import Base
+from app.models.dataset_import import DatasetImport, OfflineEvaluation
+from app.models.outbox import OutboxEvent
 from app.models.company import Company, Contact
 from app.models.invoice import Invoice, Payment, PaymentEvent
 from app.models.recovery import (
@@ -13,6 +16,13 @@ from app.models.recovery import (
 
 __all__ = [
     "Base",
+    "AnalyticsHistoryState",
+    "InvoiceStateSnapshot",
+    "CaseStateSnapshot",
+    "InferenceRecord",
+    "DatasetImport",
+    "OfflineEvaluation",
+    "OutboxEvent",
     "Company",
     "Contact",
     "Invoice",

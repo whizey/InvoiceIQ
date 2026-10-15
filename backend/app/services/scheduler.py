@@ -64,7 +64,7 @@ async def run_scheduler_tick() -> dict:
             logger.info("scheduler skipped case; lock already held", extra={"case_id": str(case_id)})
         except Exception:
             summary["cycles_failed"] += 1
-            logger.exception("scheduler cycle failed", extra={"case_id": str(case_id)})
+            logger.warning("scheduler cycle failed", extra={"case_id": str(case_id)})
 
     logger.info(
         "scheduler tick finished marked=%s created=%s ran=%s skipped=%s failed=%s",
@@ -103,7 +103,7 @@ async def _loop() -> None:
         try:
             await run_scheduler_tick()
         except Exception:
-            logger.exception("scheduler tick crashed")
+            logger.warning("scheduler tick crashed")
         try:
             await asyncio.wait_for(_stop.wait(), timeout=interval)
             return

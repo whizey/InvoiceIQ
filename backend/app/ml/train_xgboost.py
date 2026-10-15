@@ -87,6 +87,8 @@ FIXED = dict(
 
 def main() -> dict:
     train, validation, test = load_splits()
+    from app.ml.common import known_outcome_mask
+    train = train.loc[known_outcome_mask(train, validation.posting_date.min())].copy()
     category_levels = category_levels_from_train(train)
     X_train, X_validation, _ = prepare_categorical([train, validation, test])
     print_data_summary(train, validation, test, "XGBoost")

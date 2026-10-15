@@ -15,7 +15,6 @@ Adds:
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import joblib
 import numpy as np
@@ -29,7 +28,6 @@ from sklearn.metrics import mean_pinball_loss
 from app.ml.train_b2b_v2 import (
     ARTIFACT_ROOT,
     MODEL_ROOT,
-    FEATURE_SETS,
     CLASSIFICATION_TARGETS,
     POSTING_DATE,
     load_development_data,

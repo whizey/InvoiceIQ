@@ -31,6 +31,18 @@ def verify_artifacts(*, verify_binaries: bool = False, root: Path = ARTIFACTS) -
         # The model's native XGBoost JSON is also legitimate JSON.
         data = json.loads(manifest.read_text(encoding="utf-8"))
         valid_json += 1
+        if manifest.name == "runtime_integrity.json":
+            if data.get("schema_version") != 1 or not isinstance(data.get("files"), dict):
+                raise ValueError(f"Invalid integrity manifest: {manifest}")
+            for filename, expected in data["files"].items():
+                target = (manifest.parent / filename).resolve()
+                if not target.is_relative_to(manifest.parent.resolve()):
+                    raise ValueError("Unsafe integrity artifact path")
+                if verify_binaries:
+                    if sha256_file(target) != expected:
+                        raise ValueError(f"Artifact hash mismatch: {target}")
+                    checked_files += 1
+            continue
         if manifest.name != "runtime_contract.json":
             continue
         if not isinstance(data, dict) or not isinstance(data.get("features"), list):

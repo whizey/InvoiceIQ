@@ -6,13 +6,15 @@ small enough that recomputing on read is simpler and can't drift.
 """
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import func, literal, select
+from app.core.time import utc_today
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Company, Invoice, PolicyDecision, RecoveryAction, RecoveryCase
-from app.models.enums import RecoveryCaseStatus
+from app.models.enums import RecoveryActionStatus, RecoveryCaseStatus
 
 ACTIVE_STATUSES = [RecoveryCaseStatus.OPEN, RecoveryCaseStatus.MONITORING, RecoveryCaseStatus.ESCALATED]
 
@@ -26,6 +28,9 @@ class DashboardMetrics:
     escalated_cases: int
     average_days_overdue: float | None
     cases_by_risk_level: dict[str, int]
+    total_cases: int
+    pending_approvals: int
+    data_as_of: datetime
 
 
 @dataclass
@@ -76,7 +81,7 @@ async def get_dashboard_metrics(session: AsyncSession) -> DashboardMetrics:
     escalated_cases = escalated_cases_result.scalar_one()
 
     avg_days_result = await session.execute(
-        select(func.avg(func.current_date() - Invoice.due_date))
+        select(func.avg(literal(utc_today()) - Invoice.due_date))
         .join(RecoveryCase, RecoveryCase.invoice_id == Invoice.id)
         .where(RecoveryCase.status.in_(ACTIVE_STATUSES))
     )
@@ -84,11 +89,17 @@ async def get_dashboard_metrics(session: AsyncSession) -> DashboardMetrics:
     average_days_overdue = float(avg_days_raw) if avg_days_raw is not None else None
 
     risk_level_result = await session.execute(
-        select(RecoveryCase.risk_level, func.count(RecoveryCase.id)).group_by(RecoveryCase.risk_level)
+        select(RecoveryCase.risk_level, func.count(RecoveryCase.id))
+        .where(RecoveryCase.status.in_(ACTIVE_STATUSES))
+        .group_by(RecoveryCase.risk_level)
     )
     cases_by_risk_level = {
         (level.value if level else "UNSCORED"): count for level, count in risk_level_result.all()
     }
+    total_cases = (await session.execute(select(func.count(RecoveryCase.id)))).scalar_one()
+    pending_approvals = (await session.execute(
+        select(func.count(RecoveryAction.id)).where(RecoveryAction.status == RecoveryActionStatus.PENDING_APPROVAL)
+    )).scalar_one()
 
     return DashboardMetrics(
         total_revenue_at_risk=total_revenue_at_risk,
@@ -98,6 +109,9 @@ async def get_dashboard_metrics(session: AsyncSession) -> DashboardMetrics:
         escalated_cases=escalated_cases,
         average_days_overdue=average_days_overdue,
         cases_by_risk_level=cases_by_risk_level,
+        total_cases=total_cases,
+        pending_approvals=pending_approvals,
+        data_as_of=datetime.now(timezone.utc),
     )
 
 

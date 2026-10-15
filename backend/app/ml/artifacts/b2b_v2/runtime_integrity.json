@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "model_id": "b2b_v2",
+  "enrollment": "Existing evaluated local champion; fingerprints enrolled during serving integration, not original training attestation",
+  "files": {
+    "champion_manifest.json": "27017d77dbc27498e69fee8270999759c439b4d329a46d0ed6e684bf168dee72",
+    "models/late_payment/model.joblib": "21172599bb2b02d7ba83e4b80b013acf190ac93d005d7227e01e2d0e5d6e498d",
+    "models/late_payment/metadata.json": "66e427e41e24895d5f2ee05597ea87d86cb55068490e52b021bc65a1207bc4e3",
+    "calibration/serving_calibration_policy.json": "a22e7608257cba3d33911a31ecb81218f26a6888c73f3b0d8a78937c47d347e2",
+    "target_feature_contract.json": "77dc3f92629f964df6961c5a537fca46aab18d05e94315bfb4a405b615c8cd40"
+  }
+}

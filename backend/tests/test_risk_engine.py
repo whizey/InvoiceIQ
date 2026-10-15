@@ -22,10 +22,14 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 @pytest.fixture(scope="module", autouse=True)
 def seeded_db():
-    asyncio.run(seed())
-    # Seeding ran on its own throwaway loop; dispose so this module's shared
-    # loop opens fresh connections instead of inheriting dead ones.
-    asyncio.run(engine.dispose())
+    async def prepare():
+        try:
+            await seed()
+        finally:
+            # The module test loop must open its own pooled connections.
+            await engine.dispose()
+
+    asyncio.run(prepare())
     yield
     asyncio.run(engine.dispose())
 

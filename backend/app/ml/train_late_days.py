@@ -21,7 +21,6 @@ large point-mass at zero together with genuinely late invoices.
 
 from __future__ import annotations
 
-import hashlib
 import json
 from pathlib import Path
 

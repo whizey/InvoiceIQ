@@ -6,3 +6,6 @@ venv/
 .ruff_cache/
 tests/
 .env
+.env.*
+* 2.py
+* 2.txt

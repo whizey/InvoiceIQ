@@ -33,7 +33,6 @@ Model-development policy
 from __future__ import annotations
 
 import json
-import math
 from pathlib import Path
 from typing import Callable
 
@@ -417,6 +416,16 @@ def add_targets(
             f"Missing required columns: "
             f"{sorted(missing)}"
         )
+
+    # Missing or malformed outcomes must never become invented on-time
+    # labels through fillna(0). Date-only outcomes are discrete whole days.
+    signed_delay = pd.to_numeric(df[DAYS_LATE], errors="raise")
+    late_flag = pd.to_numeric(df[LATE_FLAG], errors="raise")
+    if (not np.isfinite(signed_delay).all() or not np.isin(late_flag, [0, 1]).all()
+            or not np.equal(signed_delay, np.floor(signed_delay)).all()
+            or not np.array_equal((signed_delay > 0).astype(int), late_flag.astype(int))
+            or df[[POSTING_DATE, DUE_DATE]].isna().any().any()):
+        raise ValueError("Invalid or inconsistent observed outcome labels")
 
     df[
         "adjusted_due_date"

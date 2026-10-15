@@ -78,6 +78,8 @@ FIXED = dict(random_state=RANDOM_STATE)
 
 def main() -> dict:
     train, validation, test = load_splits()
+    from app.ml.common import known_outcome_mask
+    train = train.loc[known_outcome_mask(train, validation.posting_date.min())].copy()
     X_train_cat, X_validation_cat, X_test_cat = prepare_categorical(
         [train, validation, test]
     )
@@ -118,10 +120,12 @@ def main() -> dict:
     folds = temporal_folds(train)
     fold_aucs = []
     for number, (train_idx, test_idx) in enumerate(folds):
+        fold_train, fold_frame = train.iloc[train_idx], train.iloc[test_idx]
+        fold_train_cat, fold_test_cat = prepare_categorical([fold_train, fold_frame])
+        (fold_X_train, fold_X_test), _ = to_numeric_codes([fold_train_cat, fold_test_cat])
         fold_model = GradientBoostingClassifier(**best_config, **FIXED)
-        fold_model.fit(X_train.iloc[train_idx], train[TARGET_COLUMN].iloc[train_idx])
-        fold_frame = train.iloc[test_idx]
-        probabilities = fold_model.predict_proba(X_train.iloc[test_idx])[:, 1]
+        fold_model.fit(fold_X_train, fold_train[TARGET_COLUMN])
+        probabilities = fold_model.predict_proba(fold_X_test)[:, 1]
         eligible = (
             fold_frame["prior_resolved_invoice_count"] >= MIN_HISTORY_FOR_SCORING
         ).to_numpy()

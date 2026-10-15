@@ -46,6 +46,9 @@ jobs:
           cd backend
           python -m pip_audit -r requirements.txt
           python -m pip_audit -r requirements-dev.txt
+          test "$(grep -c '^xgboost==3.4.1$' requirements.txt)" = 1
+          sed 's/^xgboost==3.4.1$/xgboost-cpu==3.4.1/' requirements.txt > "$RUNNER_TEMP/invoiceiq-container-requirements.txt"
+          python -m pip_audit -r "$RUNNER_TEMP/invoiceiq-container-requirements.txt"
       - name: Audit production npm dependencies
         working-directory: frontend
         run: npm audit --omit=dev --audit-level=high

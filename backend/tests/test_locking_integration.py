@@ -23,8 +23,13 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 @pytest.fixture(scope="module", autouse=True)
 def seeded_db():
-    asyncio.run(seed())
-    asyncio.run(engine.dispose())
+    async def prepare():
+        try:
+            await seed()
+        finally:
+            await engine.dispose()
+
+    asyncio.run(prepare())
     yield
     asyncio.run(engine.dispose())
 

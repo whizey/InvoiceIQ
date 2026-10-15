@@ -1,8 +1,10 @@
-from datetime import datetime, timezone
+from typing import Literal
+from typing import Annotated
+from datetime import date, datetime, timezone
 from app.core.time import utc_today
-from uuid import UUID
+from uuid import UUID, uuid5, NAMESPACE_URL
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,8 +13,10 @@ from sqlalchemy.orm import selectinload
 from app.agents.graph import run_recovery_cycle
 from app.core.config import settings
 from app.core.db import get_db
+from app.core.case_company_scope import require_case_company_scope
 from app.core.locks import LockAcquisitionError, acquire_lock
 from app.core.reviewer_auth import ReviewerIdentity, require_reviewer
+from app.core.reviewer_company_scope import require_scoped_reviewer
 from app.models import AuditLog, Company, Invoice, RecoveryAction, RecoveryCase
 from app.models.enums import AuditActor, ProposedBy, RecoveryActionStatus, RecoveryActionType
 from app.schemas.recovery import (
@@ -73,9 +77,14 @@ async def detect_overdue(db: AsyncSession = Depends(get_db)) -> DetectionSummary
 
 def _to_list_item(case: RecoveryCase) -> RecoveryCaseListItemOut:
     days_overdue = (utc_today() - case.invoice.due_date).days
-    current_action = case.actions[-1].action_type if case.actions else None
+    current_action = (
+        case.actions[-1].action_type
+        if case.actions and case.actions[-1].status != RecoveryActionStatus.PROPOSED
+        else None
+    )
     return RecoveryCaseListItemOut(
         id=case.id,
+        invoice_id=case.invoice.id,
         company_name=case.invoice.company.name,
         invoice_number=case.invoice.invoice_number,
         amount_total=case.invoice.amount_total,
@@ -85,6 +94,8 @@ def _to_list_item(case: RecoveryCase) -> RecoveryCaseListItemOut:
         recovery_probability=case.recovery_probability,
         current_action=current_action,
         recovered_amount=case.recovered_amount,
+        outstanding_amount=max(case.invoice.amount_total - case.invoice.amount_paid, 0),
+        pending_approval=any(action.status == RecoveryActionStatus.PENDING_APPROVAL for action in case.actions),
     )
 
 
@@ -148,13 +159,32 @@ class ReviewDecisionIn(BaseModel):
 
 @router.get("/pending-reviews")
 async def list_pending_reviews(
+    start_date: date | None = None,
+    end_date: date | None = None,
+    workflow_date_axis: Literal["event", "invoice"] = "event",
+    analytics_key: str | None = Header(None, alias="X-InvoiceIQ-Analytics-Key"),
     db: AsyncSession = Depends(get_db),
     _reviewer: ReviewerIdentity = Depends(
         require_reviewer
     ),
 ) -> list[dict]:
     """Actions held by the policy engine, waiting for a person to approve or reject."""
-    return await review_gate.list_pending(db)
+    if start_date is None and end_date is None:
+        return await review_gate.list_pending(db)
+    if start_date is None or end_date is None:
+        raise HTTPException(422, "Both start_date and end_date are required")
+    from app.schemas.analytics import AnalyticsRange
+    from pydantic import ValidationError
+    try:
+        start, stop = AnalyticsRange(start_date=start_date, end_date=end_date).timestamps(settings.business_timezone)
+    except ValidationError:
+        raise HTTPException(422, "Invalid review date interval") from None
+    from app.core.analytics_auth import require_analytics
+    from fastapi.security import HTTPAuthorizationCredentials
+    scope = await require_analytics(HTTPAuthorizationCredentials(scheme="Bearer", credentials=analytics_key) if analytics_key else None, db)
+    if workflow_date_axis == "invoice":
+        return await review_gate.list_pending(db, company_ids=scope.company_ids, posting_start=start_date, posting_end=end_date)
+    return await review_gate.list_pending(db, start=start, stop=stop, company_ids=scope.company_ids)
 
 
 @router.post("/actions/{action_id}/approve")
@@ -163,7 +193,7 @@ async def approve_action(
     body: ReviewDecisionIn,
     db: AsyncSession = Depends(get_db),
     reviewer: ReviewerIdentity = Depends(
-        require_reviewer
+        require_scoped_reviewer
     ),
 ) -> dict:
     try:
@@ -176,7 +206,6 @@ async def approve_action(
     except review_gate.ReviewError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from None
     await db.commit()
-    await review_gate.publish_resolution(result)
     return result
 
 
@@ -186,7 +215,7 @@ async def reject_action(
     body: ReviewDecisionIn,
     db: AsyncSession = Depends(get_db),
     reviewer: ReviewerIdentity = Depends(
-        require_reviewer
+        require_scoped_reviewer
     ),
 ) -> dict:
     try:
@@ -199,7 +228,6 @@ async def reject_action(
     except review_gate.ReviewError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from None
     await db.commit()
-    await review_gate.publish_resolution(result)
     return result
 
 
@@ -211,8 +239,8 @@ async def get_recovery_case(case_id: UUID, db: AsyncSession = Depends(get_db)) -
     return case
 
 
-@router.post("/{case_id}/run", response_model=RecoveryCaseDetailOut)
-async def run_recovery_case(case_id: UUID, db: AsyncSession = Depends(get_db)) -> RecoveryCase:
+@router.post("/{case_id}/run", response_model=RecoveryCaseDetailOut, dependencies=[Depends(require_case_company_scope)])
+async def run_recovery_case(case_id: UUID, db: AsyncSession = Depends(get_db), idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key", min_length=1, max_length=100)] = None) -> RecoveryCase:
     """Advance this case by exactly one recovery cycle through the LangGraph workflow.
 
     A no-op (case unchanged) if the case is already in a terminal state.
@@ -224,6 +252,16 @@ async def run_recovery_case(case_id: UUID, db: AsyncSession = Depends(get_db)) -
 
     try:
         async with acquire_lock(f"recovery-case:{case_id}"):
+            # DB row lock also protects replicas when the optional Redis layer is absent.
+            await db.execute(select(RecoveryCase).where(RecoveryCase.id == case_id).with_for_update().execution_options(populate_existing=True))
+            receipt_id = uuid5(NAMESPACE_URL, f"invoiceiq:run:{case_id}:{idempotency_key}") if idempotency_key else None
+            if receipt_id and await db.get(AuditLog, receipt_id):
+                await db.rollback()
+                return await _load_case_detail(db, case_id)
+            if receipt_id:
+                db.add(AuditLog(id=receipt_id, recovery_case_id=case_id, entity_type="recovery_case",
+                    entity_id=case_id, event_type="RECOVERY_RUN_REQUEST", actor=AuditActor.SYSTEM,
+                    description="Idempotent recovery investigation request.", metadata_={"idempotency_key": idempotency_key}))
             await run_recovery_cycle(db, case_id)
     except LockAcquisitionError:
         raise HTTPException(
@@ -234,7 +272,7 @@ async def run_recovery_case(case_id: UUID, db: AsyncSession = Depends(get_db)) -
     return case
 
 
-@router.post("/{case_id}/send-reminder-email", response_model=SendReminderEmailOut)
+@router.post("/{case_id}/send-reminder-email", response_model=SendReminderEmailOut, dependencies=[Depends(require_case_company_scope)])
 async def send_reminder_email_endpoint(
     case_id: UUID, db: AsyncSession = Depends(get_db)
 ) -> SendReminderEmailOut:
@@ -345,3 +383,164 @@ async def get_audit_trail(case_id: UUID, db: AsyncSession = Depends(get_db)) -> 
     )
     result = await db.execute(stmt)
     return list(result.scalars().all())
+
+
+# INVOICEIQ_PHASE7C_OPERATIONS_V2
+from fastapi import Request as _OperationsRequest  # noqa: E402
+
+
+@router.get("/{case_id}/agent-operations")
+async def get_case_agent_operations(
+    case_id: UUID,
+    request: _OperationsRequest,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Read-only company-scoped agent observability."""
+
+    from math import ceil
+    from sqlalchemy import text as sql_text
+    from app.models import AgentDecision
+    from app.services.agent_tracing import list_case_spans
+
+    # Explicit authenticated scope is required.
+    # The mutation guard is not suitable for read endpoints.
+    authorized = getattr(
+        request.state,
+        "analytics_scope",
+        None,
+    )
+
+    if not authorized:
+        raise HTTPException(
+            401,
+            "Company-scoped authentication required",
+        )
+
+    allowed = {
+        str(company_id)
+        for company_id in authorized
+    }
+
+    db_scope = db.info.get("analytics_scope")
+
+    if db_scope is not None:
+        allowed.intersection_update(
+            str(company_id)
+            for company_id in db_scope
+        )
+
+    if not allowed:
+        raise HTTPException(
+            403,
+            "No authorized companies",
+        )
+
+    case = await db.get(RecoveryCase, case_id)
+
+    if (
+        case is None
+        or str(case.company_id) not in allowed
+    ):
+        raise HTTPException(
+            404,
+            "Recovery case not found",
+        )
+
+    # Graceful handling when production has not
+    # received the opt-in tracing migration.
+    migrated = await db.scalar(
+        sql_text(
+            "SELECT to_regclass("
+            "'public.agent_node_spans')"
+        )
+    )
+
+    spans = (
+        await list_case_spans(
+            db,
+            case_id,
+            authorized_company_ids=(case.company_id,),
+            limit=100,
+        )
+        if migrated is not None
+        else []
+    )
+
+    decisions = (
+        await db.execute(
+            select(
+                AgentDecision.stage,
+                AgentDecision.model_name,
+            )
+            .where(
+                AgentDecision.recovery_case_id == case_id
+            )
+            .limit(40)
+        )
+    ).all()
+
+    models = [
+        {
+            "stage": getattr(
+                stage,
+                "value",
+                str(stage),
+            ),
+            "model": model,
+        }
+        for stage, model in decisions
+    ]
+
+    durations = sorted(
+        float(span["duration_ms"])
+        for span in spans
+    )
+
+    p95 = (
+        durations[
+            ceil(0.95 * len(durations)) - 1
+        ]
+        if durations
+        else None
+    )
+
+    holds = sum(
+        span["policy_decision"]
+        == "REQUIRES_HUMAN_REVIEW"
+        for span in spans
+        if span["node"] == "policy_check"
+    )
+
+    return {
+        "case_id": str(case_id),
+        "status": (
+            "schema_not_migrated"
+            if migrated is None
+            else "recorded"
+            if spans
+            else "no_recorded_traces"
+        ),
+        "metrics": {
+            "node_executions": len(spans),
+            "investigations": len({
+                span["investigation_id"]
+                for span in spans
+            }),
+            "average_latency_ms": (
+                round(
+                    sum(durations) / len(durations),
+                    2,
+                )
+                if durations
+                else None
+            ),
+            "p95_latency_ms": (
+                round(p95, 2)
+                if p95 is not None
+                else None
+            ),
+            "human_review_holds": holds,
+        },
+        "spans": spans,
+        "models": models,
+    }

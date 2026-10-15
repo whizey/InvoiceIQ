@@ -1,0 +1,59 @@
+{
+  "overview": {
+    "css_sha256": "c9f48194c10b7c4b1a396fa4ba961e26db8ebcaa5c47e298a90137666ffbba5d",
+    "headings": [
+      "Invoiced vs collected",
+      "Aging schedule",
+      "Q3 balance bridge",
+      "Late-payment risk, open invoices",
+      "Recovery pipeline",
+      "Where the overdue money sits",
+      "Daily collections",
+      "What comes due next"
+    ],
+    "navigation": [
+      "Overview",
+      "Invoice intelligence",
+      "Recovery cases",
+      "Approvals"
+    ]
+  },
+  "invoices": {
+    "css_sha256": "7535bf1c459b9712771a4d46f59cde37a9a2f4a8b1431a266a81d5c7c172c122",
+    "headings": [
+      "Days to pay vs due date",
+      "Where the billed $600.0K ended up"
+    ],
+    "navigation": [
+      "Overview",
+      "Invoice intelligence",
+      "Recovery cases",
+      "Approvals"
+    ]
+  },
+  "cases": {
+    "css_sha256": "80bbe86710fc527e5acbb5f83d5658c83f7d53ec5dba17f3ceb15bd1c8057019",
+    "headings": [
+      "CS-0219"
+    ],
+    "navigation": [
+      "Overview",
+      "Invoice intelligence",
+      "Recovery cases",
+      "Approvals"
+    ]
+  },
+  "approvals": {
+    "css_sha256": "9560acaf41ffaf1d8264a5d265b72a381e27d591cf097ecfa8648366821b6aff",
+    "headings": [
+      "AP-0087",
+      "Decision history"
+    ],
+    "navigation": [
+      "Overview",
+      "Invoice intelligence",
+      "Recovery cases",
+      "Approvals"
+    ]
+  }
+}

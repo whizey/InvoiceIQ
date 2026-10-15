@@ -2,6 +2,7 @@ from enum import Enum
 
 
 class CompanySegment(str, Enum):
+    UNKNOWN = "UNKNOWN"
     SMB = "SMB"
     MID_MARKET = "MID_MARKET"
     ENTERPRISE = "ENTERPRISE"

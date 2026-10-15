@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "model_id": "bpi_survival_lightgbm_v1",
+  "enrollment": "Existing evaluated local model; serving integration fingerprints, not original training attestation",
+  "files": {
+    "models/hazard_model.joblib": "d3f55d8665cc960d4b7c9b11b9e46b815ffbf9666c1a1914996e847868210bca",
+    "serving_contract.json": "a89a8b8a18f26200cc705c9cec9b3b43fbfd36c478dc9451578f4a158dcf0426"
+  }
+}

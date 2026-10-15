@@ -64,6 +64,8 @@ def _configured_reviewers() -> dict[str, str]:
 
         reviewers[reviewer_id.strip()] = api_key.strip()
 
+    if len(set(reviewers.values())) != len(reviewers):
+        raise HTTPException(status_code=503, detail="Reviewer authentication is misconfigured")
     return reviewers
 
 
@@ -96,8 +98,8 @@ async def require_reviewer(
 
     for reviewer_id, expected_key in reviewers.items():
         if hmac.compare_digest(
-            supplied_key,
-            expected_key,
+            supplied_key.encode(),
+            expected_key.encode(),
         ):
             return ReviewerIdentity(
                 reviewer_id=reviewer_id

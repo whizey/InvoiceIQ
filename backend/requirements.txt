@@ -4,7 +4,7 @@ sqlalchemy[asyncio]==2.0.52
 asyncpg==0.31.0
 pydantic==2.13.5
 pydantic-settings==2.15.0
-python-dotenv==1.0.1
+python-dotenv==1.2.2
 alembic==1.19.1
 xgboost==3.4.1
 lightgbm==4.6.0
@@ -19,7 +19,7 @@ langchain-core==1.6.1
 aiokafka==0.14.0
 redis==8.1.0
 httpx==0.28.1
-python-multipart==0.0.20
+python-multipart==0.0.31
 shap==0.52.0
 
 # Optional metrics endpoint is disabled until METRICS_ENABLED=true.

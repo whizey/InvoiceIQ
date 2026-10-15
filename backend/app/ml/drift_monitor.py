@@ -47,8 +47,15 @@ def numeric_column(path: Path, column: str) -> tuple[list[float], int, int]:
 def population_stability_index(reference: list[float], current: list[float], bins: int = 10) -> float:
     if not reference or not current:
         raise ValueError("PSI requires numeric observations in both periods")
+    if isinstance(bins, bool) or not isinstance(bins, int) or not 2 <= bins <= 100:
+        raise ValueError("PSI bins must be an integer between 2 and 100")
+    if not all(math.isfinite(value) for value in reference + current):
+        raise ValueError("PSI requires finite observations")
     sorted_ref = sorted(reference)
     edges = sorted({sorted_ref[int(i * (len(sorted_ref) - 1) / bins)] for i in range(1, bins)})
+    # Distinguish values outside the observed range, including a constant
+    # baseline. A single edge at the constant otherwise hides upward shifts.
+    edges = sorted(set(edges + [sorted_ref[0], math.nextafter(sorted_ref[-1], math.inf)]))
     n_bins = len(edges) + 1
     ref_count = [0] * n_bins
     current_count = [0] * n_bins
@@ -68,7 +75,8 @@ def population_stability_index(reference: list[float], current: list[float], bin
 def compare_feature(reference_file: Path, current_file: Path, name: str) -> dict:
     baseline, baseline_missing, baseline_rows = numeric_column(reference_file, name)
     latest, latest_missing, latest_rows = numeric_column(current_file, name)
-    psi = population_stability_index(baseline, latest)
+    psi = population_stability_index(baseline, latest) if baseline and latest else None
+    missing_delta = latest_missing / latest_rows - baseline_missing / baseline_rows
     return {
         "feature": name,
         "reference_rows": baseline_rows,
@@ -76,7 +84,9 @@ def compare_feature(reference_file: Path, current_file: Path, name: str) -> dict
         "reference_missing_rate": round(baseline_missing / baseline_rows, 5),
         "current_missing_rate": round(latest_missing / latest_rows, 5),
         "psi": psi,
-        "drift_warning": psi > 0.2,
+        "missing_rate_change": round(missing_delta, 5),
+        "psi_status": "defined" if psi is not None else "no_numeric_observations",
+        "drift_warning": (psi is not None and psi > 0.2) or abs(missing_delta) > 0.1,
     }
 
 
