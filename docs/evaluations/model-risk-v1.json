@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-14T05:56:00.740373+00:00",
+  "models": [
+    {
+      "version": "b2b_v2:5a8417263da99809",
+      "model_family": "lightgbm",
+      "target": "late_payment",
+      "feature_set": "behaviour_heavy",
+      "training_rows": 34437,
+      "metrics": {
+        "rows": 13355,
+        "prevalence": 0.4021714713590416,
+        "roc_auc": 0.7136343064083855,
+        "pr_auc": 0.6103284061724095,
+        "pr_lift": 1.5175825478370002,
+        "brier": 0.240550489844152,
+        "log_loss": 0.9158544086330909,
+        "ece_10": 0.17203497792622685
+      },
+      "evaluation_split": "development_validation",
+      "temporal_backtest": {
+        "valid": true,
+        "fold_count": 4,
+        "below_random_folds": 0,
+        "median_roc_auc": 0.6656471913342566,
+        "mean_roc_auc": 0.6813464705889332,
+        "worst_roc_auc": 0.6200023832950003,
+        "roc_auc_std": 0.05669517077068608,
+        "median_pr_auc": 0.5349127720336564,
+        "median_pr_lift": 1.68481709713945,
+        "mean_brier": 0.23386559408319466,
+        "mean_ece": 0.19902743795932726
+      },
+      "calibration": {
+        "serving_mode": "raw",
+        "platt_accepted": false,
+        "platt_metrics": {
+          "rows": 13355,
+          "prevalence": 0.4021714713590416,
+          "roc_auc": 0.6741469113986678,
+          "pr_auc": 0.5660724863606144,
+          "pr_lift": 1.4075401331867445,
+          "brier": 0.2377532610519089,
+          "log_loss": 0.697698807162767,
+          "ece_10": 0.13038954270597486
+        }
+      }
+    }
+  ],
+  "explainability": {
+    "rows_checked": null,
+    "status": "Not independently verified"
+  },
+  "test_status": "Development evaluation is not pristine held-out test evidence. The test split was not read.",
+  "limitations": [
+    "Held-out test-set performance is not established",
+    "Explainability cohort count is not independently verified",
+    "Prospective production performance is not established"
+  ],
+  "evidence_sources": {
+    "manifest": {
+      "path": "backend/app/ml/artifacts/b2b_v2/champion_manifest.json",
+      "sha256": "27017d77dbc27498e69fee8270999759c439b4d329a46d0ed6e684bf168dee72"
+    },
+    "metadata": {
+      "path": "backend/app/ml/artifacts/b2b_v2/models/late_payment/metadata.json",
+      "sha256": "66e427e41e24895d5f2ee05597ea87d86cb55068490e52b021bc65a1207bc4e3"
+    },
+    "calibration": {
+      "path": "backend/app/ml/artifacts/b2b_v2/lightgbm_challenge/calibration_audit.json",
+      "sha256": "0e81b78bd6e003ad42517196ff319d4be4f0b6c036a0c2168a0b371b3d29f3e4"
+    }
+  }
+}
