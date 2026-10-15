@@ -4,6 +4,7 @@ import json
 import os
 import asyncio
 from datetime import datetime, timedelta
+from decimal import Decimal
 from zoneinfo import ZoneInfo
 from app.core.config import settings
 from time import perf_counter
@@ -148,9 +149,13 @@ async def test_ingestion_prediction_investigation_review_and_audit(monkeypatch, 
             assert snapshot["summary"]["predictions"] == 1
             assert snapshot["inference_requests"] == 1 and snapshot["inference_errors"] == 0
             assert snapshot["inference_latency_ms"] >= 0
-            assert snapshot["historical_as_of_available"] is False
-            assert snapshot["historical"]["available"] is False
-            assert snapshot["historical"]["outstanding_amount"] is None
+            # The migrated integration database records state snapshots via triggers.
+            # This fixture was created after the observed coverage baseline, so a
+            # current as-of query must reconstruct its balance, not claim missing history.
+            assert snapshot["historical_as_of_available"] is True
+            assert snapshot["historical"]["available"] is True
+            assert snapshot["historical"]["invoice_count"] == 1
+            assert Decimal(snapshot["historical"]["outstanding_amount"]) == Decimal("1200000")
             assert float(snapshot["summary"]["outstanding_amount"]) == 1200000
             ml = (await client.get("/dashboard/analytics", params={**dates,"view":"ml"}, headers={"Authorization":"Bearer test-only-analytics"})).json()
             assert ml["inference_total"] == 1
