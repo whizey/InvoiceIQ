@@ -224,3 +224,51 @@ async def decision(payload: DecisionInput, subject=Depends(identity), db: AsyncS
     await db.commit()
     return {"ok": True, "mode": "isolated_showcase" if workspace.kind == "showcase" else "customer_portal",
             "external_effects": False}
+
+
+class ImportItem(BaseModel):
+    invoice_number: str = Field(min_length=1, max_length=64)
+    counterparty: str = Field(min_length=1, max_length=160)
+    issue_date: date
+    posting_date: date
+    due_date: date
+    amount_total: Decimal = Field(ge=0, max_digits=14, decimal_places=2)
+    amount_paid: Decimal = Field(ge=0, max_digits=14, decimal_places=2)
+
+    @property
+    def valid_balance(self) -> bool:
+        return self.amount_paid <= self.amount_total
+
+
+class ImportBatch(BaseModel):
+    invoices: list[ImportItem] = Field(min_length=1, max_length=250)
+
+
+@router.post("/import", status_code=201)
+async def import_invoices(batch: ImportBatch, subject=Depends(identity), db: AsyncSession = Depends(get_db)):
+    session, workspace = subject
+    if workspace.kind != "customer":
+        raise HTTPException(403, "Showcase data cannot be imported")
+    member = await db.scalar(select(PortalMembership).where(
+        PortalMembership.user_id == session.user_id, PortalMembership.workspace_id == workspace.id))
+    if member is None or member.role not in {"owner", "admin"}:
+        raise HTTPException(403, "Import permission required")
+    numbers = [item.invoice_number.strip() for item in batch.invoices]
+    if len(set(numbers)) != len(numbers) or not all(item.valid_balance for item in batch.invoices):
+        raise HTTPException(422, "Duplicate invoice number or invalid payment balance")
+    exists = await db.scalar(select(PortalInvoice.id).where(
+        PortalInvoice.workspace_id == workspace.id, PortalInvoice.invoice_number.in_(numbers)).limit(1))
+    if exists:
+        raise HTTPException(409, "An invoice number already exists in this workspace")
+    for item in batch.invoices:
+        db.add(PortalInvoice(workspace_id=workspace.id, invoice_number=item.invoice_number.strip(),
+                            counterparty=item.counterparty.strip(), issue_date=item.issue_date,
+                            posting_date=item.posting_date, due_date=item.due_date,
+                            amount_total=item.amount_total, amount_paid=item.amount_paid,
+                            risk_probability=None, risk_provenance=None))
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(409, "A duplicate invoice number was imported") from None
+    return {"imported": len(batch.invoices), "workspace_id": str(workspace.id)}
