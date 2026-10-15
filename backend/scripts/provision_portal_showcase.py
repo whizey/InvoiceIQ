@@ -16,7 +16,7 @@ from sqlalchemy.engine import make_url
 
 from app.core.db import async_session_factory, engine
 from app.api.portal import SHOWCASE_ID
-from app.models.portal import PortalWorkspace, PortalInvoice
+from app.models.portal import PortalWorkspace, PortalInvoice, PortalPayment
 
 
 def validate_target():
@@ -51,7 +51,7 @@ async def main():
                 amount = Decimal(rng.randint(150, 12500) * 100)
                 fraction = rng.choice((Decimal("0"), Decimal("0"), Decimal("0.25"),
                                        Decimal("0.5"), Decimal("1"), Decimal("1")))
-                db.add(PortalInvoice(
+                invoice = PortalInvoice(
                     id=uuid.uuid5(SHOWCASE_ID, f"invoice:{i}"), workspace_id=SHOWCASE_ID,
                     invoice_number=f"IQ-{posted.year}-{i+1:05d}",
                     counterparty=f"Account {i % 97 + 1:03d}",
@@ -59,7 +59,13 @@ async def main():
                     due_date=posted + timedelta(days=term),
                     amount_total=amount, amount_paid=(amount * fraction).quantize(Decimal(".01")),
                     risk_probability=None, risk_provenance=None,
-                ))
+                )
+                db.add(invoice)
+                if fraction > 0:
+                    paid_on = min(today, posted + timedelta(days=term + rng.randint(-12, 55)))
+                    db.add(PortalPayment(id=uuid.uuid5(SHOWCASE_ID, f"payment:{i}"),
+                                         workspace_id=SHOWCASE_ID, invoice_id=invoice.id,
+                                         paid_on=paid_on, amount=invoice.amount_paid))
                 if i % 200 == 0:
                     await db.flush()
             await db.commit()

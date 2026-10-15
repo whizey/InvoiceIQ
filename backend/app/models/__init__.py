@@ -22,6 +22,7 @@ __all__ = [
     "PortalSession",
     "PortalInvoice",
     "PortalCaseEvent",
+    "PortalPayment",
     "AnalyticsHistoryState",
     "InvoiceStateSnapshot",
     "CaseStateSnapshot",
@@ -43,4 +44,4 @@ __all__ = [
     "AuditLog",
 ]
 
-from app.models.portal import PortalWorkspace, PortalUser, PortalMembership, PortalSession, PortalInvoice, PortalCaseEvent
+from app.models.portal import PortalWorkspace, PortalUser, PortalMembership, PortalSession, PortalInvoice, PortalCaseEvent, PortalPayment

@@ -48,3 +48,5 @@ Model-risk inference is not fabricated: showcase invoices are unscored until a
 verified model computes results.
 
 Do not merge this branch to production solely because compilation succeeds.
+
+Payment posting is recorded in portal_payments with explicit dated entries. Imports require payment_date when amount_paid > 0; no invented collection date is allowed.
