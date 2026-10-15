@@ -5,7 +5,6 @@ The caller must validate the target database and deliberately set
 INVOICEIQ_PORTAL_SHOWCASE=true. It cannot touch legacy accounting tables.
 """
 import asyncio
-import hashlib
 import os
 import random
 import uuid

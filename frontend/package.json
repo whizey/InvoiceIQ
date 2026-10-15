@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "node --test tests/preserved-dashboard.test.mjs",
+    "test": "node --test tests/preserved-dashboard.test.mjs tests/portal-contracts.test.mjs",
     "test:loading": "node --test tests/loading-browser.test.mjs"
   },
   "dependencies": {
