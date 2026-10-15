@@ -19,7 +19,7 @@ async function handler(req: NextRequest, context: Params, method: "GET"|"POST"|"
   if ((allowedGet.has(action)||action==="decisions"||action==="session") && !token)
     return Response.json({detail:"Sign in required"},{status:401});
   const body=method==="POST" && action!=="showcase" ? await req.text():undefined;
-  if (body && body.length>4096) return Response.json({detail:"Payload too large"},{status:413});
+  if (body && body.length>(action==="import"?262144:4096)) return Response.json({detail:"Payload too large"},{status:413});
   try {
     const upstream=await fetch(backendBase()+"/portal/"+action,{
       method,cache:"no-store",signal:AbortSignal.timeout(15000),
