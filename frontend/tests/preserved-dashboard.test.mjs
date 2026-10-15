@@ -11,7 +11,8 @@ test('current INR compact display, negatives, foreign currency and unverified so
  assert.equal(api.money(125000,'INR',true,true),'₹1.25L');
  assert.equal(api.money(-12500000,'INR',true,true),'−₹1.25Cr');
  assert.ok(!api.money(100,'USD',true,false).includes('₹'));
- assert.equal(api.money(100,'INR',false,false),'100 INR*');
+ assert.equal(api.money(100,'INR',false,false),'₹100*');
+ assert.equal(api.money(816262430,'INR',false,true),'₹81.63 Cr*');
  assert.equal(api.money(null,'INR',true,false),'Unavailable');
 });
 test('calendar presets include correct quarter and leap-year boundaries',()=>{
@@ -32,8 +33,37 @@ test('original six cards and seven chart titles remain in order',()=>{
 });
 test('invoice table columns retained',()=>{
  const html=fs.readFileSync(new URL('../public/reference/invoices/index.html',import.meta.url),'utf8');
- const headings=Array.from(html.matchAll(/<th\b[^>]*>(.*?)<\/th>/g),m=>m[1]);
- assert.deepEqual(headings.slice(1,12),['Invoice','Company','Posted','Due','Amount','Paid','Balance','Days past due ↓','Status','Late-payment risk','Case']);
+ const headings=Array.from(html.matchAll(/<th\b[^>]*>(.*?)<\/th>/g),m=>m[1]).slice(1,12);
+
+ const labels=headings.map(raw=>
+   raw.replace(/<button\b[^>]*>[\s\S]*?<\/button>/g,'')
+      .trim()
+      .replace(/\s*↓$/, '')
+ );
+
+ assert.deepEqual(labels,[
+   'Invoice','Company','Posted','Due','Amount',
+   'Paid','Balance','Days past due','Status',
+   'Late-payment risk','Case'
+ ]);
+
+ const expectedKeys=[
+   'invoice','company','posted','due','amount',
+   'paid','balance','days','status','risk','case'
+ ];
+
+ headings.forEach((raw,i)=>{
+   const buttons=Array.from(
+     raw.matchAll(/<button\b[^>]*data-column-filter="([^"]+)"[^>]*>[\s\S]*?<\/button>/g)
+   );
+
+   assert.equal(buttons.length,1,`Filter button missing or duplicated for ${labels[i]}`);
+   assert.equal(buttons[0][1],expectedKeys[i]);
+   assert.match(raw,/aria-label="Filter [^"]+"/);
+   assert.match(raw,/aria-haspopup="dialog"/);
+ });
+
+ assert.equal(headings.length,11);
 });
 
 test('original CSS is byte-for-byte preserved on all four pages',()=>{

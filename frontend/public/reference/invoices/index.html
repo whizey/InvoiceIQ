@@ -4,10 +4,13 @@
 <meta charset="utf-8">
 <title>Invoice intelligence</title>
 <script src="../session-state.js"></script>
+<script src="../scenario-data.js"></script>
+<script src="../unified-data.js"></script>
 <script src="../vendor/react.js"></script>
 <script src="../vendor/react-dom.js"></script>
 <script src="../support.js"></script>
 <script src="../dashboard-data.js"></script>
+<script src="../column-filters.js"></script>
 </head>
 <body>
 <x-dc>
@@ -57,12 +60,6 @@ table.t tbody tr:hover td{background:#FAFAF9}
   <a class="nav" href="/cases" target="_top"><span class="ix">03</span>Recovery cases<span class="mono" style="margin-left: auto; font-size: 11px; color: #B5B5B5">—</span></a>
   <a class="nav" href="/approvals" target="_top"><span class="ix">05</span>Approvals<span class="mono" style="margin-left: auto; font-size: 11px; color: #0B0B0B; background: #FFFFFF; border-radius: 999px; padding: 1px 7px">—</span></a>
   <div style="flex-grow: 1; min-height: 32px"></div>
-  <div style="border: 1px solid #262626; border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 6px">
-    <div class="lbl" style="color: #8A8A8A; font-size: 10.5px">Workspace</div>
-    <div style="color: #FFFFFF; font-size: 13px">{{workspace}}</div>
-    <div style="color: #B5B5B5; font-size: 12px">{{scopeLabel}}</div>
-    <span role="status">{{status}}</span>
-  </div>
 </nav>
 
 <main aria-busy="{{loading}}" style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
@@ -74,8 +71,20 @@ table.t tbody tr:hover td{background:#FAFAF9}
     <div class="seg" role="group" aria-label="Date basis"><button class="on" data-action="basis" data-value="posting">Posting</button><button data-action="basis" data-value="due">Due</button><button data-action="basis" data-value="payment">Payment</button></div>
     <span role="status">{{status}}</span>
     <button class="btn" data-action="asof"><span class="lbl" style="font-size: 10.5px">As of</span><span class="mono" style="font-size: 12.5px">{{asOf}}</span></button>
+    <button class="btn" data-action="compare" aria-label="Compare to earlier cutoff">Compare dates</button>
+    <button class="btn" data-action="custom-range" aria-label="Choose invoice date range">Date range: {{rangeLabel}}</button>
     <button class="btn dark" data-action="export">Export CSV</button>
   </header>
+
+  <sc-if value="{{comparisonActive}}">
+    <section aria-label="Invoice cutoff comparison" style="display: flex; flex-wrap: wrap; gap: 14px; align-items: center; justify-content: space-between; padding: 14px 32px; border-bottom: 1px solid #D9D9D6; background: #F4F4F2">
+      <div style="flex: 1 1 240px"><div class="lbl">COMPARISON</div><div style="font-size: 14px; font-weight: 600; margin-top: 3px">{{comparisonTitle}}</div><div style="font-size: 11.5px; color: #525252; margin-top: 4px">{{comparisonDetail}}</div></div>
+      <sc-if value="{{comparisonReady}}">
+        <div style="display: flex; flex-wrap: wrap; gap: 16px; font-size: 12px"><span>Prior billed: <strong>{{comparisonInvoiced}}</strong></span><span>Prior open: <strong>{{comparisonOpen}}</strong></span><span>Prior overdue: <strong>{{comparisonOverdue}}</strong></span></div>
+      </sc-if>
+      <button class="btn" data-action="clear-compare">Clear</button>
+    </section>
+  </sc-if>
 
   <div style="padding: 24px 32px 48px; display: flex; flex-direction: column; gap: 18px">
 
@@ -95,6 +104,7 @@ table.t tbody tr:hover td{background:#FAFAF9}
       <button class="chip" data-action="status" data-value="settled">Settled <span class="c">{{settledCount}}</span></button>
       <button class="chip" data-action="status" data-value="cancelled">Canceled <span class="c">{{cancelledCount}}</span></button>
       <button class="chip" data-action="status" data-value="written_off">Written off <span class="c">{{writtenOffCount}}</span></button>
+      <sc-if value="{{hasFilters}}"><span role="status" style="font-size:11px;color:#525252;max-width:360px">{{filterSummary}}</span><button class="btn" data-action="reset-filters">Reset filters</button></sc-if>
       <span style="flex: 1 1 20px"></span>
       <label style="display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; border: 1px solid #D9D9D6; border-radius: 8px; background: #FFFFFF; flex: 0 1 260px">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B6B6B" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
@@ -112,9 +122,9 @@ table.t tbody tr:hover td{background:#FAFAF9}
           <thead>
             <tr>
               <th scope="col" style="width: 36px; padding-left: 18px"><input type="checkbox" disabled="" title="No bulk action is supported by the backend" aria-label="Select all" style="accent-color: #0B0B0B"></th>
-              <th scope="col">Invoice</th><th scope="col">Company</th><th scope="col">Posted</th><th scope="col">Due</th>
-              <th scope="col" class="r">Amount</th><th scope="col" class="r">Paid</th><th scope="col" class="r">Balance</th>
-              <th scope="col" class="r" style="color: #0B0B0B">Days past due ↓</th><th scope="col">Status</th><th scope="col" style="min-width: 150px">Late-payment risk</th><th scope="col">Case</th>
+              <th scope="col">Invoice <button type="button" data-column-filter="invoice" aria-label="Filter Invoice" aria-haspopup="dialog" title="Filter / sort Invoice" style="background:transparent;border:1px solid transparent;border-radius:4px;padding:2px 5px;color:#525252;cursor:pointer;font:inherit">▾</button></th><th scope="col">Company <button type="button" data-column-filter="company" aria-label="Filter Company" aria-haspopup="dialog" title="Filter / sort Company" style="background:transparent;border:1px solid transparent;border-radius:4px;padding:2px 5px;color:#525252;cursor:pointer;font:inherit">▾</button></th><th scope="col">Posted <button type="button" data-column-filter="posted" aria-label="Filter Posted" aria-haspopup="dialog" title="Filter / sort Posted" style="background:transparent;border:1px solid transparent;border-radius:4px;padding:2px 5px;color:#525252;cursor:pointer;font:inherit">▾</button></th><th scope="col">Due <button type="button" data-column-filter="due" aria-label="Filter Due" aria-haspopup="dialog" title="Filter / sort Due" style="background:transparent;border:1px solid transparent;border-radius:4px;padding:2px 5px;color:#525252;cursor:pointer;font:inherit">▾</button></th>
+              <th scope="col" class="r">Amount <button type="button" data-column-filter="amount" aria-label="Filter Amount" aria-haspopup="dialog" title="Filter / sort Amount" style="background:transparent;border:1px solid transparent;border-radius:4px;padding:2px 5px;color:#525252;cursor:pointer;font:inherit">▾</button></th><th scope="col" class="r">Paid <button type="button" data-column-filter="paid" aria-label="Filter Paid" aria-haspopup="dialog" title="Filter / sort Paid" style="background:transparent;border:1px solid transparent;border-radius:4px;padding:2px 5px;color:#525252;cursor:pointer;font:inherit">▾</button></th><th scope="col" class="r">Balance <button type="button" data-column-filter="balance" aria-label="Filter Balance" aria-haspopup="dialog" title="Filter / sort Balance" style="background:transparent;border:1px solid transparent;border-radius:4px;padding:2px 5px;color:#525252;cursor:pointer;font:inherit">▾</button></th>
+              <th scope="col" class="r" style="color: #0B0B0B">Days past due <button type="button" data-column-filter="days" aria-label="Filter Days past due" aria-haspopup="dialog" title="Filter / sort Days past due" style="background:transparent;border:1px solid transparent;border-radius:4px;padding:2px 5px;color:#525252;cursor:pointer;font:inherit">▾</button></th><th scope="col">Status <button type="button" data-column-filter="status" aria-label="Filter Status" aria-haspopup="dialog" title="Filter / sort Status" style="background:transparent;border:1px solid transparent;border-radius:4px;padding:2px 5px;color:#525252;cursor:pointer;font:inherit">▾</button></th><th scope="col" style="min-width: 150px">Late-payment risk <button type="button" data-column-filter="risk" aria-label="Filter Late-payment risk" aria-haspopup="dialog" title="Filter / sort Late-payment risk" style="background:transparent;border:1px solid transparent;border-radius:4px;padding:2px 5px;color:#525252;cursor:pointer;font:inherit">▾</button></th><th scope="col">Case <button type="button" data-column-filter="case" aria-label="Filter Case" aria-haspopup="dialog" title="Filter / sort Case" style="background:transparent;border:1px solid transparent;border-radius:4px;padding:2px 5px;color:#525252;cursor:pointer;font:inherit">▾</button></th>
             </tr>
           </thead>
           <tbody>
@@ -177,18 +187,18 @@ table.t tbody tr:hover td{background:#FAFAF9}
           <div style="font-size: 12px; color: #6B6B6B">{{allocationNote}}</div>
         </div>
         <div style="display: flex; height: 28px; gap: 2px; border-radius: 3px; overflow: hidden">
-          <div style="width: {{zero}}%; background: #0B0B0B"></div>
-          <div style="width: {{zero}}%; background: #8A8A87"></div>
-          <div style="width: {{zero}}%; background: {{accent}}"></div>
-          <div style="width: {{zero}}%; background: #D4D4D1"></div>
-          <div style="width: {{zero}}%; background: repeating-linear-gradient(135deg,#8A8A87 0 2px,#FFFFFF 2px 5px)"></div>
+          <div style="width: {{allocationCollectedPct}}%; background: #0B0B0B"></div>
+          <div style="width: {{allocationNotDuePct}}%; background: #8A8A87"></div>
+          <div style="width: {{allocationOverduePct}}%; background: {{accent}}"></div>
+          <div style="width: {{allocationWriteOffPct}}%; background: #D4D4D1"></div>
+          <div style="width: {{allocationCanceledPct}}%; background: repeating-linear-gradient(135deg,#8A8A87 0 2px,#FFFFFF 2px 5px)"></div>
         </div>
         <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 20px; font-size: 12.5px">
-          <div style="display: flex; align-items: center; gap: 8px"><span style="width: 10px; height: 10px; background: #0B0B0B"></span>Collected<span class="num" style="margin-left: auto; font-weight: 600">{{unavailable}}</span></div>
-          <div style="display: flex; align-items: center; gap: 8px"><span style="width: 10px; height: 10px; background: #8A8A87"></span>Open, not due<span class="num" style="margin-left: auto; font-weight: 600">{{unavailable}}</span></div>
-          <div style="display: flex; align-items: center; gap: 8px"><span style="width: 10px; height: 10px; background: {{accent}}"></span>Overdue<span class="num" style="margin-left: auto; font-weight: 600">{{overdueTotal}}</span></div>
-          <div style="display: flex; align-items: center; gap: 8px"><span style="width: 10px; height: 10px; background: #D4D4D1"></span>Written off<span class="num" style="margin-left: auto; font-weight: 600">{{unavailable}}</span></div>
-          <div style="display: flex; align-items: center; gap: 8px"><span style="width: 10px; height: 10px; background: repeating-linear-gradient(135deg,#8A8A87 0 2px,#FFFFFF 2px 5px); border: 1px solid #8A8A87"></span>Canceled, other<span class="num" style="margin-left: auto; font-weight: 600">{{unavailable}}</span></div>
+          <div style="display: flex; align-items: center; gap: 8px"><span style="width: 10px; height: 10px; background: #0B0B0B"></span>Collected<span class="num" style="margin-left: auto; font-weight: 600">{{allocationCollected}}</span></div>
+          <div style="display: flex; align-items: center; gap: 8px"><span style="width: 10px; height: 10px; background: #8A8A87"></span>Open, not due<span class="num" style="margin-left: auto; font-weight: 600">{{allocationNotDue}}</span></div>
+          <div style="display: flex; align-items: center; gap: 8px"><span style="width: 10px; height: 10px; background: {{accent}}"></span>Overdue<span class="num" style="margin-left: auto; font-weight: 600">{{allocationOverdue}}</span></div>
+          <div style="display: flex; align-items: center; gap: 8px"><span style="width: 10px; height: 10px; background: #D4D4D1"></span>Written off<span class="num" style="margin-left: auto; font-weight: 600">{{allocationWrittenOff}}</span></div>
+          <div style="display: flex; align-items: center; gap: 8px"><span style="width: 10px; height: 10px; background: repeating-linear-gradient(135deg,#8A8A87 0 2px,#FFFFFF 2px 5px); border: 1px solid #8A8A87"></span>Canceled, other<span class="num" style="margin-left: auto; font-weight: 600">{{allocationCanceled}}</span></div>
         </div>
         <div style="font-size: 11.5px; color: #6B6B6B">Segments add up to the billed total. Click a segment to filter the table.</div>
       </section>

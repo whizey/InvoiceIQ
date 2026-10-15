@@ -102,6 +102,8 @@
     error: false,
     mode: 'board',
     range: 'all',
+    ownerOnly: false,
+    highRisk: false,
     now: 0,
     selected: deepLinkedCase,
     detail: null,
@@ -133,11 +135,10 @@
 
   function rows() {
     return state.cases.filter(row =>
-      state.range === 'all' ||
-      (
-        age(row.opened, state.now) !== null &&
-        age(row.opened, state.now) <= 90
-      )
+      (state.range === 'all' ||
+      (age(row.opened, state.now) !== null && age(row.opened, state.now) <= 90)) &&
+      (!state.ownerOnly || row.owner === 'A. Rao') &&
+      (!state.highRisk || Number(row.risk_score) >= 0.7)
     );
   }
 
@@ -272,7 +273,7 @@
           font-size:11.5px;
           color:#6B6B6B
         ">
-          <span>Owner: not recorded</span>
+          <span>Owner: ${esc(row.owner || 'not recorded')}</span>
           <span>${days === null ? 'Age unavailable' : days + ' d'}</span>
         </div>
       </button>`;
@@ -763,14 +764,34 @@
     );
 
     if (owner) {
-      owner.disabled = true;
-      owner.textContent = 'Owner: unavailable';
-      owner.title = 'Owner is not provided by the current Cases API';
+      if (window.InvoiceIQScenario?.active) {
+        owner.textContent = 'Owner: All ▾';
+        owner.addEventListener('click', () => {
+          state.ownerOnly = !state.ownerOnly;
+          owner.textContent = state.ownerOnly ? 'Owner: A. Rao ▾' : 'Owner: All ▾';
+          updateMetrics();drawBoard();
+        });
+      } else {
+        owner.disabled = true;
+        owner.textContent = 'Owner: unavailable';
+        owner.title = 'Owner is not provided by the current Cases API';
+      }
     }
 
     if (sweep) {
-      sweep.disabled = true;
-      sweep.title = 'Risk sweep requires safe workspace authorization';
+      if (window.InvoiceIQScenario?.active) {
+        sweep.textContent = 'High-risk cases';
+        sweep.title = 'Filter illustrative high-risk cases; does not invoke a production model';
+        sweep.addEventListener('click', () => {
+          state.highRisk = !state.highRisk;
+          sweep.classList.toggle('on',state.highRisk);
+          sweep.textContent = state.highRisk ? 'All cases' : 'High-risk cases';
+          updateMetrics();drawBoard();
+        });
+      } else {
+        sweep.disabled = true;
+        sweep.title = 'Risk sweep requires safe workspace authorization';
+      }
     }
 
     if (opened) {

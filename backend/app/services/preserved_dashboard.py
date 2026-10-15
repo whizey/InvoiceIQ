@@ -42,6 +42,14 @@ def scope(identity, q):
     filters = [Invoice.company_id.in_(identity.company_ids), Invoice.currency == q.currency]
     if q.company_id:
         filters.append(Invoice.company_id == q.company_id)
+    if q.invoice_number:
+        key = "%" + q.invoice_number.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+        filters.append(Invoice.invoice_number.ilike(key, escape="\\"))
+    if q.company_search:
+        key = "%" + q.company_search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+        filters.append(Invoice.company_id.in_(
+            select(Company.id).where(Company.name.ilike(key, escape="\\"))
+        ))
     if q.search:
         value = "%" + q.search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
         filters.append(
@@ -170,6 +178,27 @@ def cohort(q, state, as_of, zone):
         "cancelled": c.status == "CANCELLED",
         "written_off": c.status == "WRITTEN_OFF",
     }
+    for key, value in [
+        ('posted_from', c.posting_date >= q.posted_from if q.posted_from else None),
+        ('posted_to', c.posting_date <= q.posted_to if q.posted_to else None),
+        ('due_from', c.due_date >= q.due_from if q.due_from else None),
+        ('due_to', c.due_date <= q.due_to if q.due_to else None),
+        ('amount_min', c.amount_total >= q.amount_min if q.amount_min is not None else None),
+        ('amount_max', c.amount_total <= q.amount_max if q.amount_max is not None else None),
+        ('paid_min', c.amount_paid >= q.paid_min if q.paid_min is not None else None),
+        ('paid_max', c.amount_paid <= q.paid_max if q.paid_max is not None else None),
+        ('balance_min', balance >= q.balance_min if q.balance_min is not None else None),
+        ('balance_max', balance <= q.balance_max if q.balance_max is not None else None),
+        ('days_min', func.greatest(age, 0) >= q.days_min if q.days_min is not None else None),
+        ('days_max', func.greatest(age, 0) <= q.days_max if q.days_max is not None else None),
+        ('risk_min', probability >= q.risk_min / 100 if q.risk_min is not None else None),
+        ('risk_max', probability <= q.risk_max / 100 if q.risk_max is not None else None),
+    ]:
+        if value is not None: filters.append(value)
+    if q.case_presence == 'yes':
+        filters.append(c.invoice_id.in_(select(RecoveryCase.invoice_id)))
+    elif q.case_presence == 'no':
+        filters.append(~c.invoice_id.in_(select(RecoveryCase.invoice_id)))
     if q.status != "all":
         filters.append(statuses[q.status])
     if q.risk == "unscored":
@@ -298,7 +327,11 @@ async def build_dashboard(db, q, identity, *, export=False):
         )
     c = state.c
     balance, age, probability, filters = cohort(q, state, as_of, zone)
-    if not available and (q.status != "all" or q.risk != "any"):
+    state_filters = (q.status != 'all' or q.risk != 'any' or any(
+        getattr(q, key) is not None for key in
+        ('paid_min','paid_max','balance_min','balance_max','days_min','days_max','risk_min','risk_max')
+    ))
+    if not available and state_filters:
         raise HTTPException(422, "Historical filters require state coverage at the selected cutoff")
     base = (
         select()
@@ -337,7 +370,11 @@ async def build_dashboard(db, q, identity, *, export=False):
     )
     values = dict(row)
     payfilters = payment_filters(q, identity, as_of, zone)
-    if q.status != "all" or q.risk != "any":
+    if (q.status != 'all' or q.risk != 'any' or q.invoice_number or q.company_search
+        or q.posted_from or q.posted_to or q.due_from or q.due_to
+        or q.case_presence != 'any' or any(getattr(q,k) is not None for k in
+        ('amount_min','amount_max','paid_min','paid_max','balance_min','balance_max',
+         'days_min','days_max','risk_min','risk_max'))):
         _, _, _, attribute_filters = cohort(
             q.model_copy(update={"start_date": None, "end_date": None, "date_basis": "posting"}),
             state,
@@ -539,11 +576,15 @@ async def build_dashboard(db, q, identity, *, export=False):
         case_id.label("case_id"),
     )
     sort = {
-        "dpd_desc": c.due_date.asc(),
-        "amount_desc": c.amount_total.desc(),
-        "amount_asc": c.amount_total.asc(),
-        "posting_desc": c.posting_date.desc(),
-        "posting_asc": c.posting_date.asc(),
+        "dpd_desc": c.due_date.asc(), "dpd_asc": c.due_date.desc(),
+        "amount_desc": c.amount_total.desc(), "amount_asc": c.amount_total.asc(),
+        "posting_desc": c.posting_date.desc(), "posting_asc": c.posting_date.asc(),
+        "invoice_asc": Invoice.invoice_number.asc(), "invoice_desc": Invoice.invoice_number.desc(),
+        "company_asc": Company.name.asc(), "company_desc": Company.name.desc(),
+        "due_asc": c.due_date.asc(), "due_desc": c.due_date.desc(),
+        "paid_asc": c.amount_paid.asc(), "paid_desc": c.amount_paid.desc(),
+        "balance_asc": balance.asc(), "balance_desc": balance.desc(),
+        "risk_asc": probability.asc().nulls_last(), "risk_desc": probability.desc().nulls_last(),
     }[q.sort]
     total = metric.invoice_count
     if export and total > 10000:

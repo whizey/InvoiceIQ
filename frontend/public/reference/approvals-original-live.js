@@ -131,12 +131,12 @@
     const note=details.querySelector('[data-review-note]')?.value.trim()||'';
     if(!r||!state.key)return;
     if(!note){display('A decision reason is required.');details.querySelector('[data-review-note]')?.focus();return;}
-    if(!window.confirm(`${decision==='approve'?'Approve':'Reject'} the real review for ${r.company}? This changes the backend audit and action status.`))return;
+    if(!window.confirm(`${decision==='approve'?'Approve':'Reject'} ${window.InvoiceIQScenario?.active?'this simulated review (browser-only; no backend write)':'the real review'} for ${r.company}?`))return;
     const controls=[...details.querySelectorAll('[data-decision]')];controls.forEach(b=>b.disabled=true);
     display('Submitting reviewer-authorized decision…');
     try{
       await fetchJSON('reviews/'+encodeURIComponent(r.id)+'/'+decision,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({note})});
-      display('Decision saved by backend. Reloading authorized records…');await load();
+      display(window.InvoiceIQScenario?.active ? 'Scenario decision saved in this browser. Refreshing review queue…' : 'Decision saved by backend. Reloading authorized records…');await load();
     }catch(e){display('Decision not saved: '+e.message);controls.forEach(b=>b.disabled=false);}
   }
   function csvField(x){let v=String(x??'');if(/^[\s]*[=+@\-\t\r]/.test(v))v="'"+v;return '"'+v.replaceAll('"','""')+'"';}
@@ -208,6 +208,14 @@
     document.getElementById('iq-initial-loading')?.remove();
     document.getElementById('dc-root')?.style.setProperty('visibility','visible');
     main.closest('x-dc')?.style.setProperty('visibility','visible');document.querySelector('x-dc')?.style.setProperty('visibility','visible');
+    if (window.InvoiceIQScenario?.active) {
+      // Scenario approvals require no privileged reviewer credentials and cannot affect Neon.
+      form.style.display = 'none';
+      state.key = 'scenario-reviewer';
+      reviewerHeader['X-InvoiceIQ-Reviewer-Key'] = state.key;
+      display('Simulated approval workflow · decisions stored in this browser only.');
+      void load();
+    }
     return true;
   }
   let attempts=0;const timer=setInterval(()=>{

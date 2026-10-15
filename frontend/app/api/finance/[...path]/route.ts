@@ -9,7 +9,7 @@ export async function GET(request:NextRequest,{params}:{params:Promise<{path:str
  const target=routes[path] ?? (new RegExp(`^invoices/${uuid}/evidence$`).test(path)||new RegExp(`^recovery-cases/${uuid}$`).test(path)?`/${path}`:null);
  if(!target)return Response.json({detail:'Unknown resource'},{status:404});
  const token=(await cookies()).get('invoiceiq_session')?.value;
- if(!token&&process.env.INVOICEIQ_DEMO_SYNTHETIC!=='true')return Response.json({detail:'Workspace authentication required'},{status:401});
+ // Public reads are authorized and restricted by Render PUBLIC_READ_ONLY mode; never expose write endpoints.
  try{
   const upstream=await fetch(`${backendBase()}${target}${request.nextUrl.search}`,{headers:token?{Authorization:`Bearer ${token}`}:{},cache:'no-store',signal:AbortSignal.any([request.signal,AbortSignal.timeout(30000)])});
   return new Response(upstream.body,{status:upstream.status,headers:{'Content-Type':upstream.headers.get('content-type')||'application/json','Cache-Control':'no-store',...(upstream.headers.get('content-disposition')?{'Content-Disposition':upstream.headers.get('content-disposition')!}:{})}});

@@ -46,6 +46,11 @@
 
     main.append(el);
 
+    if (window.InvoiceIQScenario?.active) {
+      el.querySelector('[data-key]').value = 'scenario-reviewer';
+      el.querySelector('label').hidden = true;
+      el.querySelector('p').textContent = 'Scenario approval requests · browser-only, no email or production writes.';
+    }
     const results = el.querySelector('[data-results]');
 
     async function request(url, opts = {}) {
@@ -144,7 +149,7 @@
                 });
 
                 alert(saved.message);
-                location.href = '/approvals';
+                location.href = window.InvoiceIQScenario?.active ? '/approvals' : '/approvals';
               } catch (error) {
                 alert('Not created: ' + error.message);
                 btn.disabled = false;
