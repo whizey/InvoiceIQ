@@ -306,7 +306,7 @@ async def portal_dashboard(
 def portal_csv_cell(value) -> str:
     """Prevent formula execution when exported CSV is opened in spreadsheets."""
     s = "" if value is None else str(value)
-    if s.lstrip().startswith(("=", "+", "-", "@", "\\t", "\\r", "\\n")):
+    if s.lstrip().startswith(("=", "+", "-", "@", "\t", "\r", "\n")):
         return "'" + s
     return s
 
@@ -318,7 +318,7 @@ async def export_portal_dashboard(
 ):
     dashboard = await build_portal_dashboard(db, selection, subject, export=True)
     output = io.StringIO(newline="")
-    writer = csv.writer(output, lineterminator="\\r\\n")
+    writer = csv.writer(output, lineterminator="\r\n")
     fields = ("invoice_number", "company", "posting_date", "due_date",
               "amount_total", "amount_paid", "balance", "days_past_due",
               "status", "probability", "case_id")
