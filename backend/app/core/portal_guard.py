@@ -11,9 +11,11 @@ from starlette.responses import JSONResponse
 
 class PortalLegacyGuard(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
-        if os.getenv("INVOICEIQ_PORTAL_ENABLED", "").lower() != "true":
-            return await call_next(request)
         path = request.url.path
+        if os.getenv("INVOICEIQ_PORTAL_ENABLED", "").lower() != "true":
+            if path.startswith("/portal/"):
+                return JSONResponse({"detail": "Portal not enabled"}, status_code=404)
+            return await call_next(request)
         # Only portal business operations and non-financial health remain public.
         if path.startswith("/portal/") or path in {"/health", "/healthz", "/ready"}:
             return await call_next(request)
