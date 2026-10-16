@@ -21,6 +21,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
+from app.core.config import settings
 from app.core.db import get_db
 from app.models.portal import (
     PortalWorkspace, PortalUser, PortalMembership, PortalSession, PortalInvoice, PortalCaseEvent,
@@ -419,6 +420,33 @@ def _assistant_facts(invoices, events) -> dict:
     }
 
 
+FAST_GEMINI_MODEL = "gemini-3.5-flash-lite"
+
+
+def _fast_gemini():
+    """Low-latency Gemini client for transcription and as an answer fallback; None unless Gemini is configured."""
+    from app.agents.llm_client import configured_llm
+
+    if configured_llm()[0] != "gemini":
+        return None
+    from langchain_google_genai import ChatGoogleGenerativeAI
+
+    return ChatGoogleGenerativeAI(model=FAST_GEMINI_MODEL, api_key=settings.google_api_key, max_retries=0,
+                                  timeout=25, max_output_tokens=1024)
+
+
+async def _invoke_first(clients, messages, timeout):
+    """Try each client once, in order; provider overload or rate limits move on immediately."""
+    for client in clients:
+        if client is None:
+            continue
+        try:
+            return await asyncio.wait_for(client.ainvoke(messages), timeout=timeout)
+        except Exception:
+            continue
+    return None
+
+
 class TranscribeInput(BaseModel):
     audio: str = Field(min_length=100, max_length=1_000_000)
     mime: str = Field(pattern=r"^audio/(webm|ogg|mp4|mpeg|wav|x-m4a)$")
@@ -449,14 +477,7 @@ async def transcribe(payload: TranscribeInput, subject=Depends(identity)):
         {"type": "text", "text": "Transcribe the speech in this audio verbatim. Reply with only the transcript, "
                                  "or an empty reply if there is no speech."},
         {"type": "media", "data": payload.audio, "mime_type": payload.mime}])
-    reply = None
-    for attempt in range(2):
-        try:
-            reply = await asyncio.wait_for(llm.ainvoke([message]), timeout=55)
-            break
-        except Exception:
-            if attempt == 0:
-                await asyncio.sleep(1.5)
+    reply = await _invoke_first([_fast_gemini(), llm], [message], timeout=45)
     if reply is None:
         raise HTTPException(503, "Transcription did not respond; try again shortly")
     return {"text": _reply_text(reply.content)[:600]}
@@ -493,14 +514,7 @@ async def assistant(payload: AssistantInput, subject=Depends(identity), db: Asyn
     for turn in payload.history[-6:]:
         messages.append(("human" if turn.role == "user" else "ai", turn.content))
     messages.append(("human", payload.question.strip()))
-    reply = None
-    for attempt in range(2):  # one retry covers brief provider overload (503)
-        try:
-            reply = await asyncio.wait_for(llm.ainvoke(messages), timeout=25)
-            break
-        except Exception:
-            if attempt == 0:
-                await asyncio.sleep(1.5)
+    reply = await _invoke_first([llm, _fast_gemini()], messages, timeout=25)
     if reply is None:
         raise HTTPException(503, "AI assistant did not respond; try again shortly")
     text = _reply_text(reply.content)

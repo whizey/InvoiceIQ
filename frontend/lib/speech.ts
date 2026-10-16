@@ -19,6 +19,9 @@ const MESSAGES:Record<string,string>={
 };
 
 const MAX_RECORDING_MS=20000;
+const SILENCE_MS=1500;      // stop this long after the speaker goes quiet
+const SPEECH_LEVEL=0.025;   // RMS above this counts as speech
+const NO_SPEECH_MS=7000;    // give up if nothing is said
 
 function recorderMime(){
   if(typeof MediaRecorder==="undefined")return"";
@@ -66,7 +69,7 @@ export function useSpeechToText(onText:(text:string,final:boolean)=>void){
       const media=await navigator.mediaDevices.getUserMedia({audio:true});
       stream.current=media;
       const chunks:Blob[]=[];
-      const rec=new MediaRecorder(media,{mimeType:mime});
+      const rec=new MediaRecorder(media,{mimeType:mime,audioBitsPerSecond:24000});
       recorder.current=rec;
       rec.ondataavailable=e=>{if(e.data.size>0)chunks.push(e.data)};
       rec.onstop=async()=>{
@@ -87,6 +90,22 @@ export function useSpeechToText(onText:(text:string,final:boolean)=>void){
         finally{setTranscribing(false)}
       };
       setError("");setListening(true);rec.start();
+      // Stop automatically once speech has started and then gone quiet.
+      try{
+        const Ctx=window.AudioContext||(window as unknown as {webkitAudioContext:typeof AudioContext}).webkitAudioContext;
+        const audio=new Ctx();const analyser=audio.createAnalyser();analyser.fftSize=1024;
+        audio.createMediaStreamSource(media).connect(analyser);
+        const data=new Uint8Array(analyser.fftSize);
+        const began=Date.now();let spoke=false;let lastVoice=began;
+        const watch=window.setInterval(()=>{
+          if(rec.state!=="recording"){window.clearInterval(watch);void audio.close();return}
+          analyser.getByteTimeDomainData(data);
+          let sum=0;for(const v of data){const x=(v-128)/128;sum+=x*x}
+          const now=Date.now();
+          if(Math.sqrt(sum/data.length)>SPEECH_LEVEL){spoke=true;lastVoice=now}
+          if((spoke&&now-lastVoice>SILENCE_MS)||(!spoke&&now-began>NO_SPEECH_MS)){window.clearInterval(watch);void audio.close();rec.stop()}
+        },120);
+      }catch{/* no analyser available: the tap-to-stop and time limit still apply */}
       timer.current=window.setTimeout(()=>{if(rec.state==="recording")rec.stop()},MAX_RECORDING_MS);
     }catch(e){
       releaseMic();setListening(false);
