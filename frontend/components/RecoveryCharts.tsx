@@ -15,12 +15,14 @@ function inr(value:string|number){
   return`₹${Math.round(n).toLocaleString("en-IN")}`;
 }
 
+const STATUS_COLOR:Record<string,string>={"Awaiting review":"#d4d4d1",Approved:"#0b0b0b",Escalated:"#c2410c",Rejected:"#a3a3a0"};
+
 function BarChart({rows,money}:{rows:{label:string;value:number}[];money?:boolean}){
   const max=Math.max(1,...rows.map(r=>r.value));
   return <div className="rp-bars" role="img" aria-label={rows.map(r=>`${r.label}: ${money?inr(r.value):r.value}`).join(", ")}>
-    {rows.map((r,i)=><div key={r.label} className="rp-bar-row">
+    {rows.map(r=><div key={r.label} className="rp-bar-row">
       <span>{r.label}</span>
-      <div className="rp-track"><div className={`rp-fill rp-fill-${i}`} style={{width:`${(r.value/max)*100}%`}}/></div>
+      <div className="rp-track"><div className="rp-fill" style={{width:`${(r.value/max)*100}%`,background:STATUS_COLOR[r.label]??"#0b0b0b"}}/></div>
       <strong>{money?inr(r.value):r.value}</strong>
     </div>)}
   </div>;

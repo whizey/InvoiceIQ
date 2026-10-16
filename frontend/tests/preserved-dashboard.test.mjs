@@ -27,7 +27,7 @@ test('original six cards and the retained chart titles remain in order',()=>{
  assert.ok(api.vals(logic).kpis.every(k=>k.value==='—'));
  const html=fs.readFileSync(new URL('../public/reference/overview/index.html',import.meta.url),'utf8');
  const headings=Array.from(html.matchAll(/<h2[^>]*>(.*?)<\/h2>/g),m=>m[1]);
- assert.deepEqual(headings,['Invoiced vs collected','Aging schedule','Q3 balance bridge','Recovery pipeline','Where the overdue money sits','Daily collections','What comes due next']);
+ assert.deepEqual(headings,['Invoiced vs collected','Aging schedule','Balance bridge','Recovery pipeline','Where the overdue money sits','Daily collections','What comes due next']);
  assert.ok(!html.includes('sample numbers'));
  assert.ok(!html.includes('Math.random'));
 });
