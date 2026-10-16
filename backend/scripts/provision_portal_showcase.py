@@ -26,7 +26,13 @@ def validate_target():
     if os.getenv("INVOICEIQ_PORTAL_SHOWCASE", "").lower() != "true":
         raise RuntimeError("Set INVOICEIQ_PORTAL_SHOWCASE=true explicitly")
     database = make_url(os.environ["DATABASE_URL"]).database
-    if database not in {"invoiceiq_demo", "invoiceiq_demo_test", "invoiceiq_portal_test"}:
+    allowed = {"invoiceiq_demo", "invoiceiq_demo_test", "invoiceiq_portal_test"}
+    # A deployment may deliberately name one extra database (for example `invoiceiq`) by
+    # setting INVOICEIQ_SHOWCASE_DATABASE to exactly that name; the default stays strict.
+    explicit = os.getenv("INVOICEIQ_SHOWCASE_DATABASE", "").strip()
+    if explicit:
+        allowed.add(explicit)
+    if database not in allowed:
         raise RuntimeError("STOP: showroom provisioning is restricted to disposable demo databases")
 
 

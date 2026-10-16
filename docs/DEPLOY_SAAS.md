@@ -6,7 +6,7 @@ current product needs. Nothing here has been deployed.
 
 ## Quick path (Render + Neon + Vercel)
 
-1. Neon: create a database named exactly `invoiceiq_demo` and copy its connection string.
+1. Neon: create a database named exactly `invoiceiq` and copy its connection string.
 2. Render: New -> Blueprint -> this repo -> Blueprint file `render.saas.yaml`. Paste the Neon
    string into `DATABASE_URL` and the Gemini key into `GOOGLE_API_KEY` when prompted. The
    pre-deploy command migrates the database and seeds the showcase (safe to repeat).
@@ -26,11 +26,12 @@ current product needs. Nothing here has been deployed.
 
 `backend/scripts/provision_portal_showcase.py` deliberately refuses to run
 unless the database is named `invoiceiq_demo`, `invoiceiq_demo_test` or
-`invoiceiq_portal_test`. That guard stops illustrative data reaching a real
+`invoiceiq_portal_test`, or exactly matches `INVOICEIQ_SHOWCASE_DATABASE` (set to
+`invoiceiq` in `render.saas.yaml`). That guard stops illustrative data reaching a real
 customer database. Choose one:
 
 1. **Portfolio/demo deployment (recommended for a submission).** One Neon
-   database named `invoiceiq_demo`. Showcase and demo sign-ups live together;
+   database named `invoiceiq`. Showcase and demo sign-ups live together;
    say clearly that accounts are for demonstration only. No real customer data.
 2. **Production with real customers.** A separate database with no showcase
    (`INVOICEIQ_PORTAL_SHOWCASE=false`), plus a second demo deployment as in (1).
