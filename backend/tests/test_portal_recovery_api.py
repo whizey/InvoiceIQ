@@ -27,6 +27,7 @@ class FakeLLM:
 @pytest.mark.asyncio
 async def test_recovery_summary_assistant_and_bridge_are_tenant_scoped(monkeypatch):
     monkeypatch.setenv("PUBLIC_READ_ONLY", "false")
+    monkeypatch.setattr("app.api.portal._fast_gemini", lambda: None)
     monkeypatch.setenv("INVOICEIQ_PORTAL_ENABLED", "true")
     monkeypatch.setenv("INVOICEIQ_PORTAL_SHOWCASE", "false")
     await engine.dispose()

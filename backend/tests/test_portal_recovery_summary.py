@@ -1,3 +1,4 @@
+import pytest
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from types import SimpleNamespace as NS
@@ -78,3 +79,19 @@ def test_balance_bridge_reconciles_and_rejects_unreconcilable_ledgers():
     early = defaultdict(list, {2: [(date(2026, 2, 1), Decimal(50))], 1: []})
     assert balance_bridge([a, b], early, date(2026, 3, 1), date(2026, 3, 31)) is None
     assert balance_bridge([], pay, None, date(2026, 3, 31)) is None
+
+
+@pytest.mark.asyncio
+async def test_invoke_first_skips_failed_and_missing_clients():
+    from app.api.portal import _invoke_first
+
+    class Boom:
+        async def ainvoke(self, _):
+            raise RuntimeError("503")
+
+    class Fine:
+        async def ainvoke(self, messages):
+            return NS(content="ok")
+
+    assert (await _invoke_first([None, Boom(), Fine()], [], 5)).content == "ok"
+    assert await _invoke_first([Boom(), None], [], 5) is None
