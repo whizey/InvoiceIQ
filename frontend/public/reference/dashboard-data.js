@@ -96,10 +96,16 @@
     const portalRec = logic.query.get('portal')==='1' ? logic.portalRecovery : null;
     const pipeline = scenarioData?.pipeline || (portalRec ? {awaiting:portalRec.kpis.awaiting_review,escalated:portalRec.kpis.escalated,approved:portalRec.kpis.approved,rejected:portalRec.kpis.rejected,exposure:Number(portalRec.kpis.case_exposure)*100,real:true} : undefined);
     const bridgeKeys=['openStart','invoiced','collected','writtenOff','openEnd'];
-    const bridgeValues=bridgeKeys.map(key=>Number(scenarioData?.bridge?.[key]||0));
+    const portalBridge=d?.bridge?{openStart:Number(d.bridge.opening),invoiced:Number(d.bridge.invoiced),collected:Number(d.bridge.collected),writtenOff:Number(d.bridge.written_off),openEnd:Number(d.bridge.closing)}:null;
+    const bridge=scenarioData?.bridge||portalBridge;
+    const bridgeValues=bridgeKeys.map(key=>Number(bridge?.[key]||0));
     const bridgeMax=Math.max(1,...bridgeValues);
-    const bridgeHeight=bridgeValues.map(n=>scenarioData?Math.max(3,120*n/bridgeMax):0);
-    const bridgeText=bridgeValues.map(n=>scenarioData?money(n,'INR',true,true):missing);
+    const bridgeHeight=bridgeValues.map(n=>bridge?Math.max(3,120*n/bridgeMax):0);
+    const bridgeText=bridgeValues.map(n=>bridge?money(n,'INR',true,true):missing);
+    const dayLabel=iso=>iso?new Date(iso+'T00:00:00Z').toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'2-digit',timeZone:'UTC'}):'';
+    const bridgeStartLabel=portalBridge?'Open '+dayLabel(new Date(Date.parse(d.bridge.start_date+'T00:00:00Z')-86400000).toISOString().slice(0,10)):'Open 30 Jun';
+    const bridgeEndLabel=portalBridge?'Open '+dayLabel(d.bridge.end_date):'Open 30 Sep';
+    const bridgeNote=portalBridge?'Opening balance + invoices posted − receipts = closing. No write-off ledger is held, so write-offs are zero.':d?.chart_notes?.bridge||'Bridge unavailable';
     const funnelNames=pipeline?.real?['Awaiting review','Escalated','Approved','Rejected']:['New','Investigating','Awaiting approval','Action taken','Resolved, 30 days'];
     const funnelCounts=pipeline?(pipeline.real?[pipeline.awaiting,pipeline.escalated,pipeline.approved,pipeline.rejected]:[pipeline.new,pipeline.investigating,pipeline.awaiting,pipeline.action,pipeline.resolved]):[];
     const funnelMax=Math.max(1,...funnelCounts);
@@ -122,6 +128,7 @@
       funnel:funnelNames.map((s,i)=>({s,v:pipeline?funnelCounts[i]:missing,w:pipeline?(100*funnelCounts[i]/funnelMax):0,c:colors[i]||'#0B0B0B'})),
       hist:histogram,riskProvenance:scenario?'Illustrative scenario scores · not model predictions':'Stored scores with verified model provenance',
       caseExposure:pipeline?money(pipeline.exposure/100,'INR',true,true):missing,
+      bridgeStartLabel,bridgeEndLabel,bridgeNote:bridgeNote,
       bridgeStart:bridgeText[0],bridgeInvoiced:bridgeText[1],bridgeCollected:bridgeText[2],bridgeWriteOff:bridgeText[3],bridgeEnd:bridgeText[4],
       bridgeStartHeight:bridgeHeight[0],bridgeInvoicedHeight:bridgeHeight[1],bridgeCollectedHeight:bridgeHeight[2],bridgeWriteOffHeight:bridgeHeight[3],bridgeEndHeight:bridgeHeight[4],
       approvalsWaiting:pipeline?String(pipeline.awaiting)+' awaiting review · View →':'Unavailable · Review →',
@@ -164,7 +171,7 @@
       currencyNote:d?.currency_note||'No currency conversion performed.',calendarNote:d?.chart_notes.calendar||'Calendar policy not yet loaded.',
       openTotal:fmt(m.open),overdueTotal:fmt(m.overdue),billedTotal:allocation?money(billed,'INR',true,true):fmt(m.billed),invoiceCount:n(m.invoice_count),companyCount:n(m.company_count),medianInvoice:fmt(m.median_invoice),partialCount:n(m.partial_count),openCount:n(m.open_count),unpaidCount:m.open_count==null?missing:n(m.open_count-m.partial_count),overdueCount:n(m.overdue_count),settledCount:n(m.settled_count),cancelledCount:n(m.cancelled_count),writtenOffCount:n(m.written_off_count),
       riskNote:d?.historical_available?n(m.scored_open)+' of '+n(m.open_count)+' open invoices scored. '+n(m.open_count-m.scored_open)+' not scored.':'Open-invoice risk population unavailable without historical balances.',
-      chartGrainText:'Invoiced by posting '+(logic.query.get('grain')||'month')+' · Collected by payment '+(logic.query.get('grain')||'month')+' · Line is open balance at period end · '+(d?.chart_notes.open_line||'Historical balance unavailable.'),lineNote:d?.chart_notes.open_line||'Historical month-end balance unavailable.',bridgeNote:d?.chart_notes.bridge||'No dated adjustment ledger.',pipelineNote:d?.chart_notes.pipeline||'Stage mapping unavailable.',settlementNote:d?.chart_notes.settlement||'Settlement policy unavailable.',allocationNote:d?.chart_notes.allocation||'Adjustment evidence unavailable.',
+      chartGrainText:'Invoiced by posting '+(logic.query.get('grain')||'month')+' · Collected by payment '+(logic.query.get('grain')||'month')+' · Line is open balance at period end · '+(d?.chart_notes.open_line||'Historical balance unavailable.'),lineNote:d?.chart_notes.open_line||'Historical month-end balance unavailable.',pipelineNote:d?.chart_notes.pipeline||'Stage mapping unavailable.',settlementNote:d?.chart_notes.settlement||'Settlement policy unavailable.',allocationNote:d?.chart_notes.allocation||'Adjustment evidence unavailable.',
       axis:[1,.75,.5,.25,0].map(f=>fmt(maximum*f)),heatMax:fmt(heatMax),heatNote:d?'Cash receipts by payment date through '+d.as_of+'. Each square is one day.':'Loading dated cash receipts…',dueNote:'Contractual dates, not a cash forecast. '+(d?.chart_notes.calendar||''),
       topNote:'Top companies by overdue balance in the selected cohort.',rowLabel:d?'Rows '+(d.total?((d.page-1)*d.page_size+1):0)+'–'+Math.min(d.page*d.page_size,d.total)+' of '+d.total+' · combined dataset sorting':logic.state.error?'Data unavailable': 'Loading rows…',
       page:d?.page||1,previousDisabled:!d||d.page<=1,nextDisabled:!d||d.page*d.page_size>=d.total,previous:()=>change(logic,{page:String(Math.max(1,(d?.page||1)-1))}),next:()=>change(logic,{page:String((d?.page||1)+1)}),

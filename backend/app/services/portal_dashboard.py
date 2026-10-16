@@ -13,6 +13,7 @@ from sqlalchemy import select
 
 from app.models.portal import PortalInvoice, PortalPayment, PortalCaseEvent
 from app.schemas.preserved_dashboard import PreservedDashboard
+from app.services.portal_recovery import SHOWCASE_BASELINE_SCOPE
 
 
 ZERO = Decimal(0)
@@ -140,6 +141,33 @@ def band(key, values):
     return {"key": key, "count": len(values), "amount": sum((r["balance"] for r in values), ZERO)}
 
 
+def balance_bridge(invoices, payment_map, start, end):
+    """Opening + invoices posted - receipts = closing, from the dated ledger only.
+
+    Returns None when the identity does not hold (for example a payment dated
+    before its invoice posting) so the UI never shows an unreconciled bridge.
+    """
+    if not invoices:
+        return None
+    start = start or min(i.posting_date for i in invoices)
+    if end < start:
+        return None
+
+    def open_at(day):
+        return sum((i.amount_total - sum((a for when, a in payment_map[i.id] if when <= day), ZERO)
+                    for i in invoices if i.posting_date <= day), ZERO)
+
+    opening = open_at(start - timedelta(days=1))
+    invoiced = sum((i.amount_total for i in invoices if start <= i.posting_date <= end), ZERO)
+    collected = sum((a for i in invoices if i.posting_date <= end
+                     for when, a in payment_map[i.id] if start <= when <= end), ZERO)
+    closing = open_at(end)
+    if opening + invoiced - collected != closing:
+        return None
+    return {"start_date": start, "end_date": end, "opening": opening, "invoiced": invoiced,
+            "collected": collected, "written_off": ZERO, "closing": closing}
+
+
 async def build_portal_dashboard(db, q, subject, *, export: bool = False):
     session, workspace = subject
     today = date.today()
@@ -172,7 +200,7 @@ async def build_portal_dashboard(db, q, subject, *, export: bool = False):
     actor = str(session.user_id) if session.user_id else session.token_digest
     event_ids = set((await db.scalars(select(PortalCaseEvent.invoice_id).where(
         PortalCaseEvent.workspace_id == workspace.id,
-        PortalCaseEvent.actor_scope == actor))).all())
+        PortalCaseEvent.actor_scope.in_((actor, SHOWCASE_BASELINE_SCOPE) if workspace.kind == "showcase" else (actor,))))).all())
     def make_rows(cutoff):
         rows = []
         for inv in invoices:
@@ -305,11 +333,12 @@ async def build_portal_dashboard(db, q, subject, *, export: bool = False):
         "metrics": metrics, "comparison": prior,
         "series": series, "aging": aging, "risk": risk, "daily": daily, "due": due,
         "companies": [{"id": str(workspace.id), "name": workspace.name}],
+        "bridge": balance_bridge(invoices, payment_map, q.start_date, min(q.end_date or as_of, as_of)),
         "top": top, "invoices": out_rows, "total": len(rows),
         "page": q.page, "page_size": q.page_size,
         "chart_notes": {
             "open_line": "Period-end open balance reconstructed from all selected postings and dated payments.",
-            "bridge": "No dated write-off/cancellation ledger; no fabricated financial bridge.",
+            "bridge": "Opening balance + invoices posted − receipts = closing balance, from the dated ledger. No write-off ledger is held, so write-offs show as zero.",
             "pipeline": "Visitor review decisions are not external collections executions.",
             "calendar": "Contractual due dates; banking holidays and grace periods not verified.",
             "settlement": "No verified settlement/grace-day policy for histogram.",

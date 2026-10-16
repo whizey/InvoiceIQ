@@ -9,7 +9,7 @@ import argparse
 import os
 import random
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 
 from sqlalchemy import func, select
@@ -17,7 +17,8 @@ from sqlalchemy.engine import make_url
 
 from app.core.db import async_session_factory, engine
 from app.api.portal import SHOWCASE_ID
-from app.models.portal import PortalWorkspace, PortalInvoice, PortalPayment
+from app.models.portal import PortalWorkspace, PortalInvoice, PortalPayment, PortalCaseEvent
+from app.services.portal_recovery import SHOWCASE_BASELINE_SCOPE
 from app.services.portal_risk import score_workspace
 
 
@@ -27,6 +28,42 @@ def validate_target():
     database = make_url(os.environ["DATABASE_URL"]).database
     if database not in {"invoiceiq_demo", "invoiceiq_demo_test", "invoiceiq_portal_test"}:
         raise RuntimeError("STOP: showroom provisioning is restricted to disposable demo databases")
+
+
+async def seed_baseline_decisions(db) -> int:
+    """Idempotently add illustrative review history so recovery views are never empty.
+
+    Deterministic IDs make reruns no-ops. Rows use a shared baseline scope that
+    every showcase visitor sees; each visitor's own decisions layer on top.
+    """
+    existing = await db.scalar(select(func.count()).select_from(PortalCaseEvent).where(
+        PortalCaseEvent.workspace_id == SHOWCASE_ID, PortalCaseEvent.actor_scope == SHOWCASE_BASELINE_SCOPE))
+    if existing:
+        return 0
+    today = date.today()
+    overdue = (await db.scalars(select(PortalInvoice).where(
+        PortalInvoice.workspace_id == SHOWCASE_ID, PortalInvoice.due_date < today,
+        PortalInvoice.amount_paid < PortalInvoice.amount_total).order_by(PortalInvoice.invoice_number))).all()
+    rng = random.Random(26016)
+    chosen = rng.sample(overdue, min(64, len(overdue)))
+    monday = today - timedelta(days=today.weekday())
+    notes = {"APPROVE": "Illustrative baseline: recovery action approved",
+             "ESCALATE": "Illustrative baseline: escalated to account owner",
+             "REJECT": "Illustrative baseline: action declined, no further chase"}
+    created = 0
+    for index, invoice in enumerate(chosen):
+        decision = rng.choices(("APPROVE", "ESCALATE", "REJECT"), weights=(45, 33, 22))[0]
+        week = min(7, int(rng.triangular(0, 7, 5)))
+        when = datetime.combine(monday - timedelta(weeks=week) + timedelta(days=rng.randint(0, 4)),
+                                time(rng.randint(8, 17), rng.randint(0, 59)), tzinfo=timezone.utc)
+        if when > datetime.now(timezone.utc):
+            when -= timedelta(weeks=1)
+        db.add(PortalCaseEvent(id=uuid.uuid5(SHOWCASE_ID, f"baseline-event:{index}"), workspace_id=SHOWCASE_ID,
+                               invoice_id=invoice.id, actor_scope=SHOWCASE_BASELINE_SCOPE, decision=decision,
+                               note=notes[decision], created_at=when))
+        created += 1
+    await db.flush()
+    return created
 
 
 async def main(*, refresh: bool = False):
@@ -43,7 +80,9 @@ async def main(*, refresh: bool = False):
                 await db.flush()
             count = await db.scalar(select(func.count()).select_from(PortalInvoice).where(PortalInvoice.workspace_id == SHOWCASE_ID))
             if count and not refresh:
-                print(f"Showcase already populated: {count} invoices")
+                seeded = await seed_baseline_decisions(db)
+                await db.commit()
+                print(f"Showcase already populated: {count} invoices; {seeded} baseline decisions added")
                 return
             if refresh and count != 1500:
                 raise RuntimeError("Expected exactly 1500 existing illustrative invoices before refresh")
@@ -97,6 +136,7 @@ async def main(*, refresh: bool = False):
                     await db.flush()
             await db.flush()
             scoring = await score_workspace(db, SHOWCASE_ID)
+            await seed_baseline_decisions(db)
             await db.commit()
             print(("Refreshed" if refresh else "Provisioned") +
                   f" 1500 isolated illustrative invoices; {scoring['scored']} "

@@ -27,7 +27,7 @@ from app.models.portal import (
 from app.ml.champion_serving import verified_contract
 from app.ml.payment_risk_model import PaymentRiskArtifactError
 from app.services.portal_risk import explain_invoice, provenance, score_workspace
-from app.services.portal_recovery import recovery_summary
+from app.services.portal_recovery import SHOWCASE_BASELINE_SCOPE, recovery_summary
 
 router = APIRouter(prefix="/portal", tags=["customer portal"])
 SHOWCASE_ID = uuid.UUID("60c111be-dde9-4a54-9dcc-f881d0d0aaa1")
@@ -301,7 +301,7 @@ async def overview(subject=Depends(identity), db: AsyncSession = Depends(get_db)
     paid = sum((r.amount_paid for r in invoices), Decimal(0))
     event_scope = [PortalCaseEvent.workspace_id == workspace.id]
     if workspace.kind == "showcase":
-        event_scope.append(PortalCaseEvent.actor_scope == session.token_digest)
+        event_scope.append(PortalCaseEvent.actor_scope.in_((session.token_digest, SHOWCASE_BASELINE_SCOPE)))
     events = (await db.scalars(select(PortalCaseEvent).where(*event_scope)
                                .order_by(PortalCaseEvent.created_at.desc()).limit(100))).all()
     return {"workspace": workspace.name, "kind": workspace.kind,
@@ -320,7 +320,7 @@ async def _records(db: AsyncSession, session, workspace):
     invoices = (await db.scalars(select(PortalInvoice).where(PortalInvoice.workspace_id == workspace.id))).all()
     scope = [PortalCaseEvent.workspace_id == workspace.id]
     if workspace.kind == "showcase":
-        scope.append(PortalCaseEvent.actor_scope == session.token_digest)
+        scope.append(PortalCaseEvent.actor_scope.in_((session.token_digest, SHOWCASE_BASELINE_SCOPE)))
     events = (await db.scalars(select(PortalCaseEvent).where(*scope))).all()
     return invoices, events
 
