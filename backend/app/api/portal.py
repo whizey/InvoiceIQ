@@ -36,6 +36,27 @@ router = APIRouter(prefix="/portal", tags=["customer portal"])
 SHOWCASE_ID = uuid.UUID("60c111be-dde9-4a54-9dcc-f881d0d0aaa1")
 SEED_VERSION = "showcase-v1"
 
+# Short-lived read cache; any write to a workspace bumps its version, so views never go stale.
+CACHE_TTL_SECONDS = 30
+_cache: dict[tuple, tuple[float, object]] = {}
+_versions: dict[uuid.UUID, int] = {}
+
+
+def _bump(workspace_id: uuid.UUID) -> None:
+    _versions[workspace_id] = _versions.get(workspace_id, 0) + 1
+
+
+async def _cached(workspace, session, name: str, extra, build):
+    key = (workspace.id, _versions.get(workspace.id, 0), session.token_digest if workspace.kind == "showcase" else "", name, extra)
+    hit = _cache.get(key)
+    if hit and time.monotonic() - hit[0] < CACHE_TTL_SECONDS:
+        return hit[1]
+    value = await build()
+    if len(_cache) > 500:
+        _cache.clear()
+    _cache[key] = (time.monotonic(), value)
+    return value
+
 
 class RegisterInput(BaseModel):
     email: str = Field(min_length=5, max_length=255)
@@ -280,6 +301,7 @@ async def score_customer_workspace(subject=Depends(identity), db: AsyncSession =
         raise HTTPException(403, "Workspace administrator required")
     result = await score_workspace(db, workspace.id)
     await db.commit()
+    _bump(workspace.id)
     return result
 
 
@@ -295,6 +317,10 @@ def invoice_json(row):
 @router.get("/overview")
 async def overview(subject=Depends(identity), db: AsyncSession = Depends(get_db)):
     session, workspace = subject
+    return await _cached(workspace, session, "overview", None, lambda: _overview(db, session, workspace))
+
+
+async def _overview(db, session, workspace):
     invoices = (await db.scalars(select(PortalInvoice).where(PortalInvoice.workspace_id == workspace.id)
                                  .order_by(PortalInvoice.posting_date.desc(), PortalInvoice.id))).all()
     today = date.today()
@@ -331,8 +357,11 @@ async def _records(db: AsyncSession, session, workspace):
 @router.get("/recovery-summary")
 async def portal_recovery_summary(subject=Depends(identity), db: AsyncSession = Depends(get_db)):
     session, workspace = subject
-    invoices, events = await _records(db, session, workspace)
-    return {"workspace": workspace.name, "kind": workspace.kind, **recovery_summary(invoices, events)}
+
+    async def build():
+        invoices, events = await _records(db, session, workspace)
+        return {"workspace": workspace.name, "kind": workspace.kind, **recovery_summary(invoices, events)}
+    return await _cached(workspace, session, "recovery", None, build)
 
 
 class AssistantTurn(BaseModel):
@@ -576,6 +605,7 @@ async def decision(payload: DecisionInput, subject=Depends(identity), db: AsyncS
                            actor_scope=str(session.user_id) if session.user_id else session.token_digest,
                            decision=payload.decision, note=payload.note.strip()))
     await db.commit()
+    _bump(workspace.id)
     return {"ok": True, "mode": "isolated_showcase" if workspace.kind == "showcase" else "customer_portal",
             "external_effects": False}
 
@@ -637,6 +667,7 @@ async def import_invoices(batch: ImportBatch, subject=Depends(identity), db: Asy
     except IntegrityError:
         await db.rollback()
         raise HTTPException(409, "A duplicate invoice number was imported") from None
+    _bump(workspace.id)
     return {"imported": len(batch.invoices), "workspace_id": str(workspace.id)}
 
 
@@ -650,7 +681,9 @@ async def portal_dashboard(
     selection: Annotated[DashboardSelection, Query()],
     subject=Depends(identity), db: AsyncSession = Depends(get_db),
 ):
-    return await build_portal_dashboard(db, selection, subject)
+    session, workspace = subject
+    return await _cached(workspace, session, "dashboard", selection.model_dump_json(),
+                         lambda: build_portal_dashboard(db, selection, subject))
 
 
 def portal_csv_cell(value) -> str:
