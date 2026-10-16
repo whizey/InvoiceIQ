@@ -21,13 +21,13 @@ test('calendar presets include correct quarter and leap-year boundaries',()=>{
  assert.equal(api.range('MTD','2024-02-29').start_date,'2024-02-01');
  assert.equal(api.range('All data','2026-10-13').start_date,'');
 });
-test('original six cards and seven chart titles remain in order',()=>{
+test('original six cards and the retained chart titles remain in order',()=>{
  const logic={state:{},props:{},query:new URLSearchParams()};
  assert.deepEqual(Array.from(api.vals(logic).kpis,x=>x.label),['Invoiced','Open receivables','Overdue exposure','Overdue share','Collected','Score coverage']);
  assert.ok(api.vals(logic).kpis.every(k=>k.value==='—'));
  const html=fs.readFileSync(new URL('../public/reference/overview/index.html',import.meta.url),'utf8');
  const headings=Array.from(html.matchAll(/<h2[^>]*>(.*?)<\/h2>/g),m=>m[1]);
- assert.deepEqual(headings,['Invoiced vs collected','Aging schedule','Q3 balance bridge','Late-payment risk, open invoices','Recovery pipeline','Where the overdue money sits','Daily collections','What comes due next']);
+ assert.deepEqual(headings,['Invoiced vs collected','Aging schedule','Q3 balance bridge','Recovery pipeline','Where the overdue money sits','Daily collections','What comes due next']);
  assert.ok(!html.includes('sample numbers'));
  assert.ok(!html.includes('Math.random'));
 });

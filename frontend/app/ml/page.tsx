@@ -88,7 +88,7 @@ export default async function ModelIntelligencePage() {
         </h1>
 
         <p className="mt-2 text-sm text-slate-600">
-          B2B late-payment prediction powers recovery investigations.
+          B2B payment-risk prediction powers recovery investigations.
           BPI 2019 survival analysis forecasts purchase-to-pay
           process clearance. Their probabilities are not combined.
         </p>
