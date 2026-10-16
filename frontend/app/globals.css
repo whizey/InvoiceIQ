@@ -141,3 +141,6 @@ html, body {
 .rp-user{background:#0b0b0b;color:#fff;justify-self:end;max-width:80%}
 .rp-thread small{color:#6b6b6b}
 .rp-ai .rp-clear{justify-self:start;height:30px;font-size:12px}
+.rp-jump{position:fixed;right:20px;bottom:20px;z-index:20;padding:10px 16px;border-radius:999px;background:#0b0b0b;color:#fff;font:500 13px "Geist",system-ui,sans-serif;text-decoration:none;box-shadow:0 4px 16px rgba(0,0,0,.2)}
+.rp-jump:hover{background:#333}
+.portal-shell .reference-frame{min-height:450px}

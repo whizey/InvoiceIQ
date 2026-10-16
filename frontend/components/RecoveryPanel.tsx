@@ -75,7 +75,7 @@ export default function RecoveryPanel(){
   }
 
   const k=data?.kpis;
-  return <section className="rp" aria-labelledby="rp-title">
+  return <section className="rp" id="recovery-pipeline" aria-labelledby="rp-title">
     <header><p className="settings-eyebrow">Recovery &amp; approvals</p>
       <h2 id="rp-title">Recovery pipeline</h2>
       <p>Derived from recorded decisions on {data?.kind==="showcase"?"illustrative showcase":"your workspace"} invoices. Latest decision per invoice sets its status.</p></header>

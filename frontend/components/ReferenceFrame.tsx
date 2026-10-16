@@ -47,6 +47,16 @@ export default function ReferenceFrame({ page, portal = false }: { page: Page; p
         style.textContent='@media (min-width: 900px) and (max-width: 1700px) { section[aria-label="Key metrics"] { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; } }';
         doc.head.append(style);
       }
+      // Size the overview frame to its content so the dashboard and the recovery
+      // section below it read as one page with a single scrollbar.
+      let observer:ResizeObserver|undefined;
+      if(page==="overview"){
+        const fit=()=>{const h=doc.documentElement.scrollHeight;if(h>0)iframe.style.height=h+"px"};
+        fit();
+        observer=new ResizeObserver(fit);
+        observer.observe(doc.documentElement);
+        observer.observe(doc.body);
+      }
       const navigate=(event:MouseEvent)=>{
         if(event.defaultPrevented||event.button!==0||event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;
         const element=event.target;
@@ -64,7 +74,7 @@ export default function ReferenceFrame({ page, portal = false }: { page: Page; p
         router.push((destination.pathname==="/"?"/workspace-dashboard":destination.pathname)+destination.search+destination.hash);
       };
       doc.addEventListener("click",navigate,true);
-      detach=()=>doc.removeEventListener("click",navigate,true);
+      detach=()=>{doc.removeEventListener("click",navigate,true);observer?.disconnect()};
     };
     iframe.addEventListener("load",attach);
     attach();
