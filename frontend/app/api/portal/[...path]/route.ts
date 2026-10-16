@@ -24,7 +24,7 @@ async function handler(req: NextRequest, context: Params, method: "GET"|"POST"|"
   if ((allowedGet.has(action)||["decisions","score","session","assistant"].includes(action)) && !token)
     return Response.json({detail:"Sign in required"},{status:401});
   const body=(method==="POST" && action!=="showcase")||method==="PATCH" ? await req.text():undefined;
-  if (body && body.length>(action==="import"?262144:4096)) return Response.json({detail:"Payload too large"},{status:413});
+  if (body && body.length>(action==="import"?262144:action==="assistant"?16384:4096)) return Response.json({detail:"Payload too large"},{status:413});
   try {
     const query=action==="invoices"?req.nextUrl.search:"";
     const upstream=await fetch(backendBase()+"/portal/"+path.map(encodeURIComponent).join("/")+query,{

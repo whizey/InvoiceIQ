@@ -135,3 +135,9 @@ html, body {
 .rp-answer p{margin:0 0 8px;white-space:pre-wrap}.rp-answer small{color:#6b6b6b}
 @media (max-width:900px){.rp-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.rp-charts{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:520px){.rp-ai form{flex-direction:column}.rp-ai form button{width:100%}}
+.rp-thread{margin-top:14px;display:grid;gap:8px}
+.rp-msg{padding:12px 14px;border-radius:8px;font-size:14px;line-height:1.55}
+.rp-msg p{margin:0;white-space:pre-wrap}
+.rp-user{background:#0b0b0b;color:#fff;justify-self:end;max-width:80%}
+.rp-thread small{color:#6b6b6b}
+.rp-ai .rp-clear{justify-self:start;height:30px;font-size:12px}
