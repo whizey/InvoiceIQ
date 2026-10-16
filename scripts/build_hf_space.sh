@@ -17,7 +17,8 @@ if [ "$MODE" = docker ]; then
 else
   cp "$ROOT/deploy/huggingface-gradio/README.md" "$ROOT/deploy/huggingface-gradio/app.py" "$OUT/"
   # CPU-only XGBoost keeps the install small, matching the container image.
-  sed 's/^xgboost==3.4.1$/xgboost-cpu==3.4.1/' "$ROOT/backend/requirements.txt" > "$OUT/requirements.txt"
+  # Gradio's `mcp` extra (installed by Spaces) needs pydantic<=2.12.5, one patch below the repo pin.
+  sed -e 's/^xgboost==3.4.1$/xgboost-cpu==3.4.1/' -e 's/^pydantic==2.13.5$/pydantic==2.12.5/' "$ROOT/backend/requirements.txt" > "$OUT/requirements.txt"
 fi
 cp "$ROOT/scripts/verification/check_model_artifacts.py" "$OUT/scripts/verification/"
 cp "$ROOT/docs/evaluations/model-risk-v1.json" "$OUT/docs/evaluations/"
