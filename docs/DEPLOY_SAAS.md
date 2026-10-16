@@ -4,6 +4,24 @@
 accounts, signup, assistant or recovery pages. This document describes what the
 current product needs. Nothing here has been deployed.
 
+## Free path (Hugging Face Space + Supabase + Vercel; no card)
+
+1. **Database:** create a free Supabase project dedicated to this app and copy its *Session pooler*
+   connection string (port 5432). The seeding script only accepts approved database names; Supabase's
+   is `postgres`, so set the Space variable `INVOICEIQ_SHOWCASE_DATABASE=postgres` on purpose.
+2. **API:** create a new Hugging Face Space (SDK: Docker, hardware: CPU basic). In its settings add the
+   secrets `DATABASE_URL` and `GOOGLE_API_KEY` and the variable `INVOICEIQ_SHOWCASE_DATABASE`.
+3. **Push the code:** from the repo run `git lfs pull && scripts/build_hf_space.sh`, then in the printed
+   folder: `git remote add space https://huggingface.co/spaces/<you>/invoiceiq && git push space main`
+   (use a Hugging Face access token with write access as the password).
+4. The Space builds, migrates the database, seeds the showcase and serves the API at
+   `https://<you>-invoiceiq.hf.space`. Check `/health`.
+5. **Frontend:** in the Vercel project `invoiceiq`, set `INVOICEIQ_API_URL` to that URL and
+   `INVOICEIQ_PORTAL_ENABLED=true`, then redeploy to production.
+
+Free Spaces sleep after about two days without traffic and wake on the next request (the first
+request is slow). Data lives in Supabase, so it survives. Supabase pauses idle free projects.
+
 ## Quick path (Render + Vercel)
 
 1. Render: New -> Blueprint -> this repo -> Blueprint file `render.saas.yaml`. It creates the
