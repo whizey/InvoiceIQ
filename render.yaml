@@ -1,0 +1,60 @@
+# Portfolio demo only. Syncing this Blueprint creates paid resources; obtain
+# owner approval first. All financial records are generated synthetic fixtures.
+previews:
+  generation: "off"
+
+databases:
+  - name: invoiceiq-portfolio-demo-db
+    databaseName: invoiceiq_demo
+    user: invoiceiq_demo
+    region: singapore
+    plan: 0.1c-256mb
+    ipAllowList: []
+
+services:
+  - type: pserv
+    name: invoiceiq-portfolio-demo-api
+    runtime: docker
+    region: singapore
+    plan: 1c-2g
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    autoDeployTrigger: "off"
+    preDeployCommand: python -m scripts.initialize_synthetic_demo
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: invoiceiq-portfolio-demo-db
+          property: connectionString
+      - key: ENV
+        value: staging
+      - key: DEMO_SYNTHETIC
+        value: "true"
+      - key: PUBLIC_READ_ONLY
+        value: "true"
+      - key: RUN_MIGRATIONS
+        value: "false"
+      - key: SCHEDULER_ENABLED
+        value: "false"
+      - key: OUTBOX_DISPATCH_ENABLED
+        value: "false"
+      - key: METRICS_ENABLED
+        value: "false"
+
+  - type: web
+    name: invoiceiq-portfolio-demo-web
+    runtime: docker
+    region: singapore
+    plan: 0.5c-512mb
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    autoDeployTrigger: "off"
+    healthCheckPath: /api/demo/ready
+    envVars:
+      - key: API_BASE_URL
+        fromService:
+          type: pserv
+          name: invoiceiq-portfolio-demo-api
+          property: hostport
+      - key: INVOICEIQ_DEMO_SYNTHETIC
+        value: "true"
