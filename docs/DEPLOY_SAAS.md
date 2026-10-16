@@ -4,15 +4,18 @@
 accounts, signup, assistant or recovery pages. This document describes what the
 current product needs. Nothing here has been deployed.
 
-## Quick path (Render + Neon + Vercel)
+## Quick path (Render + Vercel)
 
-1. Neon: create a database named exactly `invoiceiq` and copy its connection string.
-2. Render: New -> Blueprint -> this repo -> Blueprint file `render.saas.yaml`. Paste the Neon
-   string into `DATABASE_URL` and the Gemini key into `GOOGLE_API_KEY` when prompted. The
-   pre-deploy command migrates the database and seeds the showcase (safe to repeat).
-3. Vercel project `invoiceiq`: set `INVOICEIQ_API_URL` to the Render service URL and
+1. Render: New -> Blueprint -> this repo -> Blueprint file `render.saas.yaml`. It creates the
+   `invoiceiq` PostgreSQL database and the `invoiceiq` API together. Paste the Gemini key into
+   `GOOGLE_API_KEY` when prompted. The pre-deploy command migrates the database and seeds the
+   showcase (safe to repeat). Both resources are paid; Render asks you to confirm.
+2. Vercel project `invoiceiq`: set `INVOICEIQ_API_URL` to the Render service URL and
    `INVOICEIQ_PORTAL_ENABLED=true`, then redeploy to production.
-4. Run the smoke tests below.
+3. Run the smoke tests below.
+
+Neon also works: create a database named `invoiceiq`, remove the `databases:` block from
+`render.saas.yaml` and give `DATABASE_URL` the Neon string instead.
 
 ## Recommended topology
 
@@ -20,7 +23,7 @@ current product needs. Nothing here has been deployed.
 |---|---|---|
 | Frontend (Next.js) | Vercel project `invoiceiq` | Already builds. |
 | API (FastAPI, Docker) | Render web service, or any Docker host | `backend/Dockerfile`, port 8000. |
-| Database | Neon (PostgreSQL 16) | Use a **dedicated** database for this deployment. |
+| Database | Render PostgreSQL (or Neon) | Use a **dedicated** database for this deployment. |
 
 ## Decision required: one database or two
 

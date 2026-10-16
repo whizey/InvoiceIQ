@@ -3,11 +3,19 @@
 #
 # Use: Render dashboard -> New -> Blueprint -> pick this repo -> set the Blueprint
 # file path to render.saas.yaml. The `starter` plan is a paid instance; Render asks
-# you to confirm before creating it. Database: Neon, a database named exactly
-# `invoiceiq`; INVOICEIQ_SHOWCASE_DATABASE below is the explicit opt-in the seeding
-# script requires for any name other than invoiceiq_demo.
+# you to confirm before creating it. The database is a Render PostgreSQL instance
+# named `invoiceiq` (no Neon needed). INVOICEIQ_SHOWCASE_DATABASE below is the explicit
+# opt-in the seeding script requires for any name other than invoiceiq_demo.
 previews:
   generation: "off"
+
+databases:
+  - name: invoiceiq-db
+    databaseName: invoiceiq
+    user: invoiceiq
+    region: singapore
+    plan: 0.1c-256mb
+    ipAllowList: []   # reachable only from Render services in this account
 
 services:
   - type: web
@@ -26,8 +34,10 @@ services:
         value: "8000"
       - key: ENV
         value: staging
-      - key: DATABASE_URL        # Neon connection string, database invoiceiq
-        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: invoiceiq-db
+          property: connectionString
       - key: GOOGLE_API_KEY      # Gemini key for the assistant and voice transcription
         sync: false
       - key: LLM_MODEL
