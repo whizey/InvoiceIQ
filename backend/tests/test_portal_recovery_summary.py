@@ -56,3 +56,10 @@ def test_assistant_facts_are_aggregated_and_tenant_free_of_raw_rows():
     assert facts["high_risk_open_invoices_ge_60pct"] == 1
     assert facts["top_overdue_accounts"][0]["account"] == "Acme"
     assert facts["largest_overdue_invoices"][0]["review_status"] == "ESCALATE"
+
+
+def test_reply_text_handles_string_and_content_blocks():
+    from app.api.portal import _reply_text
+    assert _reply_text("  hi ") == "hi"
+    assert _reply_text([{"type": "text", "text": "a", "extras": {"signature": "x"}}, {"type": "thinking", "text": "no"},
+                        {"type": "text", "text": "b"}]) == "ab"

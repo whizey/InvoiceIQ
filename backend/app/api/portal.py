@@ -359,6 +359,15 @@ def _assistant_allowed(key: str) -> bool:
     return True
 
 
+def _reply_text(content) -> str:
+    """Providers return a string or a list of content blocks; keep only the visible text."""
+    if isinstance(content, str):
+        return content.strip()
+    parts = [block if isinstance(block, str) else block.get("text", "")
+             for block in content if isinstance(block, (str, dict)) and (isinstance(block, str) or block.get("type") == "text")]
+    return "".join(parts).strip()
+
+
 def _assistant_facts(invoices, events) -> dict:
     today = date.today()
     open_rows = [r for r in invoices if r.amount_total > r.amount_paid]
@@ -417,6 +426,11 @@ async def assistant(payload: AssistantInput, subject=Depends(identity), db: Asyn
     if not _assistant_allowed(session.token_digest):
         raise HTTPException(429, "Too many questions; wait a minute and try again")
     llm, model = _llm_chat()
+    if llm is not None:
+        # Reasoning models spend output tokens thinking; the shared 1024 cap truncates or empties answers.
+        for field in ("max_output_tokens", "max_tokens"):
+            if hasattr(llm, field):
+                setattr(llm, field, 4096)
     if llm is None:
         raise HTTPException(503, "AI assistant is not configured. Set OPENAI_API_KEY or GOOGLE_API_KEY on the API.")
     invoices, events = await _records(db, session, workspace)
@@ -428,18 +442,26 @@ async def assistant(payload: AssistantInput, subject=Depends(identity), db: Asyn
               "carefully and show the key numbers you used. For prioritisation questions, rank items and give one-line "
               "reasons (balance, days past due, model risk, review status). model_risk is a stored estimate from the "
               "verified payment-risk model, not a certainty. Use INR with lakh/crore style, a short heading-free "
-              "answer in at most 180 words, and end with one concrete next step when relevant.")
+              "answer in at most 180 words, plain text only (no markdown symbols, use numbered lines for lists), and end with one concrete next step when relevant.")
     messages = [("system", system), ("human", f"<facts>{json.dumps(facts)}</facts>")]
     messages.append(("ai", "Understood. I will answer only from these workspace facts."))
     for turn in payload.history[-6:]:
         messages.append(("human" if turn.role == "user" else "ai", turn.content))
     messages.append(("human", payload.question.strip()))
-    try:
-        reply = await asyncio.wait_for(llm.ainvoke(messages), timeout=25)
-    except Exception:
+    reply = None
+    for attempt in range(2):  # one retry covers brief provider overload (503)
+        try:
+            reply = await asyncio.wait_for(llm.ainvoke(messages), timeout=25)
+            break
+        except Exception:
+            if attempt == 0:
+                await asyncio.sleep(1.5)
+    if reply is None:
         raise HTTPException(503, "AI assistant did not respond; try again shortly")
-    text = reply.content if isinstance(reply.content, str) else str(reply.content)
-    return {"answer": text.strip()[:3000], "model": model, "grounded_in": "workspace figures as of " + str(date.today())}
+    text = _reply_text(reply.content)
+    if not text:
+        raise HTTPException(503, "AI assistant returned an empty answer; try again")
+    return {"answer": text[:3000], "model": model, "grounded_in": "workspace figures as of " + str(date.today())}
 
 
 @router.get("/invoices")
