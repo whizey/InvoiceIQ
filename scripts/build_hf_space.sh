@@ -8,6 +8,7 @@ OUT="${1:-$ROOT/../InvoiceIQ-hf-space}"
 mkdir -p "$OUT/scripts/verification" "$OUT/docs/evaluations"
 cp "$ROOT/deploy/huggingface/Dockerfile" "$ROOT/deploy/huggingface/README.md" "$ROOT/deploy/huggingface/start.sh" "$OUT/"
 cp "$ROOT/.dockerignore" "$ROOT/.gitattributes" "$OUT/"
+printf '!start.sh\n' >> "$OUT/.dockerignore"   # the repo whitelist predates the Space start script
 cp "$ROOT/scripts/verification/check_model_artifacts.py" "$OUT/scripts/verification/"
 cp "$ROOT/docs/evaluations/model-risk-v1.json" "$OUT/docs/evaluations/"
 # Runtime code only: no tests, local databases or private environment files.
