@@ -1,0 +1,27 @@
+*
+!backend/
+!backend/app/
+!backend/app/**
+!backend/alembic/
+!backend/alembic/**
+!backend/docs/
+!backend/docs/**
+!backend/requirements.txt
+!backend/alembic.ini
+!backend/entrypoint.sh
+!backend/EVALUATION_PROTOCOL.md
+!docs/
+!docs/evaluations/
+!docs/evaluations/model-risk-v1.json
+!scripts/
+!scripts/verification/
+!scripts/verification/check_model_artifacts.py
+backend/.env*
+backend/**/.env*
+backend/**/__pycache__/
+backend/**/*.pyc
+# Offline research inputs and outputs are retained locally, never in runtime images.
+backend/app/ml/experiments/
+backend/app/ml/artifacts/b2b_v2/calibration/oof_predictions.csv.gz
+backend/app/ml/artifacts/bpi_survival/policy_backtest_fold_0_cases.csv.gz
+backend/app/ml/artifacts/stage3_validation/b2b/temporal_predictions.csv.gz
