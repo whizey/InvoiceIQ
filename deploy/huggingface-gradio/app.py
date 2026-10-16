@@ -44,6 +44,11 @@ subprocess.run([sys.executable, "-m", "alembic", "upgrade", "head"], check=True)
 # Idempotent: seeds the illustrative showcase once; later starts add nothing.
 subprocess.run([sys.executable, "-m", "scripts.provision_portal_showcase"], check=True)
 
+# A free Space runs one container, so the event consumer runs beside the API. It starts only when a
+# Kafka broker is configured; without KAFKA_BOOTSTRAP_SERVERS the app just logs its events.
+if os.environ.get("KAFKA_BOOTSTRAP_SERVERS"):
+    subprocess.Popen([sys.executable, "-m", "app.events.consumer"])
+
 import uvicorn  # noqa: E402
 
 uvicorn.run("app.main:app", host="0.0.0.0", port=int(os.environ.get("PORT", "7860")))
