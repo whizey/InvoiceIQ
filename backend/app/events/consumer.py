@@ -1,19 +1,24 @@
-"""Standalone sample consumer — proves Kafka messages are actually flowing.
+"""Long-running consumer: keeps the high-risk case table and approval alerts up to date.
 
-Not part of the FastAPI app's request path. V1 has no long-running consumer
-driving the app itself (see docs/ARCHITECTURE.md) — this is
-purely to demonstrate that the publish side of the outbox pattern works.
+Delivery from the outbox is at-least-once, so every event is applied once per event_id
+(see app/events/handlers.py). Events that keep failing are parked on `<topic>.dlq` and in
+the dead_letter_events table. Offsets are committed only after an event is fully handled.
 
 Run with: python -m app.events.consumer
 """
 
 import asyncio
-import json
+import logging
 
 from aiokafka import AIOKafkaConsumer
 
 from app.core.config import settings
-from app.events.topics import ALL_TOPICS
+from app.core.db import async_session_factory
+from app.events import get_publisher
+from app.events.handlers import CONSUMER, HANDLERS, handle_message
+from app.events.kafka_publisher import kafka_client_options
+
+logger = logging.getLogger("app.events.consumer")
 
 
 async def main() -> None:
@@ -22,21 +27,23 @@ async def main() -> None:
         return
 
     consumer = AIOKafkaConsumer(
-        *ALL_TOPICS,
+        *HANDLERS,
         bootstrap_servers=settings.kafka_bootstrap_servers,
-        group_id="sample-consumer",
+        group_id=CONSUMER,
         auto_offset_reset="earliest",
+        enable_auto_commit=False,
+        **kafka_client_options(settings),
     )
     await consumer.start()
-    print(f"Listening on {settings.kafka_bootstrap_servers}, topics: {ALL_TOPICS}", flush=True)
-    print("(Ctrl+C to stop)\n", flush=True)
+    dead_letters = get_publisher()
+    print(f"Consuming {sorted(HANDLERS)} on {settings.kafka_bootstrap_servers} (Ctrl+C to stop)", flush=True)
     try:
         async for message in consumer:
-            payload = json.loads(message.value.decode("utf-8"))
-            # Domain events may include private predictions and invoice facts.
-            # This observational sample never dumps payloads or executes actions.
-            event_id = payload.get("event_id") if isinstance(payload, dict) else None
-            print(f"[{message.topic}] event_id={event_id or 'legacy'} received", flush=True)
+            outcome = await handle_message(async_session_factory, message.topic, message.value,
+                                           dead_letter_publisher=dead_letters)
+            await consumer.commit()
+            # Payloads can hold private predictions, so only the outcome is logged.
+            logger.info("event handled", extra={"topic": message.topic, "outcome": outcome})
     finally:
         await consumer.stop()
 

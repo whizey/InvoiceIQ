@@ -64,6 +64,11 @@ class Settings(BaseSettings):
     # Event publishing: if unset, domain events are logged instead of
     # published (see app/events/) — no Kafka required to run the app.
     kafka_bootstrap_servers: str | None = None
+    # Hosted Kafka (Upstash, Redpanda Cloud) needs TLS plus SASL; a local broker needs neither.
+    kafka_security_protocol: str = "PLAINTEXT"
+    kafka_sasl_mechanism: str | None = None
+    kafka_username: str | None = None
+    kafka_password: str | None = None
     outbox_dispatch_enabled: bool = False
 
     # Locking/idempotency: if unset, falls back to an in-process lock
