@@ -92,6 +92,24 @@ async def test_recovery_summary_assistant_and_bridge_are_tenant_scoped(monkeypat
                                            json={"question": "Again please"})).status_code for _ in range(3)]
             assert statuses == [200, 200, 429]
 
+            # Voice fallback: validated, tenant-authenticated and reply blocks are parsed.
+            import base64
+            monkeypatch.setattr(portal_api, "ASSISTANT_LIMIT_PER_MINUTE", 20)
+            portal_api._ASSISTANT_CALLS.clear()
+            clip = base64.b64encode(b"RIFF" + b"\x00" * 2000).decode()
+            transcribed = await client.post("/portal/transcribe", headers=headers[0],
+                                            json={"audio": clip, "mime": "audio/webm"})
+            assert transcribed.status_code == 200 and transcribed.json()["text"] == "Chase INV-A first."
+            assert fake.messages[0].content[1]["mime_type"] == "audio/webm"
+            assert (await client.post("/portal/transcribe", headers=headers[0],
+                                      json={"audio": "!" * 200, "mime": "audio/webm"})).status_code == 422
+            tiny = base64.b64encode(b"x" * 200).decode()
+            assert (await client.post("/portal/transcribe", headers=headers[0],
+                                      json={"audio": tiny, "mime": "audio/webm"})).status_code == 422
+            assert (await client.post("/portal/transcribe", headers=headers[0],
+                                      json={"audio": clip, "mime": "video/mp4"})).status_code == 422
+            assert (await client.post("/portal/transcribe", json={"audio": clip, "mime": "audio/webm"})).status_code == 401
+
             # Dashboard bridge reconciles with the open receivables KPI.
             dash = await client.get("/portal/dashboard", headers=headers[0])
             assert dash.status_code == 200, dash.text

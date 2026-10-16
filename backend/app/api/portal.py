@@ -1,5 +1,7 @@
 """Isolated product portal. Never use portal identities for legacy operator routes."""
 import asyncio
+import base64
+import binascii
 import csv
 import hashlib
 import io
@@ -415,6 +417,49 @@ def _assistant_facts(invoices, events) -> dict:
                               "at": e.created_at.date().isoformat()}
                              for e in sorted(events, key=lambda e: e.created_at, reverse=True)[:8]],
     }
+
+
+class TranscribeInput(BaseModel):
+    audio: str = Field(min_length=100, max_length=1_000_000)
+    mime: str = Field(pattern=r"^audio/(webm|ogg|mp4|mpeg|wav|x-m4a)$")
+
+
+@router.post("/transcribe")
+async def transcribe(payload: TranscribeInput, subject=Depends(identity)):
+    """Speech-to-text fallback for browsers whose own recognition service is unreachable."""
+    from langchain_core.messages import HumanMessage
+
+    from app.agents.llm_client import _llm_chat
+
+    session, _ = subject
+    if not _assistant_allowed("tx:" + session.token_digest):
+        raise HTTPException(429, "Too many voice requests; wait a minute and try again")
+    try:
+        raw = base64.b64decode(payload.audio, validate=True)
+    except (binascii.Error, ValueError):
+        raise HTTPException(422, "Audio is not valid base64")
+    if not 1000 <= len(raw) <= 700_000:
+        raise HTTPException(422, "Recording is too short or too long")
+    llm, _model = _llm_chat()
+    if llm is None:
+        raise HTTPException(503, "Voice transcription is not configured on the API")
+    if hasattr(llm, "timeout"):
+        llm.timeout = 45
+    message = HumanMessage(content=[
+        {"type": "text", "text": "Transcribe the speech in this audio verbatim. Reply with only the transcript, "
+                                 "or an empty reply if there is no speech."},
+        {"type": "media", "data": payload.audio, "mime_type": payload.mime}])
+    reply = None
+    for attempt in range(2):
+        try:
+            reply = await asyncio.wait_for(llm.ainvoke([message]), timeout=55)
+            break
+        except Exception:
+            if attempt == 0:
+                await asyncio.sleep(1.5)
+    if reply is None:
+        raise HTTPException(503, "Transcription did not respond; try again shortly")
+    return {"text": _reply_text(reply.content)[:600]}
 
 
 @router.post("/assistant")

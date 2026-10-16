@@ -61,8 +61,8 @@ export default function AssistantChat(){
     </div>
     <form onSubmit={e=>void ask(e)} className="ai-form">
       {stt.supported&&<button type="button" className={stt.listening?"ai-mic ai-mic-on":"ai-mic"} aria-pressed={stt.listening}
-        aria-label={stt.listening?"Stop voice input":"Ask by voice"} disabled={asking} onClick={()=>stt.listening?stt.stop():(tts.stop(),stt.start())}>
-        {stt.listening?"● Listening…":"🎤 Speak"}</button>}
+        aria-label={stt.listening?"Stop voice input":"Ask by voice"} disabled={asking||stt.transcribing} onClick={()=>stt.listening?stt.stop():(tts.stop(),stt.start())}>
+        {stt.transcribing?"Transcribing…":stt.listening?"● Listening — tap to stop":"🎤 Speak"}</button>}
       <input value={question} onChange={e=>setQuestion(e.target.value)} maxLength={600} aria-label="Question for InvoiceIQ AI"
         placeholder="Ask about overdue exposure, approvals or priorities"/>
       <button type="submit" disabled={asking||question.trim().length<3}>{asking?"Thinking…":"Ask"}</button>
