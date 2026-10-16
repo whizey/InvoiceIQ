@@ -28,9 +28,10 @@ test("browser history back control works across SaaS routes",()=>{
   assert.ok(dash.includes('<ReferenceFrame page="overview" portal/>'));
   for(const section of ["invoices","cases","approvals"]){
     const route=read(`../app/${section}/page.tsx`);
-    assert.ok(route.includes(`<PortalOperations section="${section}"/>`));
+    assert.ok(route.includes(`<PortalOperations section="${section}" initialFilters={parsePortalFilters(`));
     assert.ok(route.includes(`<ReferenceFrame page="${section}"/>`));
   }
+  assert.ok(read("../app/invoices/page.tsx").includes('<ReferenceFrame page="invoices" portal/>'));
 });
 test("retained KPI template and source adapter are not redesigned",()=>{
   const s=read("../public/reference/dashboard-data.js");

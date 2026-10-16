@@ -30,6 +30,21 @@ def period_start(day: date, grain: str) -> date:
     return day.replace(month=1, day=1)
 
 
+def period_end(day: date, grain: str) -> date:
+    """Last calendar day in a chart bucket, including leap years."""
+    if grain == "day":
+        return day
+    if grain == "week":
+        return day + timedelta(days=6)
+    if grain == "month":
+        return (day.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+    if grain == "quarter":
+        month = day.month + 3
+        first_after = date(day.year + (month > 12), (month - 1) % 12 + 1, 1)
+        return first_after - timedelta(days=1)
+    return date(day.year, 12, 31)
+
+
 def invoice_state(invoice, payments, as_of):
     paid = sum((amount for when, amount in payments if when <= as_of), ZERO)
     if paid > invoice.amount_total:
@@ -219,7 +234,8 @@ async def build_portal_dashboard(db, q, subject, *, export: bool = False):
     top.sort(key=lambda x: x["overdue"], reverse=True)
     top = top[:12]
 
-    # Preserve the chart's contract; do not display unrecorded historical scores.
+    # The portal ledger contains every posting and dated payment for this
+    # selected cohort, so its period-end open balance can be reconstructed.
     time_buckets = defaultdict(lambda: {"invoiced": ZERO, "collected": ZERO})
     for r in rows:
         at = period_start(r["invoice"].posting_date, q.grain)
@@ -232,10 +248,14 @@ async def build_portal_dashboard(db, q, subject, *, export: bool = False):
     series = []
     for at in sorted(time_buckets):
         point = time_buckets[at]
+        cutoff = min(as_of, period_end(at, q.grain))
+        open_at_cutoff = sum((
+            r["invoice"].amount_total - sum((amount for when, amount in payment_map[r["invoice"].id]
+                                              if when <= cutoff), ZERO)
+            for r in rows if r["invoice"].posting_date <= cutoff
+        ), ZERO)
         series.append({"period": at, "invoiced": point["invoiced"],
-                       "collected": point["collected"], "open": None})
-    # Historic balance line cannot be verified for cohorts missing a complete
-    # opening snapshot. Avoid pretending it is a recorded observed series.
+                       "collected": point["collected"], "open": open_at_cutoff})
     daily_amounts = defaultdict(lambda: ZERO)
     for p in receipts:
         if p.paid_on >= as_of - timedelta(days=181):
@@ -288,7 +308,7 @@ async def build_portal_dashboard(db, q, subject, *, export: bool = False):
         "top": top, "invoices": out_rows, "total": len(rows),
         "page": q.page, "page_size": q.page_size,
         "chart_notes": {
-            "open_line": "No recorded full-cohort opening snapshots. Historical open balance line withheld.",
+            "open_line": "Period-end open balance reconstructed from all selected postings and dated payments.",
             "bridge": "No dated write-off/cancellation ledger; no fabricated financial bridge.",
             "pipeline": "Visitor review decisions are not external collections executions.",
             "calendar": "Contractual due dates; banking holidays and grace periods not verified.",

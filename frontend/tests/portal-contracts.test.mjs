@@ -12,7 +12,8 @@ test("existing financial dashboard template and KPI adapter remain untouched",()
 });
 test("portal proxy requires same-origin mutation and secure cookie flags",()=>{
  const route=read("../app/api/portal/[...path]/route.ts");
- assert.ok(route.includes('req.headers.get("origin")!==req.nextUrl.origin'));
+ assert.ok(route.includes('req.headers.get("origin")!==expectedOrigin'));
+ assert.ok(route.includes('req.headers.get("host")'));
  assert.ok(route.includes("httpOnly:true"));
  assert.ok(route.includes('sameSite:"strict"'));
  assert.ok(route.includes('maxAge:8*3600'));

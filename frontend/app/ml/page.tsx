@@ -1,4 +1,6 @@
 import Link from "next/link";
+import {cookies} from "next/headers";
+import PortalIntelligence from "@/components/PortalIntelligence";
 
 type Model = {
   id: string;
@@ -52,6 +54,9 @@ const pct = (value: number | null) =>
   value === null ? "N/A" : `${(value * 100).toFixed(1)}%`;
 
 export default async function ModelIntelligencePage() {
+  if((await cookies()).get("invoiceiq_portal_session")?.value){
+    return <PortalIntelligence/>;
+  }
   let catalog: Catalog;
   let report: Report;
 

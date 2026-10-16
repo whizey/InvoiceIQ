@@ -3,7 +3,7 @@
  */
 (function (global) {
   'use strict';
-  const active = true; // Integrated operational examples within the same public dashboard.
+  const active = new URLSearchParams(global.location.search).get('portal') !== '1';
   const DAY = 86400000;
   const today = new Date();
   today.setUTCHours(0, 0, 0, 0);
