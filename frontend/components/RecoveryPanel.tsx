@@ -6,7 +6,8 @@ type Kpis={awaiting_review:number;awaiting_exposure:string;approved:number;rejec
   reviewed:number;escalated_exposure:string};
 type Summary={kind:"showcase"|"customer";kpis:Kpis;status_breakdown:{status:string;count:number}[];
   weekly_decisions:{week:string;approved:number;escalated:number;rejected:number}[]};
-const SUGGESTIONS=["Which overdue invoices should we chase first?","Summarise our overdue exposure.","What is waiting for review?"];
+const SUGGESTIONS=["Which overdue invoices should we chase first?","Summarise our overdue exposure.","Which accounts are the biggest risk?","What is waiting for review?"];
+type Turn={role:"user"|"assistant";content:string};
 
 function inr(value:string){
   const n=Number(value);
@@ -47,7 +48,8 @@ export default function RecoveryPanel(){
   const [error,setError]=useState("");
   const [question,setQuestion]=useState("");
   const [asking,setAsking]=useState(false);
-  const [answer,setAnswer]=useState<{text:string;model:string}|null>(null);
+  const [turns,setTurns]=useState<Turn[]>([]);
+  const [model,setModel]=useState("");
   const [askError,setAskError]=useState("");
 
   useEffect(()=>{
@@ -62,12 +64,12 @@ export default function RecoveryPanel(){
     event.preventDefault();
     const q=(preset??question).trim();
     if(q.length<3||asking)return;
-    setAsking(true);setAskError("");setAnswer(null);
+    setAsking(true);setAskError("");
     try{
-      const r=await fetch("/api/portal/assistant",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:q})});
+      const r=await fetch("/api/portal/assistant",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:q,history:turns.slice(-6)})});
       const b=await r.json();
       if(!r.ok)throw new Error(b.detail||"The assistant could not answer");
-      setAnswer({text:b.answer,model:b.model});
+      setTurns(t=>[...t,{role:"user" as const,content:q},{role:"assistant" as const,content:b.answer}].slice(-12));setModel(b.model);setQuestion("");
     }catch(e){setAskError(e instanceof Error?e.message:"The assistant could not answer")}
     finally{setAsking(false)}
   }
@@ -101,7 +103,11 @@ export default function RecoveryPanel(){
         <button type="submit" disabled={asking||question.trim().length<3}>{asking?"Thinking…":"Ask"}</button>
       </form>
       {askError&&<p className="portal-notice-error" role="alert">{askError}</p>}
-      {answer&&<div className="rp-answer" role="status"><p>{answer.text}</p><small>Model: {answer.model}</small></div>}
+      {turns.length>0&&<div className="rp-thread" aria-live="polite">
+        {turns.map((t,i)=><div key={i} className={t.role==="user"?"rp-msg rp-user":"rp-msg rp-answer"}><p>{t.content}</p></div>)}
+        <small>Model: {model} · answers use only stored workspace figures; verify before acting.</small>
+        <button type="button" className="rp-clear" onClick={()=>setTurns([])}>Clear conversation</button>
+      </div>}
     </div>
   </section>;
 }
