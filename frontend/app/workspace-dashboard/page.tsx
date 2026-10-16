@@ -11,6 +11,7 @@ export default async function WorkspaceDashboard(){
   return <div className="portal-shell">
     <PortalNavigation/>
     <ReferenceFrame page="overview" portal/>
+    <a className="rp-jump" href="#recovery-pipeline">Recovery pipeline &amp; AI assistant ↓</a>
     <RecoveryPanel/>
   </div>;
 }
