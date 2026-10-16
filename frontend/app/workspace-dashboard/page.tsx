@@ -1,7 +1,7 @@
 import {cookies} from "next/headers";
 import {redirect} from "next/navigation";
 import ReferenceFrame from "@/components/ReferenceFrame";
-import RecoveryPanel from "@/components/RecoveryPanel";
+import RecoveryCharts from "@/components/RecoveryCharts";
 import PortalNavigation from "@/components/PortalNavigation";
 
 export const metadata={title:"Analytics | InvoiceIQ"};
@@ -11,7 +11,7 @@ export default async function WorkspaceDashboard(){
   return <div className="portal-shell">
     <PortalNavigation/>
     <ReferenceFrame page="overview" portal/>
-    <a className="rp-jump" href="#recovery-pipeline">Recovery pipeline &amp; AI assistant ↓</a>
-    <RecoveryPanel/>
+    <a className="rp-jump" href="#recovery-pipeline">Recovery overview ↓</a>
+    <RecoveryCharts view="dashboard"/>
   </div>;
 }
