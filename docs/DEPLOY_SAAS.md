@@ -4,6 +4,16 @@
 accounts, signup, assistant or recovery pages. This document describes what the
 current product needs. Nothing here has been deployed.
 
+## Quick path (Render + Neon + Vercel)
+
+1. Neon: create a database named exactly `invoiceiq_demo` and copy its connection string.
+2. Render: New -> Blueprint -> this repo -> Blueprint file `render.saas.yaml`. Paste the Neon
+   string into `DATABASE_URL` and the Gemini key into `GOOGLE_API_KEY` when prompted. The
+   pre-deploy command migrates the database and seeds the showcase (safe to repeat).
+3. Vercel project `invoiceiq`: set `INVOICEIQ_API_URL` to the Render service URL and
+   `INVOICEIQ_PORTAL_ENABLED=true`, then redeploy to production.
+4. Run the smoke tests below.
+
 ## Recommended topology
 
 | Piece | Host | Notes |
