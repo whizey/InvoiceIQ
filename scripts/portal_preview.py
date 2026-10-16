@@ -65,12 +65,12 @@ def main():
     raw = private.get("TEST_DATABASE_URL")
     if not raw:
         raise RuntimeError("backend/.env.test with TEST_DATABASE_URL is required")
-    url = make_url(raw).set(database="invoiceiq_demo_test")
-    demo_url = url.render_as_string(hide_password=False)
-    verify(demo_url)
+    url = make_url(raw).set(database="invoiceiq_sample_test")
+    sample_url = url.render_as_string(hide_password=False)
+    verify(sample_url)
     if not asyncio.run(showcase_exists(url)):
-        raise RuntimeError("Isolated showcase is not provisioned in invoiceiq_demo_test")
-    backend_env = dict(os.environ, DATABASE_URL=demo_url,
+        raise RuntimeError("Isolated showcase is not provisioned in invoiceiq_sample_test")
+    backend_env = dict(os.environ, DATABASE_URL=sample_url,
                        INVOICEIQ_PORTAL_ENABLED="true", INVOICEIQ_PORTAL_SHOWCASE="true",
                        PUBLIC_READ_ONLY="false")
     frontend_env = dict(os.environ, INVOICEIQ_PORTAL_ENABLED="true",

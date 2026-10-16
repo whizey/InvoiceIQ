@@ -20,7 +20,7 @@ MODEL_PATH = Path(__file__).parent / "artifacts" / "recovery_risk_model.json"
 # risk_score = (1 - recovery_probability) * 100; thresholds chosen so the
 # seed-data narrative's hand-authored scores (Northwind 22.5=LOW,
 # Bluepeak/Sundial ~48-55=MEDIUM, Vertex 82=HIGH) land in the same bands
-# the model would assign, keeping demo and model-scored cases consistent.
+# the model would assign, keeping sample and model-scored cases consistent.
 LOW_RISK_MAX = 35.0
 MEDIUM_RISK_MAX = 65.0
 

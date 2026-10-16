@@ -29,6 +29,6 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Downgrade schema."""
     # Postgres has no ALTER TYPE ... DROP VALUE — removing an enum value
-    # requires rebuilding the type, which isn't worth it for a demo project.
+    # requires rebuilding the type, which isn't worth it for a sample project.
     # This migration is not meaningfully reversible.
     pass

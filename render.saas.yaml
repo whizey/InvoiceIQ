@@ -1,11 +1,11 @@
 # InvoiceIQ SaaS product API (accounts, dashboard, recovery, AI assistant).
-# render.yaml in this repo is the older read-only synthetic demo; this file is not.
+# render.yaml in this repo is the older read-only synthetic sample; this file is not.
 #
 # Use: Render dashboard -> New -> Blueprint -> pick this repo -> set the Blueprint
 # file path to render.saas.yaml. The `starter` plan is a paid instance; Render asks
 # you to confirm before creating it. The database is a Render PostgreSQL instance
 # named `invoiceiq` (no Neon needed). INVOICEIQ_SHOWCASE_DATABASE below is the explicit
-# opt-in the seeding script requires for any name other than invoiceiq_demo.
+# opt-in the seeding script requires for any name other than invoiceiq_sample.
 previews:
   generation: "off"
 

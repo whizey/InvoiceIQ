@@ -14,7 +14,7 @@ async def test_hosted_writes_must_not_fall_back_to_per_process_lock(monkeypatch)
 
 
 @pytest.mark.asyncio
-async def test_local_demo_retains_existing_lock_behavior(monkeypatch):
+async def test_local_sample_retains_existing_lock_behavior(monkeypatch):
     monkeypatch.setattr(settings, "env", "test")
     monkeypatch.setattr(settings, "redis_url", None)
     async with acquire_lock("local-case"):

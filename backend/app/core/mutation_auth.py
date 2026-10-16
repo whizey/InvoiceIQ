@@ -1,4 +1,4 @@
-"""Fail-closed write protection for hosted InvoiceIQ demos.
+"""Fail-closed write protection for hosted InvoiceIQ samples.
 
 The project has no user/tenant identity system yet. Until it does, mutation
 routes on hosted environments require a server-to-server operator token.

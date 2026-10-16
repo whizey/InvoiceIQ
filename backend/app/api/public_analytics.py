@@ -29,8 +29,8 @@ class Window(BaseModel):
 
 
 async def public_dataset_db(session: AsyncSession = Depends(get_db)):
-    if os.getenv('DEMO_SYNTHETIC', '').lower() == 'true':
-        raise HTTPException(404, 'Public corpus API is unavailable in the synthetic demo')
+    if os.getenv('SAMPLE_SYNTHETIC', '').lower() == 'true':
+        raise HTTPException(404, 'Public corpus API is unavailable in the synthetic sample')
     if os.getenv('PUBLIC_READ_ONLY', '').lower() != 'true':
         raise HTTPException(404, 'Public dataset API is disabled')
     # Fail closed if a deploy accidentally points at the development database.

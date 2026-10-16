@@ -1,4 +1,4 @@
-"""Initialize only an empty, explicitly designated portfolio demo database.
+"""Initialize only an empty, explicitly designated portfolio sample database.
 
 Used as a deployment preflight. Existing unmarked schemas are never seeded.
 """
@@ -25,9 +25,9 @@ async def database_state():
             if "dataset_imports" not in tables:
                 return "unmarked"
             marker = await connection.scalar(text(
-                "SELECT source_sha256 FROM dataset_imports WHERE source = 'synthetic_portfolio_demo_v1'"
+                "SELECT source_sha256 FROM dataset_imports WHERE source = 'synthetic_portfolio_sample_v1'"
             ))
-            from app.seed.synthetic_demo import source_digest
+            from app.seed.synthetic_sample import source_digest
 
             return "marked" if marker == source_digest() else "unmarked"
     finally:
@@ -36,18 +36,18 @@ async def database_state():
 
 async def verify_scope():
     from app.core.db import async_session_factory, engine
-    from app.seed.synthetic_demo import synthetic_demo_scope
+    from app.seed.synthetic_sample import synthetic_sample_scope
 
     try:
         async with async_session_factory() as db:
-            await synthetic_demo_scope(db)
+            await synthetic_sample_scope(db)
     finally:
         await engine.dispose()
 
 
 async def correct_decision_labels():
     from app.core.db import engine
-    from app.seed.synthetic_demo import correct_fixture_decision_provenance
+    from app.seed.synthetic_sample import correct_fixture_decision_provenance
 
     try:
         await correct_fixture_decision_provenance()
@@ -56,15 +56,15 @@ async def correct_decision_labels():
 
 
 def main():
-    if os.getenv("DEMO_SYNTHETIC", "").lower() != "true" or os.getenv("PUBLIC_READ_ONLY", "").lower() != "true":
-        raise RuntimeError("Synthetic demo initialization requires both safety flags")
+    if os.getenv("SAMPLE_SYNTHETIC", "").lower() != "true" or os.getenv("PUBLIC_READ_ONLY", "").lower() != "true":
+        raise RuntimeError("Synthetic sample initialization requires both safety flags")
     raw = os.environ.get("DATABASE_URL")
     if not raw:
-        raise RuntimeError("An explicit demo DATABASE_URL is required")
+        raise RuntimeError("An explicit sample DATABASE_URL is required")
     url = make_url(raw)
-    if url.database not in {"invoiceiq_demo", "invoiceiq_demo_test"}:
-        raise RuntimeError("Refusing to initialize a database outside the dedicated demo names")
-    if url.database == "invoiceiq_demo_test":
+    if url.database not in {"invoiceiq_sample", "invoiceiq_sample_test"}:
+        raise RuntimeError("Refusing to initialize a database outside the dedicated sample names")
+    if url.database == "invoiceiq_sample_test":
         from scripts.test_database_safety import verify
         verify(raw)
 
@@ -74,14 +74,14 @@ def main():
     if state == "empty":
         for command in ([sys.executable, "-m", "alembic", "upgrade", "head"],
                         [sys.executable, "-m", "app.seed.run"],
-                        [sys.executable, "-m", "app.seed.synthetic_demo"]):
+                        [sys.executable, "-m", "app.seed.synthetic_sample"]):
             subprocess.run(command, check=True)
     else:
         asyncio.run(correct_decision_labels())
         asyncio.run(verify_scope())
         subprocess.run([sys.executable, "-m", "alembic", "upgrade", "head"], check=True)
     asyncio.run(verify_scope())
-    print("Dedicated synthetic demo database verified")
+    print("Dedicated synthetic sample database verified")
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-"""Hinglish voice-call demo — Sarvam does speech I/O only (see
+"""Hinglish voice-call sample — Sarvam does speech I/O only (see
 app/tools/sarvam_client.py); app/agents/llm_client.voice_turn() decides what
 to say and what to *propose*; evaluate_policy() (app/services/policy_engine.py)
 decides what actually happens, exactly like the LangGraph workflow does for
@@ -11,7 +11,7 @@ by the client and validated here per request (turn_number/started_at) —
 every turn still writes a real CommunicationLog row, so the audit trail is
 complete even without a session concept. See the project plan notes for the
 trade-off (a determined API caller could fake turn_number; acceptable for a
-single-user local demo with no auth anywhere else in this app either).
+single-user local sample with no auth anywhere else in this app either).
 """
 
 import base64
@@ -302,7 +302,7 @@ async def submit_voice_turn(
                 )
                 if not user_text:
                     # No Sarvam key, or STT failed — simulated fallback so the
-                    # demo still works (browser mic/Sarvam issues shouldn't crash it).
+                    # sample still works (browser mic/Sarvam issues shouldn't crash it).
                     user_text = "(simulated reply — no speech-to-text available)"
 
             db.add(

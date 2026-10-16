@@ -1,4 +1,4 @@
-"""Sarvam speech I/O for the Hinglish voice-call demo.
+"""Sarvam speech I/O for the Hinglish voice-call sample.
 
 Sarvam is speech-only here — it never decides anything, it just converts
 text to Hinglish speech (TTS) and the customer's recorded reply back to
