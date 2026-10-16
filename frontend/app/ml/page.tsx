@@ -67,16 +67,11 @@ export default async function ModelIntelligencePage() {
     ]);
   } catch {
     return (
-      <main className="rounded-xl border bg-white p-6">
-        <h1 className="text-2xl font-semibold">
-          Model Intelligence
-        </h1>
-        <p className="mt-3 text-sm text-rose-700">
-          Backend unavailable. Start FastAPI and reload this page.
-        </p>
-        <Link href="/" className="mt-4 block text-sm underline">
-          Back to dashboard
-        </Link>
+      <main className="route-error" role="alert">
+        <p className="settings-eyebrow">InvoiceIQ / Model intelligence</p>
+        <h1>Model intelligence is unavailable.</h1>
+        <p>The model service did not respond. Reload in a moment; no results are shown until real model output is available.</p>
+        <div><Link href="/home">Return home</Link></div>
       </main>
     );
   }
