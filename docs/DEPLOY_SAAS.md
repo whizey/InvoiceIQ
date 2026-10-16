@@ -1,0 +1,89 @@
+# Deploying the InvoiceIQ SaaS product
+
+`render.yaml` deploys the **legacy read-only synthetic demo** only. It has no
+accounts, signup, assistant or recovery pages. This document describes what the
+current product needs. Nothing here has been deployed.
+
+## Recommended topology
+
+| Piece | Host | Notes |
+|---|---|---|
+| Frontend (Next.js) | Vercel project `invoiceiq` | Already builds. |
+| API (FastAPI, Docker) | Render web service, or any Docker host | `backend/Dockerfile`, port 8000. |
+| Database | Neon (PostgreSQL 16) | Use a **dedicated** database for this deployment. |
+
+## Decision required: one database or two
+
+`backend/scripts/provision_portal_showcase.py` deliberately refuses to run
+unless the database is named `invoiceiq_demo`, `invoiceiq_demo_test` or
+`invoiceiq_portal_test`. That guard stops illustrative data reaching a real
+customer database. Choose one:
+
+1. **Portfolio/demo deployment (recommended for a submission).** One Neon
+   database named `invoiceiq_demo`. Showcase and demo sign-ups live together;
+   say clearly that accounts are for demonstration only. No real customer data.
+2. **Production with real customers.** A separate database with no showcase
+   (`INVOICEIQ_PORTAL_SHOWCASE=false`), plus a second demo deployment as in (1).
+   The visitor "Explore the product" flow needs the showcase, so it runs only on
+   the demo deployment.
+
+Do not weaken the name guard to make one database serve both without a
+deliberate review.
+
+## Environment
+
+API service:
+
+| Variable | Value |
+|---|---|
+| `DATABASE_URL` | Neon connection string (secret). Use the `postgresql+asyncpg://` form. |
+| `INVOICEIQ_PORTAL_ENABLED` | `true` |
+| `INVOICEIQ_PORTAL_SHOWCASE` | `true` on the demo deployment, `false` otherwise |
+| `PUBLIC_READ_ONLY` | `false` (portal writes are authorised by portal sessions) |
+| `RUN_MIGRATIONS` | `false`; migrate as a separate release step |
+| `GOOGLE_API_KEY` | Gemini key (secret). Never commit it. |
+| `LLM_MODEL` | `gemini-3.6-flash` (voice transcription prefers `gemini-3.5-flash-lite` automatically) |
+
+Frontend (Vercel):
+
+| Variable | Value |
+|---|---|
+| `INVOICEIQ_PORTAL_ENABLED` | `true`, set **before the build**: `/` is prerendered and its redirect to `/home` is fixed at build time |
+| `INVOICEIQ_API_URL` | Public HTTPS URL of the API |
+
+## Release steps
+
+1. Wait for a fully green CI run on the exact release commit.
+2. Back up the target database (Neon branch or snapshot).
+3. Run migrations once, from a trusted machine: `cd backend && alembic upgrade head`
+   against the target `DATABASE_URL`. Check the revision first.
+4. Demo deployment only: provision the showcase, once, deliberately:
+   `INVOICEIQ_PORTAL_SHOWCASE=true python -m scripts.provision_portal_showcase`
+   (it also seeds the illustrative baseline decisions; reruns are no-ops).
+5. Deploy the API, then the frontend with the variables above.
+6. Rotate any key that was ever pasted into a chat or ticket.
+
+## Smoke tests after deploying
+
+- `GET <api>/health` and `/health/ready` return OK.
+- Home page loads; **Explore the product** opens the dashboard with data.
+- Register a test account, import a small CSV, see it on the dashboard.
+- Record a decision on Cases/Approvals; charts update.
+- Settings: change the display name; sign out and sign in.
+- AI assistant answers a question. Voice needs HTTPS and a microphone.
+- Two accounts cannot see each other's invoices.
+
+## Rollback
+
+- Frontend: promote the previous Vercel deployment.
+- API: redeploy the previous image or commit.
+- Database: restore the Neon snapshot or branch taken in step 2. The portal
+  migrations only add tables, so rolling the code back leaves them unused.
+
+## Known limits
+
+- Rate limits for sign-in and the assistant are per API process; a multi-replica
+  deployment needs a shared limiter.
+- The assistant and voice features depend on a third-party model and free-tier
+  quotas can return temporary errors.
+- Write-offs are not tracked, so the balance bridge shows them as zero.
