@@ -45,10 +45,11 @@ def recovery_summary(invoices, events, today: date | None = None) -> dict:
             "case_exposure": str(sum(exposure.values(), Decimal(0))),
         },
         "status_breakdown": [
-            {"status": "Awaiting review", "count": len(awaiting)},
-            {"status": "Approved", "count": counts["APPROVE"]},
-            {"status": "Escalated", "count": counts["ESCALATE"]},
-            {"status": "Rejected", "count": counts["REJECT"]},
+            {"status": "Awaiting review", "count": len(awaiting),
+             "amount": str(sum((r.amount_total - r.amount_paid for r in awaiting), Decimal(0)))},
+            {"status": "Approved", "count": counts["APPROVE"], "amount": str(exposure["APPROVE"])},
+            {"status": "Escalated", "count": counts["ESCALATE"], "amount": str(exposure["ESCALATE"])},
+            {"status": "Rejected", "count": counts["REJECT"], "amount": str(exposure["REJECT"])},
         ],
         "weekly_decisions": [
             {"week": w.isoformat(), "approved": series[w]["APPROVE"],

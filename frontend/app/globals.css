@@ -116,7 +116,7 @@ html, body {
 .rp-kpis strong{display:block;margin:8px 0 4px;font-size:30px;letter-spacing:-.02em}
 .rp-kpis span{font-size:12.5px;color:#6b6b6b}
 .rp-charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:14px}
-.rp-bar-row{display:grid;grid-template-columns:110px 1fr 36px;gap:10px;align-items:center;margin:12px 0;font-size:13px}
+.rp-bar-row{display:grid;grid-template-columns:110px 1fr 70px;gap:10px;align-items:center;margin:12px 0;font-size:13px}
 .rp-bar-row strong{text-align:right}
 .rp-track{height:10px;background:#f0f0ee;border-radius:5px;overflow:hidden}
 .rp-fill{height:100%;border-radius:5px;transition:width .4s ease}
@@ -144,3 +144,22 @@ html, body {
 .rp-jump{position:fixed;right:20px;bottom:20px;z-index:20;padding:10px 16px;border-radius:999px;background:#0b0b0b;color:#fff;font:500 13px "Geist",system-ui,sans-serif;text-decoration:none;box-shadow:0 4px 16px rgba(0,0,0,.2)}
 .rp-jump:hover{background:#333}
 .portal-shell .reference-frame{min-height:450px}
+
+/* Embedded recovery charts on Cases / Approvals */
+.rp-embedded{padding:0 0 24px;max-width:none;font-family:"Geist",system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}
+.rp-embedded h2{font-size:22px}
+/* Dedicated AI assistant page */
+.ai-page{max-width:900px;margin:0 auto;padding:32px 24px 64px;font-family:"Geist",system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;color:#0b0b0b}
+.ai-page h1{font-size:clamp(30px,4vw,44px);letter-spacing:-.04em;margin:8px 0}
+.ai-chat{display:flex;flex-direction:column;gap:14px;margin-top:18px}
+.ai-thread{display:grid;gap:10px;min-height:340px;align-content:start;background:#fff;border:1px solid #e5e5e2;border-radius:12px;padding:18px}
+.ai-empty h2{margin:0 0 6px;font-size:20px}.ai-empty p{margin:0 0 14px;color:#6b6b6b;font-size:14px;line-height:1.55}
+.ai-form{display:flex;gap:10px}
+.ai-form input{flex:1;min-width:0;height:44px;padding:0 14px;border:1px solid #d9d9d6;border-radius:10px;font:inherit;font-size:14px}
+.ai-form button{height:44px;padding:0 18px;border-radius:10px;border:1px solid #0b0b0b;background:#0b0b0b;color:#fff;font:inherit;font-size:13px;cursor:pointer}
+.ai-form button:disabled{opacity:.5;cursor:not-allowed}
+.ai-form .ai-clear{background:#fff;color:#0b0b0b;border-color:#d9d9d6}
+.rp-chips{display:flex;flex-wrap:wrap;gap:8px}
+.rp-chips button{height:32px;padding:0 14px;font:inherit;font-size:12.5px;border-radius:999px;border:1px solid #d9d9d6;background:#fff;cursor:pointer}
+.rp-chips button:disabled{opacity:.5}
+@media (max-width:520px){.ai-form{flex-wrap:wrap}.ai-form input{flex-basis:100%}}

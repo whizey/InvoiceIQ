@@ -32,6 +32,7 @@ export default function PortalNavigation(){
     {href:"/invoices",label:"Invoices"},
     {href:"/cases",label:"Cases"},
     {href:"/approvals",label:"Approvals"},
+    {href:"/assistant",label:"AI assistant"},
     {href:"/settings",label:"Settings"},
   ];
   return <nav aria-label="Workspace navigation" style={{
@@ -52,9 +53,6 @@ export default function PortalNavigation(){
         style={{padding:"8px 11px",borderRadius:7,fontSize:13,textDecoration:"none",
           color:pathname===link.href?"#fff":"#444",background:pathname===link.href?"#161616":"transparent"}}>
         {link.label}</Link>)}
-      <Link href="/ml" aria-current={pathname==="/ml"?"page":undefined}
-        style={{padding:"8px 11px",borderRadius:7,fontSize:13,textDecoration:"none",
-          color:pathname==="/ml"?"#fff":"#444",background:pathname==="/ml"?"#161616":"transparent"}}>ML intelligence</Link>
       <button type="button" disabled={busy} onClick={signOut}
         style={{marginLeft:6,border:"1px solid #ddd",borderRadius:7,background:"white",padding:"8px 10px",cursor:"pointer"}}>
         {busy?"Signing out…":"Sign out"}</button>
