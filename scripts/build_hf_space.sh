@@ -21,9 +21,10 @@ else
 fi
 cp "$ROOT/scripts/verification/check_model_artifacts.py" "$OUT/scripts/verification/"
 cp "$ROOT/docs/evaluations/model-risk-v1.json" "$OUT/docs/evaluations/"
-# Runtime code only: no tests, local databases or private environment files.
+# Runtime code only: no tests, local databases, private environment files or report images
+# (the PNG charts are written by an offline validation script and never read by the API).
 rsync -a --exclude '.venv' --exclude '__pycache__' --exclude '.env*' --exclude 'tests' --exclude '.pytest_cache' \
-  --exclude '.coverage*' --exclude 'app/ml/experiments' "$ROOT/backend/" "$OUT/backend/"
+  --exclude '.coverage*' --exclude 'app/ml/experiments' --exclude '*.png' "$ROOT/backend/" "$OUT/backend/"
 # Fail early if model files are still Git LFS pointers (run `git lfs pull` first).
 if grep -rIl --include='*.joblib' 'git-lfs.github.com/spec' "$OUT/backend/app/ml/artifacts" 2>/dev/null | head -1 | grep -q .; then
   echo "Model artifacts are LFS pointers; run 'git lfs pull' in the repo first." >&2; exit 1
