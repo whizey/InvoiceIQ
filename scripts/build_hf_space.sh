@@ -1,14 +1,24 @@
 #!/usr/bin/env bash
 # Assemble a Hugging Face Space folder (Docker SDK) containing only what the API image needs.
-# Usage: scripts/build_hf_space.sh [target-dir]   (default: ../InvoiceIQ-hf-space)
+# Usage: scripts/build_hf_space.sh [target-dir] [gradio|docker]   (default: ../InvoiceIQ-hf-space, gradio)
+# `gradio` suits free accounts (the Docker SDK is paid for new accounts); `docker` builds the container image.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="${1:-$ROOT/../InvoiceIQ-hf-space}"
+MODE="${2:-gradio}"
+[ "$MODE" = gradio ] || [ "$MODE" = docker ] || { echo "Mode must be gradio or docker" >&2; exit 1; }
 [ -e "$OUT" ] && { echo "Refusing to overwrite existing $OUT" >&2; exit 1; }
 mkdir -p "$OUT/scripts/verification" "$OUT/docs/evaluations"
-cp "$ROOT/deploy/huggingface/Dockerfile" "$ROOT/deploy/huggingface/README.md" "$ROOT/deploy/huggingface/start.sh" "$OUT/"
-cp "$ROOT/.dockerignore" "$ROOT/.gitattributes" "$OUT/"
-printf '!start.sh\n' >> "$OUT/.dockerignore"   # the repo whitelist predates the Space start script
+cp "$ROOT/.gitattributes" "$OUT/"
+if [ "$MODE" = docker ]; then
+  cp "$ROOT/deploy/huggingface/Dockerfile" "$ROOT/deploy/huggingface/README.md" "$ROOT/deploy/huggingface/start.sh" "$OUT/"
+  cp "$ROOT/.dockerignore" "$OUT/"
+  printf '!start.sh\n' >> "$OUT/.dockerignore"   # the repo whitelist predates the Space start script
+else
+  cp "$ROOT/deploy/huggingface-gradio/README.md" "$ROOT/deploy/huggingface-gradio/app.py" "$OUT/"
+  # CPU-only XGBoost keeps the install small, matching the container image.
+  sed 's/^xgboost==3.4.1$/xgboost-cpu==3.4.1/' "$ROOT/backend/requirements.txt" > "$OUT/requirements.txt"
+fi
 cp "$ROOT/scripts/verification/check_model_artifacts.py" "$OUT/scripts/verification/"
 cp "$ROOT/docs/evaluations/model-risk-v1.json" "$OUT/docs/evaluations/"
 # Runtime code only: no tests, local databases or private environment files.
