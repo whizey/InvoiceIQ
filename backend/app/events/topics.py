@@ -30,3 +30,8 @@ ALL_TOPICS = [
     REVIEW_REQUESTED,
     REVIEW_RESOLVED,
 ]
+
+
+def dead_letter_topic(topic: str) -> str:
+    """Events that fail repeatedly are parked on `<topic>.dlq`."""
+    return f"{topic}.dlq"

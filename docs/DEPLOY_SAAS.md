@@ -37,6 +37,25 @@ request is slow). Data lives in Supabase, so it survives. Supabase pauses idle f
 Neon also works: create a database named `invoiceiq`, remove the `databases:` block from
 `render.saas.yaml` and give `DATABASE_URL` the Neon string instead.
 
+## Optional: event stream (hosted Kafka)
+
+The recovery workflow writes domain events to an outbox; the consumer (`python -m app.events.consumer`)
+turns `risk.scored` into the live high-risk case table and `review.requested` into in-app approval
+alerts. Each event is applied once per `event_id`, so redelivery is harmless. Events that fail three
+times are stored in `dead_letter_events` and published to `<topic>.dlq`.
+
+A Hugging Face Space cannot run a broker, so use a hosted one with a free tier (Upstash Kafka or
+Redpanda Cloud):
+
+1. Create a cluster and the topics `risk.scored`, `review.requested`, `risk.scored.dlq` and
+   `review.requested.dlq` (hosted brokers usually do not auto-create topics).
+2. Set on the API service: `KAFKA_BOOTSTRAP_SERVERS`, `KAFKA_SECURITY_PROTOCOL=SASL_SSL`,
+   `KAFKA_SASL_MECHANISM` (`SCRAM-SHA-256` or `PLAIN`, per the provider), `KAFKA_USERNAME`,
+   `KAFKA_PASSWORD`, and `OUTBOX_DISPATCH_ENABLED=true`.
+3. Run the consumer as a second process with the same variables.
+
+Without these variables the app logs events and the consumer exits, so nothing here is required.
+
 ## Recommended topology
 
 | Piece | Host | Notes |
