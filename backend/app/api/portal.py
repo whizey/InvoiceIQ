@@ -9,17 +9,21 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field, model_validator
-from sqlalchemy import select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
 from app.core.db import get_db
 from app.models.portal import (
     PortalWorkspace, PortalUser, PortalMembership, PortalSession, PortalInvoice, PortalCaseEvent,
     PortalPayment,
 )
+from app.ml.champion_serving import verified_contract
+from app.ml.payment_risk_model import PaymentRiskArtifactError
+from app.services.portal_risk import explain_invoice, provenance, score_workspace
 
 router = APIRouter(prefix="/portal", tags=["customer portal"])
 SHOWCASE_ID = uuid.UUID("60c111be-dde9-4a54-9dcc-f881d0d0aaa1")
@@ -42,6 +46,21 @@ class DecisionInput(BaseModel):
     invoice_id: uuid.UUID
     decision: str
     note: str = Field(min_length=3, max_length=500)
+
+
+class SettingsUpdate(BaseModel):
+    full_name: str | None = Field(default=None, min_length=2, max_length=160)
+    company: str | None = Field(default=None, min_length=2, max_length=160)
+    current_password: str | None = None
+    new_password: str | None = Field(default=None, min_length=12, max_length=256)
+
+    @model_validator(mode="after")
+    def complete_password_change(self):
+        if not any((self.full_name, self.company, self.new_password)):
+            raise ValueError("Choose a setting to update")
+        if self.new_password and not self.current_password:
+            raise ValueError("Current password is required")
+        return self
 
 
 def normalize_email(value: str) -> str:
@@ -157,9 +176,52 @@ async def showcase(db: AsyncSession = Depends(get_db)):
 @router.get("/me")
 async def me(subject=Depends(identity), db: AsyncSession = Depends(get_db)):
     session, workspace = subject
+    membership = (await db.scalar(select(PortalMembership).where(
+        PortalMembership.user_id == session.user_id,
+        PortalMembership.workspace_id == workspace.id,
+    ))) if session.user_id else None
     return {"workspace": workspace.name, "workspace_id": str(workspace.id),
-            "kind": workspace.kind, "role": "visitor" if workspace.kind == "showcase" else "member",
+            "kind": workspace.kind, "role": membership.role if membership else "visitor",
             "user_id": str(session.user_id) if session.user_id else None}
+
+
+@router.get("/settings")
+async def get_settings(subject=Depends(identity), db: AsyncSession = Depends(get_db)):
+    session, workspace = subject
+    if workspace.kind != "customer" or session.user_id is None:
+        raise HTTPException(403, "Account settings require a customer session")
+    user = await db.get(PortalUser, session.user_id)
+    member = await db.scalar(select(PortalMembership).where(
+        PortalMembership.user_id == user.id, PortalMembership.workspace_id == workspace.id))
+    return {"email": user.email, "full_name": user.full_name, "company": workspace.name,
+            "role": member.role, "session_expires_at": session.expires_at.isoformat()}
+
+
+@router.patch("/settings")
+async def update_settings(payload: SettingsUpdate, subject=Depends(identity),
+                          db: AsyncSession = Depends(get_db)):
+    session, workspace = subject
+    if workspace.kind != "customer" or session.user_id is None:
+        raise HTTPException(403, "Account settings require a customer session")
+    user = await db.get(PortalUser, session.user_id)
+    member = await db.scalar(select(PortalMembership).where(
+        PortalMembership.user_id == user.id, PortalMembership.workspace_id == workspace.id))
+    if payload.company is not None:
+        if member.role not in {"owner", "admin"}:
+            raise HTTPException(403, "Workspace administrator required")
+        workspace.name = payload.company.strip()
+    if payload.full_name is not None:
+        user.full_name = payload.full_name.strip()
+    if payload.new_password is not None:
+        if not verify_password(payload.current_password or "", user.password_hash):
+            raise HTTPException(403, "Current password is incorrect")
+        user.password_hash = password_hash(payload.new_password)
+        await db.execute(update(PortalSession).where(
+            PortalSession.user_id == user.id, PortalSession.token_digest != session.token_digest,
+            PortalSession.revoked_at.is_(None),
+        ).values(revoked_at=datetime.now(timezone.utc)))
+    await db.commit()
+    return {"ok": True}
 
 
 @router.delete("/session")
@@ -168,6 +230,50 @@ async def logout(subject=Depends(identity), db: AsyncSession = Depends(get_db)):
     session.revoked_at = datetime.now(timezone.utc)
     await db.commit()
     return {"ok": True}
+
+
+@router.get("/intelligence")
+async def intelligence(subject=Depends(identity), db: AsyncSession = Depends(get_db)):
+    _, workspace = subject
+    try:
+        contract = await run_in_threadpool(verified_contract)
+    except PaymentRiskArtifactError as exc:
+        raise HTTPException(503, "Verified model artifact unavailable") from exc
+    invoices = (await db.scalars(select(PortalInvoice).where(
+        PortalInvoice.workspace_id == workspace.id).order_by(
+            PortalInvoice.risk_probability.desc().nullslast()).limit(2001))).all()
+    if len(invoices) > 2000:
+        raise HTTPException(422, "Model intelligence supports at most 2,000 invoices")
+    valid = [invoice for invoice in invoices if invoice.risk_probability is not None
+             and invoice.risk_provenance == provenance(contract)]
+    return {"workspace": workspace.name, "kind": workspace.kind,
+            "model_version": contract["version"], "artifact_sha256": contract["artifact_sha256"],
+            "total": len(invoices), "scored": len(valid),
+            "invoices": [{"id": str(row.id), "number": row.invoice_number,
+                          "counterparty": row.counterparty,
+                          "probability": str(row.risk_probability),
+                          "balance": str(row.amount_total - row.amount_paid)} for row in valid[:50]]}
+
+
+@router.get("/intelligence/{invoice_id}")
+async def invoice_intelligence(invoice_id: uuid.UUID, subject=Depends(identity),
+                               db: AsyncSession = Depends(get_db)):
+    _, workspace = subject
+    return await explain_invoice(db, workspace.id, invoice_id)
+
+
+@router.post("/score")
+async def score_customer_workspace(subject=Depends(identity), db: AsyncSession = Depends(get_db)):
+    session, workspace = subject
+    if workspace.kind != "customer" or session.user_id is None:
+        raise HTTPException(403, "Only a customer administrator may score invoices")
+    role = await db.scalar(select(PortalMembership.role).where(
+        PortalMembership.workspace_id == workspace.id, PortalMembership.user_id == session.user_id))
+    if role not in {"owner", "admin"}:
+        raise HTTPException(403, "Workspace administrator required")
+    result = await score_workspace(db, workspace.id)
+    await db.commit()
+    return result
 
 
 def invoice_json(row):
@@ -189,10 +295,11 @@ async def overview(subject=Depends(identity), db: AsyncSession = Depends(get_db)
     open_balance = sum((r.amount_total - r.amount_paid for r in invoices), Decimal(0))
     overdue = sum((r.amount_total - r.amount_paid for r in invoices if r.due_date < today), Decimal(0))
     paid = sum((r.amount_paid for r in invoices), Decimal(0))
-    events = (await db.scalars(select(PortalCaseEvent).where(
-        PortalCaseEvent.workspace_id == workspace.id,
-        PortalCaseEvent.actor_scope == (str(session.user_id) if session.user_id else session.token_digest),
-    ).order_by(PortalCaseEvent.created_at.desc()).limit(100))).all()
+    event_scope = [PortalCaseEvent.workspace_id == workspace.id]
+    if workspace.kind == "showcase":
+        event_scope.append(PortalCaseEvent.actor_scope == session.token_digest)
+    events = (await db.scalars(select(PortalCaseEvent).where(*event_scope)
+                               .order_by(PortalCaseEvent.created_at.desc()).limit(100))).all()
     return {"workspace": workspace.name, "kind": workspace.kind,
             "provenance": "Illustrative, isolated showcase records" if workspace.kind == "showcase" else "Customer workspace",
             "metrics": {"invoiced": str(invoiced), "open": str(open_balance), "overdue": str(overdue),
@@ -203,6 +310,35 @@ async def overview(subject=Depends(identity), db: AsyncSession = Depends(get_db)
             "total": len(invoices),
             "actions": [{"id": str(e.id), "invoice_id": str(e.invoice_id), "decision": e.decision,
                          "note": e.note, "created_at": e.created_at.isoformat()} for e in events]}
+
+
+@router.get("/invoices")
+async def list_portal_invoices(
+    q: str = Query(default="", max_length=160),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=25, ge=1, le=100),
+    sort: str = Query(default="posting_desc", pattern="^(posting_desc|posting_asc|due_asc|due_desc|number_asc)$"),
+    subject=Depends(identity), db: AsyncSession = Depends(get_db),
+):
+    _, workspace = subject
+    filters = [PortalInvoice.workspace_id == workspace.id]
+    if q.strip():
+        term = f"%{q.strip().replace('%', r'\%').replace('_', r'\_')}%"
+        filters.append(or_(PortalInvoice.invoice_number.ilike(term, escape="\\"),
+                           PortalInvoice.counterparty.ilike(term, escape="\\")))
+    order = {
+        "posting_desc": PortalInvoice.posting_date.desc(),
+        "posting_asc": PortalInvoice.posting_date.asc(),
+        "due_asc": PortalInvoice.due_date.asc(),
+        "due_desc": PortalInvoice.due_date.desc(),
+        "number_asc": PortalInvoice.invoice_number.asc(),
+    }[sort]
+    total = await db.scalar(select(func.count()).select_from(PortalInvoice).where(*filters)) or 0
+    rows = (await db.scalars(select(PortalInvoice).where(*filters)
+                             .order_by(order, PortalInvoice.id)
+                             .offset((page - 1) * page_size).limit(page_size))).all()
+    return {"invoices": [invoice_json(row) for row in rows], "total": total,
+            "page": page, "page_size": page_size}
 
 
 @router.post("/decisions", status_code=201)
@@ -290,7 +426,6 @@ async def import_invoices(batch: ImportBatch, subject=Depends(identity), db: Asy
 
 
 from typing import Annotated  # noqa: E402
-from fastapi import Query  # noqa: E402
 from app.schemas.preserved_dashboard import DashboardSelection  # noqa: E402
 from app.services.portal_dashboard import build_portal_dashboard  # noqa: E402
 

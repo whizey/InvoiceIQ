@@ -84,3 +84,13 @@ CLAUDE.md
 /backend/app/ml/artifacts/b2b_v2/calibration/oof_predictions.csv.gz
 /backend/app/ml/artifacts/bpi_survival/policy_backtest_fold_0_cases.csv.gz
 /backend/app/ml/artifacts/stage3_validation/b2b/temporal_predictions.csv.gz
+# Private test environment
+/backend/.env.test
+
+# Historical coding-assistant source snapshots and one-off patch material.
+*_for_claude.txt
+*claude*terminal*.txt
+*claude*verification*.txt
+recoveriq_final18_pretrain_audit.txt
+recoveriq_payment_risk_audit_bundle.txt
+gate_patch.py

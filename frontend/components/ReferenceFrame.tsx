@@ -13,6 +13,7 @@ export default function ReferenceFrame({ page, portal = false }: { page: Page; p
     const sync = () => {
       const params = new URLSearchParams(window.location.search);
       params.delete("scenario");
+      if (portal) params.set("portal", "1");
       if (!params.has("sort")) params.set("sort", "posting_desc");
       if (!params.has("preset") && !params.has("start_date") && !params.has("end_date")) {
         const now = new Date();
@@ -27,7 +28,7 @@ export default function ReferenceFrame({ page, portal = false }: { page: Page; p
     sync();
     window.addEventListener("popstate", sync);
     return () => window.removeEventListener("popstate", sync);
-  }, []);
+  }, [portal]);
 
   // Turn same-origin sidebar links into real top-level Next.js navigation
   // so Back works. Do not rewrite the preserved reference HTML or its KPIs.
@@ -40,6 +41,12 @@ export default function ReferenceFrame({ page, portal = false }: { page: Page; p
       detach();
       const doc=iframe.contentDocument;
       if(!doc)return;
+      if(page==="overview"&&!doc.getElementById("portal-kpi-spacing")){
+        const style=doc.createElement("style");
+        style.id="portal-kpi-spacing";
+        style.textContent='@media (min-width: 900px) and (max-width: 1700px) { section[aria-label="Key metrics"] { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; } }';
+        doc.head.append(style);
+      }
       const navigate=(event:MouseEvent)=>{
         if(event.defaultPrevented||event.button!==0||event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;
         const element=event.target;
@@ -53,6 +60,7 @@ export default function ReferenceFrame({ page, portal = false }: { page: Page; p
         if(!["/","/invoices","/cases","/approvals"].includes(destination.pathname))return;
         event.preventDefault();
         event.stopPropagation();
+        destination.searchParams.delete("portal");
         router.push((destination.pathname==="/"?"/workspace-dashboard":destination.pathname)+destination.search+destination.hash);
       };
       doc.addEventListener("click",navigate,true);
@@ -61,7 +69,7 @@ export default function ReferenceFrame({ page, portal = false }: { page: Page; p
     iframe.addEventListener("load",attach);
     attach();
     return()=>{detach();iframe.removeEventListener("load",attach)};
-  },[portal,query,router]);
+  },[page,portal,query,router]);
 
   if (query === null) {
     return <p role="status" style={{ padding:24, color:"#666" }}>Loading dashboard…</p>;

@@ -34,6 +34,11 @@ async def corpus(monkeypatch):
         from app.models.base import Base
 
         for table in reversed(Base.metadata.sorted_tables):
+            # The observed-history coverage marker belongs to the migration,
+            # not to this corpus fixture. Removing it makes later real as-of
+            # queries correctly report history unavailable on suite reruns.
+            if table.name == "analytics_history_state":
+                continue
             await session.execute(delete(table))
         if await session.get(DatasetImport, "public_b2b_dataset") is None:
             import hashlib

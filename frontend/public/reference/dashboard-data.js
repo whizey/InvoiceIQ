@@ -30,6 +30,7 @@
   function link(logic, extra, path) {
     const q = new URLSearchParams(logic.query);q.delete('page');
     for (const [k,v] of Object.entries(extra || {})) { if(v)q.set(k,v);else q.delete(k); }
+    if(logic.query.get('portal')==='1' && (!path || path==='/invoices')) q.set('view','analytics');
     return (path || '/invoices') + '?' + q;
   }
   function vals(logic) {
@@ -104,7 +105,7 @@
     const riskKeys=['0–20%','20–40','40–60','60–80','80–100','Not scored'];
     const riskMax=Math.max(1,...(d?.risk||[]).map(r=>r.count));
     const risk=riskKeys.map((b,i)=>{const a=d?.risk.find(r=>r.key===b);return{b,n:d?.historical_available?n(a?.count):'—',h:d?.historical_available?(a?.count||0)/riskMax*120:0,style:i===5?'background: repeating-linear-gradient(135deg,#BDBDBA 0 2px,#FFFFFF 2px 6px); border: 1px dashed #8A8A87':'background: '+(i===4?accent:i===3?'#3F3F3F':'#8A8A87')};});
-    const top=(d?.top||[]).map(t=>({name:t.name,id:t.id,inv:t.count+' open',open:fmt(t.open),od:fmt(t.overdue),share:Number(m.overdue)?Number(t.overdue)/Number(m.overdue)*100:0,dpd:t.oldest+' d',risk:t.risk==null?'Not scored':Number(t.risk).toFixed(2),case:'See invoices',href:link(logic,{company_id:t.id})}));
+    const top=(d?.top||[]).map(t=>({name:t.name,id:t.id,inv:t.count+' open',open:fmt(t.open),od:fmt(t.overdue),share:Number(m.overdue)?Number(t.overdue)/Number(m.overdue)*100:0,dpd:t.oldest+' d',risk:t.risk==null?'Not scored':Number(t.risk).toFixed(2),case:'See invoices',href:link(logic,logic.query.get('portal')==='1'?{company_search:t.name}:{company_id:t.id})}));
     const weeks=[];const dayEnd=new Date((d?.as_of||'2000-01-01')+'T00:00:00Z');dayEnd.setUTCDate(dayEnd.getUTCDate()-((dayEnd.getUTCDay()+6)%7)+6);
     const first=new Date(dayEnd);first.setUTCDate(first.getUTCDate()-181);
     const heatMax=Math.max(1,...(d?.daily||[]).map(r=>Math.abs(Number(r.amount))));const shades=['#EDEDEB','#C9C9C6','#8A8A87','#3F3F3F','#0B0B0B'];
@@ -265,7 +266,7 @@
     return String(period);
   }
 
-  function change(logic, values){for(const[k,v]of Object.entries(values)){if(v)logic.query.set(k,v);else logic.query.delete(k);}if(!('page'in values))logic.query.delete('page');const query=logic.query.toString();global.history.replaceState(null,'','?'+query);if(global.parent!==global)global.parent.history.replaceState(null,'',global.parent.location.pathname+'?'+query);load(logic);}
+  function change(logic, values){for(const[k,v]of Object.entries(values)){if(v)logic.query.set(k,v);else logic.query.delete(k);}if(!('page'in values))logic.query.delete('page');const query=logic.query.toString();global.history.replaceState(null,'','?'+query);if(global.parent!==global){const topQuery=new URLSearchParams(query);topQuery.delete('portal');global.parent.history.replaceState(null,'',global.parent.location.pathname+'?'+topQuery);}load(logic);}
   // Only query filters share data. Unknown parameters are treated as scope boundaries.
   function scope(query) {
     const filters = new Set(['start_date','end_date','as_of','compare_date','grain','date_basis','status','risk','search','sort','page','page_size','preset','case_id']);
@@ -282,7 +283,7 @@
     logic.setState({loading:true,error:'',data:logic.loadedScope === currentScope ? logic.state.data : null});
     try {
       const params = new URLSearchParams(query);
-      for (const key of ['preset','case_id']) params.delete(key);
+      for (const key of ['preset','case_id','portal']) params.delete(key);
       const response = await fetch('/api/finance/overview?' + params, {signal:controller.signal,cache:'no-store'});
       const data = await response.json().catch(() => null);
       if (!response.ok) throw Object.assign(new Error(typeof data?.detail === 'string' ? data.detail : 'HTTP ' + response.status), {status:response.status});
