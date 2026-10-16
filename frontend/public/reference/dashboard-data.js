@@ -96,7 +96,7 @@
     const portalRec = logic.query.get('portal')==='1' ? logic.portalRecovery : null;
     const pipeline = scenarioData?.pipeline || (portalRec ? {awaiting:portalRec.kpis.awaiting_review,escalated:portalRec.kpis.escalated,approved:portalRec.kpis.approved,rejected:portalRec.kpis.rejected,exposure:Number(portalRec.kpis.case_exposure)*100,real:true} : undefined);
     const bridgeKeys=['openStart','invoiced','collected','writtenOff','openEnd'];
-    const portalBridge=d?.bridge?{openStart:Number(d.bridge.opening),invoiced:Number(d.bridge.invoiced),collected:Number(d.bridge.collected),writtenOff:Number(d.bridge.written_off),openEnd:Number(d.bridge.closing)}:null;
+    const portalBridge=(!scenarioData&&d?.bridge?.start_date&&d.bridge.end_date&&d.bridge.opening!==undefined)?{openStart:Number(d.bridge.opening),invoiced:Number(d.bridge.invoiced),collected:Number(d.bridge.collected),writtenOff:Number(d.bridge.written_off),openEnd:Number(d.bridge.closing)}:null;
     const bridge=scenarioData?.bridge||portalBridge;
     const bridgeValues=bridgeKeys.map(key=>Number(bridge?.[key]||0));
     const bridgeMax=Math.max(1,...bridgeValues);
