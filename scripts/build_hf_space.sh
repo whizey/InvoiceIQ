@@ -28,6 +28,11 @@ rsync -a --exclude '.venv' --exclude '__pycache__' --exclude '.env*' --exclude '
 if grep -rIl --include='*.joblib' 'git-lfs.github.com/spec' "$OUT/backend/app/ml/artifacts" 2>/dev/null | head -1 | grep -q .; then
   echo "Model artifacts are LFS pointers; run 'git lfs pull' in the repo first." >&2; exit 1
 fi
+# Hugging Face rejects binary files that are not stored through Git LFS/Xet.
+for pattern in '*.png' '*.jpg' '*.jpeg' '*.gif' '*.ico' '*.pdf' '*.gz' '*.zip' '*.bin' '*.npy' '*.npz' '*.onnx' '*.pt' '*.h5' '*.woff' '*.woff2'; do
+  grep -qxF "$pattern filter=lfs diff=lfs merge=lfs -text" "$OUT/.gitattributes" \
+    || printf '%s filter=lfs diff=lfs merge=lfs -text\n' "$pattern" >> "$OUT/.gitattributes"
+done
 cd "$OUT"
 git init -q -b main
 git lfs install --local >/dev/null
