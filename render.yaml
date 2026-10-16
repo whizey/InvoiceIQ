@@ -1,34 +1,34 @@
-# Portfolio demo only. Syncing this Blueprint creates paid resources; obtain
+# Portfolio sample only. Syncing this Blueprint creates paid resources; obtain
 # owner approval first. All financial records are generated synthetic fixtures.
 previews:
   generation: "off"
 
 databases:
-  - name: invoiceiq-portfolio-demo-db
-    databaseName: invoiceiq_demo
-    user: invoiceiq_demo
+  - name: invoiceiq-portfolio-sample-db
+    databaseName: invoiceiq_sample
+    user: invoiceiq_sample
     region: singapore
     plan: 0.1c-256mb
     ipAllowList: []
 
 services:
   - type: pserv
-    name: invoiceiq-portfolio-demo-api
+    name: invoiceiq-portfolio-sample-api
     runtime: docker
     region: singapore
     plan: 1c-2g
     dockerfilePath: ./backend/Dockerfile
     dockerContext: .
     autoDeployTrigger: "off"
-    preDeployCommand: python -m scripts.initialize_synthetic_demo
+    preDeployCommand: python -m scripts.initialize_synthetic_sample
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: invoiceiq-portfolio-demo-db
+          name: invoiceiq-portfolio-sample-db
           property: connectionString
       - key: ENV
         value: staging
-      - key: DEMO_SYNTHETIC
+      - key: SAMPLE_SYNTHETIC
         value: "true"
       - key: PUBLIC_READ_ONLY
         value: "true"
@@ -42,19 +42,19 @@ services:
         value: "false"
 
   - type: web
-    name: invoiceiq-portfolio-demo-web
+    name: invoiceiq-portfolio-sample-web
     runtime: docker
     region: singapore
     plan: 0.5c-512mb
     dockerfilePath: ./frontend/Dockerfile
     dockerContext: ./frontend
     autoDeployTrigger: "off"
-    healthCheckPath: /api/demo/ready
+    healthCheckPath: /api/sample/ready
     envVars:
       - key: API_BASE_URL
         fromService:
           type: pserv
-          name: invoiceiq-portfolio-demo-api
+          name: invoiceiq-portfolio-sample-api
           property: hostport
-      - key: INVOICEIQ_DEMO_SYNTHETIC
+      - key: INVOICEIQ_SAMPLE_SYNTHETIC
         value: "true"

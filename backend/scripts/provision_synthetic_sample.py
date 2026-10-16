@@ -11,7 +11,7 @@ from sqlalchemy.engine import make_url
 
 from scripts.test_database_safety import CONTAINER, docker, inspect_container, verify
 
-DEMO = "invoiceiq_demo_test"
+SAMPLE = "invoiceiq_sample_test"
 
 
 async def exists(raw, name):
@@ -33,22 +33,22 @@ def main():
     base = make_url(raw)
     if base.database != "invoiceiq_test":
         raise RuntimeError("The source connection must be the verified primary test database")
-    if asyncio.run(exists(raw, DEMO)):
-        raise RuntimeError("Synthetic demo database already exists; refusing to replace or reseed it")
+    if asyncio.run(exists(raw, SAMPLE)):
+        raise RuntimeError("Synthetic sample database already exists; refusing to replace or reseed it")
     container_id = inspect_container(json.loads(docker("inspect", CONTAINER))[0])
-    subprocess.run(["docker", "exec", container_id, "createdb", "-U", base.username, DEMO], check=True)
-    demo_url = base.set(database=DEMO).render_as_string(hide_password=False)
-    verify(demo_url)
-    env = dict(os.environ, DATABASE_URL=demo_url, PUBLIC_READ_ONLY="false",
-               DEMO_SYNTHETIC="false", SCHEDULER_ENABLED="false",
+    subprocess.run(["docker", "exec", container_id, "createdb", "-U", base.username, SAMPLE], check=True)
+    sample_url = base.set(database=SAMPLE).render_as_string(hide_password=False)
+    verify(sample_url)
+    env = dict(os.environ, DATABASE_URL=sample_url, PUBLIC_READ_ONLY="false",
+               SAMPLE_SYNTHETIC="false", SCHEDULER_ENABLED="false",
                OUTBOX_DISPATCH_ENABLED="false", GOOGLE_API_KEY="", OPENAI_API_KEY="",
                GROQ_API_KEY="", RESEND_API_KEY="", SARVAM_API_KEY="", REDIS_URL="",
                KAFKA_BOOTSTRAP_SERVERS="")
     for command in ([sys.executable, "-m", "alembic", "upgrade", "head"],
                     [sys.executable, "-m", "app.seed.run"],
-                    [sys.executable, "-m", "app.seed.synthetic_demo"]):
+                    [sys.executable, "-m", "app.seed.synthetic_sample"]):
         subprocess.run(command, env=env, check=True)
-    print("Provisioned one isolated synthetic demo database")
+    print("Provisioned one isolated synthetic sample database")
 
 
 if __name__ == "__main__":

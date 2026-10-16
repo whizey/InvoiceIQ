@@ -40,8 +40,8 @@ async def lifespan(app: FastAPI):
         extra={"provider": provider, "model": model, "llm_called": False},
     )
     public = os.getenv("PUBLIC_READ_ONLY", "").lower() == "true"
-    if os.getenv("DEMO_SYNTHETIC", "").lower() == "true" and not public:
-        raise RuntimeError("Synthetic demo requires PUBLIC_READ_ONLY=true")
+    if os.getenv("SAMPLE_SYNTHETIC", "").lower() == "true" and not public:
+        raise RuntimeError("Synthetic sample requires PUBLIC_READ_ONLY=true")
     if not public:
         start_scheduler()
     dispatcher = None

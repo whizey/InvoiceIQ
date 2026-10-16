@@ -13,7 +13,7 @@ def target(monkeypatch, database, explicit=None):
 
 
 def test_default_guard_accepts_only_disposable_names(monkeypatch):
-    target(monkeypatch, "invoiceiq_demo")
+    target(monkeypatch, "invoiceiq_sample")
     validate_target()
     target(monkeypatch, "invoiceiq")
     with pytest.raises(RuntimeError, match="restricted"):
@@ -32,7 +32,7 @@ def test_deployment_can_opt_in_to_exactly_one_named_database(monkeypatch):
 
 
 def test_showcase_flag_is_still_required(monkeypatch):
-    target(monkeypatch, "invoiceiq_demo")
+    target(monkeypatch, "invoiceiq_sample")
     monkeypatch.setenv("INVOICEIQ_PORTAL_SHOWCASE", "false")
     with pytest.raises(RuntimeError, match="explicitly"):
         validate_target()

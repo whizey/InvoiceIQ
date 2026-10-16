@@ -1,4 +1,4 @@
-"""Standalone demo consumer — proves Kafka messages are actually flowing.
+"""Standalone sample consumer — proves Kafka messages are actually flowing.
 
 Not part of the FastAPI app's request path. V1 has no long-running consumer
 driving the app itself (see docs/ARCHITECTURE.md) — this is
@@ -24,7 +24,7 @@ async def main() -> None:
     consumer = AIOKafkaConsumer(
         *ALL_TOPICS,
         bootstrap_servers=settings.kafka_bootstrap_servers,
-        group_id="demo-consumer",
+        group_id="sample-consumer",
         auto_offset_reset="earliest",
     )
     await consumer.start()
@@ -34,7 +34,7 @@ async def main() -> None:
         async for message in consumer:
             payload = json.loads(message.value.decode("utf-8"))
             # Domain events may include private predictions and invoice facts.
-            # This observational demo never dumps payloads or executes actions.
+            # This observational sample never dumps payloads or executes actions.
             event_id = payload.get("event_id") if isinstance(payload, dict) else None
             print(f"[{message.topic}] event_id={event_id or 'legacy'} received", flush=True)
     finally:

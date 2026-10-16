@@ -113,7 +113,7 @@ HTML templates are visual references, not evidence of a deployed, connected app.
 ## Safety and limitations
 
 InvoiceIQ does not process bank payments. The payment simulation endpoint is a
-demo operation. ML outputs are predictive associations and do not replace
+sample operation. ML outputs are predictive associations and do not replace
 financial reconciliation. The `PUBLIC_READ_ONLY` mode has separate data and
 write restrictions. Existing repository history and the current working tree
 must pass the privacy checks before publication. Current blockers and exact

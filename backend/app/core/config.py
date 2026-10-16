@@ -88,17 +88,17 @@ class Settings(BaseSettings):
     scheduler_interval_seconds: int = 60
     scheduler_initial_delay_seconds: int = 5
 
-    # Real-reminder-email demo (see app/tools/email_provider.py). The ONLY
+    # Real-reminder-email sample (see app/tools/email_provider.py). The ONLY
     # allowed destination for a real send is this address — never a seeded
     # contact's @example.com. If unset, the send-reminder endpoint errors
     # rather than silently falling back to a fake address.
-    demo_notify_email: str | None = None
+    sample_notify_email: str | None = None
     # If unset, the endpoint still runs (policy still gates it) but records
     # a SIMULATED CommunicationLog instead of calling Resend.
     resend_api_key: str | None = None
     resend_from: str | None = None
 
-    # Hinglish voice-call demo (see app/tools/sarvam_client.py). If unset,
+    # Hinglish voice-call sample (see app/tools/sarvam_client.py). If unset,
     # calls run as a fully simulated (text-only, no audio) turn sequence.
     sarvam_api_key: str | None = None
 
@@ -108,7 +108,7 @@ class Settings(BaseSettings):
         "groq_api_key",
         "groq_model",
         "llm_model",
-        "demo_notify_email",
+        "sample_notify_email",
         "resend_api_key",
         "resend_from",
         "sarvam_api_key",

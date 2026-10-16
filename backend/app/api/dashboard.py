@@ -83,16 +83,16 @@ async def analytics_calendar(db: AsyncSession = Depends(get_db)) -> dict:
     from zoneinfo import ZoneInfo
     from app.core.config import settings
     import os
-    if os.getenv("DEMO_SYNTHETIC", "").lower() == "true":
+    if os.getenv("SAMPLE_SYNTHETIC", "").lower() == "true":
         from app.core.analytics_auth import require_analytics
         from app.models import DatasetImport
-        from app.seed.synthetic_demo import MARKER
+        from app.seed.synthetic_sample import MARKER
         await require_analytics(None, db)
         imported = await db.get(DatasetImport, MARKER)
         return {"business_timezone": settings.business_timezone,
                 "today": imported.dataset_as_of.isoformat(),
                 "dataset_as_of": imported.dataset_as_of.isoformat(),
-                "default_period": "3M", "data_mode": "synthetic_demo",
+                "default_period": "3M", "data_mode": "synthetic_sample",
                 "workflow_mode": "simulated actions with human approval",
                 "llm_mode": "deterministic_fallback"}
     if os.getenv("PUBLIC_READ_ONLY", "").lower() == "true":

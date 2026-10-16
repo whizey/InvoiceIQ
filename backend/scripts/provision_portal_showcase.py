@@ -26,14 +26,14 @@ def validate_target():
     if os.getenv("INVOICEIQ_PORTAL_SHOWCASE", "").lower() != "true":
         raise RuntimeError("Set INVOICEIQ_PORTAL_SHOWCASE=true explicitly")
     database = make_url(os.environ["DATABASE_URL"]).database
-    allowed = {"invoiceiq_demo", "invoiceiq_demo_test", "invoiceiq_portal_test"}
+    allowed = {"invoiceiq_sample", "invoiceiq_sample_test", "invoiceiq_portal_test"}
     # A deployment may deliberately name one extra database (for example `invoiceiq`) by
     # setting INVOICEIQ_SHOWCASE_DATABASE to exactly that name; the default stays strict.
     explicit = os.getenv("INVOICEIQ_SHOWCASE_DATABASE", "").strip()
     if explicit:
         allowed.add(explicit)
     if database not in allowed:
-        raise RuntimeError("STOP: showroom provisioning is restricted to disposable demo databases")
+        raise RuntimeError("STOP: showroom provisioning is restricted to disposable sample databases")
 
 
 async def seed_baseline_decisions(db) -> int:
@@ -74,8 +74,8 @@ async def seed_baseline_decisions(db) -> int:
 
 async def main(*, refresh: bool = False):
     validate_target()
-    if refresh and make_url(os.environ["DATABASE_URL"]).database != "invoiceiq_demo_test":
-        raise RuntimeError("Refreshing existing showcase records is restricted to the disposable demo test database")
+    if refresh and make_url(os.environ["DATABASE_URL"]).database != "invoiceiq_sample_test":
+        raise RuntimeError("Refreshing existing showcase records is restricted to the disposable sample test database")
     try:
         async with async_session_factory() as db:
             workspace = await db.get(PortalWorkspace, SHOWCASE_ID)
@@ -153,5 +153,5 @@ async def main(*, refresh: bool = False):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--refresh", action="store_true", help="Update only the verified disposable demo test showcase")
+    parser.add_argument("--refresh", action="store_true", help="Update only the verified disposable sample test showcase")
     asyncio.run(main(refresh=parser.parse_args().refresh))

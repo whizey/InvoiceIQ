@@ -19,11 +19,11 @@ invoice tables.
 - Production requires rate limits, email verification/password resets, invitations,
   payment integrations, security testing and validated tenant-scoped upload paths.
 - The portal database schema is append-only relative to legacy financial tables.
-- The public showcase must use its own PostgreSQL database named `invoiceiq_demo`.
+- The public showcase must use its own PostgreSQL database named `invoiceiq_sample`.
   Run `alembic upgrade head` there, then **explicitly** run
   `INVOICEIQ_PORTAL_SHOWCASE=true python -m scripts.provision_portal_showcase`.
-  Provisioning refuses database names other than `invoiceiq_demo`,
-  `invoiceiq_demo_test`, or `invoiceiq_portal_test`.
+  Provisioning refuses database names other than `invoiceiq_sample`,
+  `invoiceiq_sample_test`, or `invoiceiq_portal_test`.
 - For a showcase backend, `PUBLIC_READ_ONLY` must remain **false** because the
   portal writes isolated audit decisions, while `INVOICEIQ_PORTAL_ENABLED=true`
   blocks all legacy financial API writes. This is **not** the old public financial

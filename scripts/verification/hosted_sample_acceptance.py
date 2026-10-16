@@ -1,4 +1,4 @@
-"""Post-approval HTTP acceptance for the public, read-only synthetic demo.
+"""Post-approval HTTP acceptance for the public, read-only synthetic sample.
 
 Run with --url https://<public-render-host>. No credentials are accepted or logged.
 Private API, database, browser, and session lifecycle checks require separate
@@ -29,7 +29,7 @@ def public_origin(value: str) -> str:
     except ValueError:
         pass
     else:
-        raise ValueError("An IP address is not an approved public demo host")
+        raise ValueError("An IP address is not an approved public sample host")
     return f"https://{host}"
 
 
@@ -66,9 +66,9 @@ def acceptance(origin: str) -> None:
     page, _ = require_status(origin, "/", 200)
     if "InvoiceIQ" not in page:
         raise RuntimeError("Homepage does not identify InvoiceIQ")
-    ready, _ = require_status(origin, "/api/demo/ready", 200)
+    ready, _ = require_status(origin, "/api/sample/ready", 200)
     if ready != {"ready": True}:
-        raise RuntimeError("Synthetic demo provenance/readiness is unavailable")
+        raise RuntimeError("Synthetic sample provenance/readiness is unavailable")
     dashboard, headers = require_status(origin, "/api/finance/overview?page_size=100", 200)
     if "no-store" not in headers.get("Cache-Control", ""):
         raise RuntimeError("Financial response is cacheable")
@@ -104,7 +104,7 @@ def acceptance(origin: str) -> None:
     if filtered.get("metrics") is None or filtered.get("invoices") is None:
         raise RuntimeError("Invoice filtering is unavailable")
     for path, method, body in (
-        ("/api/session", "POST", b'{"token":"invalid-demo-credential"}'),
+        ("/api/session", "POST", b'{"token":"invalid-sample-credential"}'),
         ("/api/review-requests", "POST", b"{}"),
         ("/api/reviewer/reviews/00000000-0000-0000-0000-000000000001/approve", "POST", b"{}"),
     ):
@@ -122,7 +122,7 @@ def main() -> None:
     try:
         acceptance(public_origin(args.url))
     except (ValueError, KeyError, TypeError, RuntimeError, URLError, socket.timeout) as error:
-        parser.exit(1, f"FAIL: hosted demo acceptance: {error}\n")
+        parser.exit(1, f"FAIL: hosted sample acceptance: {error}\n")
 
 
 if __name__ == "__main__":

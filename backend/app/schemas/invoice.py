@@ -54,7 +54,7 @@ class InvoiceOut(BaseModel):
 
 
 class SimulatePaymentIn(BaseModel):
-    """Demo/mock payment simulation — not a real payment gateway webhook.
+    """Sample/mock payment simulation — not a real payment gateway webhook.
 
     amount defaults to the full outstanding balance when omitted.
     """

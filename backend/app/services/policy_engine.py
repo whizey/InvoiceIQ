@@ -21,7 +21,7 @@ ESCALATION_DAYS_THRESHOLD = 45
 _REMINDER_ACTIONS = (RecoveryActionType.SEND_EMAIL, RecoveryActionType.SEND_PAYMENT_LINK)
 
 # Machine-readable tags for each branch below, persisted on PolicyDecision.rule
-# so live cycles and hand-seeded demo data (app/seed/run.py) can be aggregated
+# so live cycles and hand-seeded sample data (app/seed/run.py) can be aggregated
 # together for the AI-oversight dashboard (app/services/metrics.py). Keep
 # these in sync with seed/run.py's hand-authored rows — both must use the
 # exact same strings for the rollup to be meaningful.

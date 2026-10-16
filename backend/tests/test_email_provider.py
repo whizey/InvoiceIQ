@@ -18,7 +18,7 @@ def test_get_email_provider_is_simulated_when_unconfigured():
 
 def test_get_email_provider_is_resend_once_configured(monkeypatch):
     monkeypatch.setattr(settings, "resend_api_key", "re_fake_key")
-    monkeypatch.setattr(settings, "resend_from", "demo@example.com")
+    monkeypatch.setattr(settings, "resend_from", "sample@example.com")
     provider = get_email_provider()
     assert isinstance(provider, ResendEmailProvider)
 
@@ -36,7 +36,7 @@ async def test_resend_provider_sends_with_correct_payload():
     mock_response.raise_for_status = MagicMock()
     mock_post = AsyncMock(return_value=mock_response)
 
-    provider = ResendEmailProvider(api_key="re_fake", from_address="demo@example.com")
+    provider = ResendEmailProvider(api_key="re_fake", from_address="sample@example.com")
     with patch("httpx.AsyncClient.post", new=mock_post):
         status = await provider.send(to="test@example.com", subject="hello", body="world")
 
@@ -45,13 +45,13 @@ async def test_resend_provider_sends_with_correct_payload():
     assert args[0] == "https://api.resend.com/emails"
     assert kwargs["headers"]["Authorization"] == "Bearer re_fake"
     assert kwargs["json"]["to"] == ["test@example.com"]
-    assert kwargs["json"]["from"] == "demo@example.com"
+    assert kwargs["json"]["from"] == "sample@example.com"
 
 
 @pytest.mark.asyncio
 async def test_resend_provider_failure_returns_failed_not_raise():
     mock_post = AsyncMock(side_effect=RuntimeError("network down"))
-    provider = ResendEmailProvider(api_key="re_fake", from_address="demo@example.com")
+    provider = ResendEmailProvider(api_key="re_fake", from_address="sample@example.com")
     with patch("httpx.AsyncClient.post", new=mock_post):
         status = await provider.send(to="test@example.com", subject="s", body="b")
     assert status == "FAILED"

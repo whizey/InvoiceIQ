@@ -1,4 +1,4 @@
-"""Private, pinned replay of validated provider responses; never author demo answers."""
+"""Private, pinned replay of validated provider responses; never author sample answers."""
 import hashlib
 import json
 import os

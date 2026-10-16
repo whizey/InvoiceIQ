@@ -1,11 +1,11 @@
-"""Seed the database with a realistic, narrative demo dataset.
+"""Seed the database with a realistic, narrative sample dataset.
 
 Run with:  python -m app.seed.run
 
 This clears all domain tables first, so it is safe to re-run at any time —
 each run rebuilds the same story with dates recalculated relative to
 "today", so scenarios like "5 days overdue" stay true no matter when you
-seed. This is demo/dev data only; it is not the synthetic *training* set
+seed. This is sample/dev data only; it is not the synthetic *training* set
 used for the Phase 6 ML model (that will be generated separately, at a
 larger scale, purely for model fitting).
 """
@@ -101,9 +101,9 @@ async def create_companies(session: AsyncSession) -> dict[str, tuple[Company, di
             name=spec.name,
             industry=spec.industry,
             segment=spec.segment,
-            region="DEMO_REGION",
-            city=f"DEMO_{spec.key.upper()}",
-            zipcode=f"DEMO_{spec.key.upper()}_ZIP",
+            region="SAMPLE_REGION",
+            city=f"SAMPLE_{spec.key.upper()}",
+            zipcode=f"SAMPLE_{spec.key.upper()}_ZIP",
         )
         session.add(company)
         await session.flush()
@@ -798,7 +798,7 @@ async def seed() -> None:
         healthy_company, _ = created["orbit"]
         await seed_healthy_current_invoice(session, healthy_company)
 
-        demo_current_invoice_numbers = [
+        sample_current_invoice_numbers = [
             "INV-NORTHWIND-2001",
             "INV-BLUEPEAK-2005",
             "INV-VERTEX-3010",
@@ -810,7 +810,7 @@ async def seed() -> None:
         result = await session.execute(
             select(Invoice).where(
                 Invoice.invoice_number.in_(
-                    demo_current_invoice_numbers
+                    sample_current_invoice_numbers
                 )
             )
         )

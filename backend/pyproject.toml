@@ -30,7 +30,7 @@ omit = [
     "app/ml/train_random_forest.py",
     "app/ml/train_gradient_boosting.py",
     "app/ml/datasets/*",       # offline feature/split build, run manually before training
-    "app/events/consumer.py",  # standalone demo script, not part of the app's request path
+    "app/events/consumer.py",  # standalone sample script, not part of the app's request path
     "app/ml/compare_models.py",  # offline model comparison script
     "app/ml/create_customer_holdout_manifest.py",  # offline dataset analysis utility
     "app/ml/rolling_backtest.py",  # offline model backtesting utility

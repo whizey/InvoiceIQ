@@ -171,7 +171,7 @@ async def _phase7_original_diagnose(invoice_context: dict, customer_context: dic
     from langchain_core.messages import HumanMessage, SystemMessage
     messages = [SystemMessage(content=DIAGNOSIS_SYSTEM_PROMPT),
                 HumanMessage(content=build_diagnosis_prompt(safe_invoice, safe_customer))]
-    if os.getenv("DEMO_SYNTHETIC", "").lower() == "true":
+    if os.getenv("SAMPLE_SYNTHETIC", "").lower() == "true":
         return _rule_based_diagnosis(invoice_context, customer_context), FALLBACK_MODEL_NAME
     if os.getenv("PUBLIC_READ_ONLY", "").lower() == "true" or os.getenv("LLM_MODE") == "recorded":
         result, model = replay_response("diagnose", messages, DiagnosisResult)
@@ -203,7 +203,7 @@ async def _phase7_original_recommend(
     from langchain_core.messages import HumanMessage, SystemMessage
     messages = [SystemMessage(content=INTERVENTION_SYSTEM_PROMPT),
         HumanMessage(content=build_intervention_prompt(safe_invoice, safe_customer, minimal_diagnosis(diagnosis), reminder_count))]
-    if os.getenv("DEMO_SYNTHETIC", "").lower() == "true":
+    if os.getenv("SAMPLE_SYNTHETIC", "").lower() == "true":
         return _rule_based_intervention(invoice_context, reminder_count), FALLBACK_MODEL_NAME
     if os.getenv("PUBLIC_READ_ONLY", "").lower() == "true" or os.getenv("LLM_MODE") == "recorded":
         result, model = replay_response("recommend", messages, InterventionRecommendation)
@@ -283,10 +283,10 @@ def _rule_based_intervention(invoice_context: dict, reminder_count: int) -> Inte
 async def voice_turn(
     invoice_context: dict, customer_context: dict, transcript_so_far: list[dict], turn_number: int
 ) -> tuple[VoiceTurnResult, str]:
-    """One turn of the Hinglish voice-call demo. Only ever *proposes*
+    """One turn of the Hinglish voice-call sample. Only ever *proposes*
     proposed_action — app/api/voice.py runs it through evaluate_policy()
     before anything executes, exactly like recommend() above."""
-    if os.getenv("DEMO_SYNTHETIC", "").lower() == "true":
+    if os.getenv("SAMPLE_SYNTHETIC", "").lower() == "true":
         return _rule_based_voice_turn(transcript_so_far, turn_number), FALLBACK_MODEL_NAME
     from app.agents.recordings import minimal_context
     safe_invoice, safe_customer = minimal_context(invoice_context, customer_context)

@@ -1,6 +1,6 @@
 # Deploying the InvoiceIQ SaaS product
 
-`render.yaml` deploys the **legacy read-only synthetic demo** only. It has no
+`render.yaml` deploys the **legacy read-only synthetic sample** only. It has no
 accounts, signup, assistant or recovery pages. This document describes what the
 current product needs. Nothing here has been deployed.
 
@@ -48,18 +48,18 @@ Neon also works: create a database named `invoiceiq`, remove the `databases:` bl
 ## Decision required: one database or two
 
 `backend/scripts/provision_portal_showcase.py` deliberately refuses to run
-unless the database is named `invoiceiq_demo`, `invoiceiq_demo_test` or
+unless the database is named `invoiceiq_sample`, `invoiceiq_sample_test` or
 `invoiceiq_portal_test`, or exactly matches `INVOICEIQ_SHOWCASE_DATABASE` (set to
 `invoiceiq` in `render.saas.yaml`). That guard stops illustrative data reaching a real
 customer database. Choose one:
 
-1. **Portfolio/demo deployment (recommended for a submission).** One Neon
-   database named `invoiceiq`. Showcase and demo sign-ups live together;
+1. **Portfolio/sample deployment (recommended for a submission).** One Neon
+   database named `invoiceiq`. Showcase and sample sign-ups live together;
    say clearly that accounts are for demonstration only. No real customer data.
 2. **Production with real customers.** A separate database with no showcase
-   (`INVOICEIQ_PORTAL_SHOWCASE=false`), plus a second demo deployment as in (1).
+   (`INVOICEIQ_PORTAL_SHOWCASE=false`), plus a second sample deployment as in (1).
    The visitor "Explore the product" flow needs the showcase, so it runs only on
-   the demo deployment.
+   the sample deployment.
 
 Do not weaken the name guard to make one database serve both without a
 deliberate review.
@@ -72,7 +72,7 @@ API service:
 |---|---|
 | `DATABASE_URL` | Neon connection string (secret). Use the `postgresql+asyncpg://` form. |
 | `INVOICEIQ_PORTAL_ENABLED` | `true` |
-| `INVOICEIQ_PORTAL_SHOWCASE` | `true` on the demo deployment, `false` otherwise |
+| `INVOICEIQ_PORTAL_SHOWCASE` | `true` on the sample deployment, `false` otherwise |
 | `PUBLIC_READ_ONLY` | `false` (portal writes are authorised by portal sessions) |
 | `RUN_MIGRATIONS` | `false`; migrate as a separate release step |
 | `GOOGLE_API_KEY` | Gemini key (secret). Never commit it. |
@@ -91,7 +91,7 @@ Frontend (Vercel):
 2. Back up the target database (Neon branch or snapshot).
 3. Run migrations once, from a trusted machine: `cd backend && alembic upgrade head`
    against the target `DATABASE_URL`. Check the revision first.
-4. Demo deployment only: provision the showcase, once, deliberately:
+4. Sample deployment only: provision the showcase, once, deliberately:
    `INVOICEIQ_PORTAL_SHOWCASE=true python -m scripts.provision_portal_showcase`
    (it also seeds the illustrative baseline decisions; reruns are no-ops).
 5. Deploy the API, then the frontend with the variables above.

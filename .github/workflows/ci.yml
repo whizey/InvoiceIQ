@@ -138,13 +138,13 @@ jobs:
       # it fails on regression instead of being permanently red.
       - run: ./scripts/run_full_tests.sh --coverage
 
-      - name: Provision and verify isolated synthetic demo
+      - name: Provision and verify isolated synthetic sample
         run: |
           set -a
           source .env.test
           set +a
-          python -m scripts.provision_synthetic_demo
-          python -m scripts.verify_synthetic_demo
+          python -m scripts.provision_synthetic_sample
+          python -m scripts.verify_synthetic_sample
 
   frontend:
     runs-on: ubuntu-latest
