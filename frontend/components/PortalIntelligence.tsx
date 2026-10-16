@@ -59,7 +59,7 @@ export default function PortalIntelligence(){
   return <div className="settings-page"><PortalNavigation/><main className="settings-main" style={{maxWidth:1240}}>
     <p className="settings-eyebrow">Workspace / Intelligence</p>
     <h1>Model intelligence</h1>
-    <p className="settings-intro">Posting-time late-payment estimates from the verified B2B champion model. These are model outputs, not observed recovery rates or instructions to contact customers.</p>
+    <p className="settings-intro">Posting-time payment-risk estimates from the verified B2B champion model. These are model outputs, not observed recovery rates or instructions to contact customers.</p>
     {loading&&<p role="status">Loading verified model results…</p>}
     {error&&<div role="alert" className="portal-notice-error">{error} <button onClick={()=>{setError("");setLoading(true);void load().finally(()=>setLoading(false))}}>Retry</button></div>}
     {success&&<p role="status" className="portal-notice-success">{success}</p>}
@@ -67,7 +67,7 @@ export default function PortalIntelligence(){
       <section className="portal-intelligence-summary">
         <div><small>WORKSPACE</small><strong>{data.workspace}</strong><span>{data.kind==="showcase"?"Illustrative invoice portfolio":"Customer invoice portfolio"}</span></div>
         <div><small>SCORE COVERAGE</small><strong>{data.scored.toLocaleString()} / {data.total.toLocaleString()}</strong><span>Stored scores on invoices</span></div>
-        <div><small>VERIFIED MODEL</small><strong>B2B late payment</strong><span>{data.model_version}</span></div>
+        <div><small>VERIFIED MODEL</small><strong>B2B payment-risk model</strong><span>{data.model_version}</span></div>
       </section>
       {data.kind==="customer"&&data.total>0&&<div className="portal-score-action">
         <div><strong>Run verified inference</strong><p>Uses this workspace’s invoice and dated payment history as it stood before each posting. Re-run after importing historical records.</p></div>
@@ -78,7 +78,7 @@ export default function PortalIntelligence(){
       {data.invoices.length>0&&<div className="portal-intelligence-layout">
         <section className="portal-intelligence-list" aria-label="Scored invoices">
           <h2>Highest model estimates</h2>
-          <p>Showing up to 50 invoices. Percentage means estimated chance of late payment at posting.</p>
+          <p>Showing up to 50 invoices. Percentage means estimated payment risk at posting.</p>
           {data.invoices.map(invoice=><button key={invoice.id} type="button" disabled={busy}
             onClick={()=>void explain(invoice.id)} className="portal-intelligence-row">
             <span><strong>{invoice.number}</strong><small>{invoice.counterparty}</small></span>
@@ -88,7 +88,7 @@ export default function PortalIntelligence(){
         <section className="portal-intelligence-detail" aria-label="Model explanation">
           {detail?<>
             <p className="settings-eyebrow">Verified explanation</p>
-            <h2>{detail.invoice_number}</h2><p>{detail.counterparty} · {percent(detail.probability)} estimated late-payment chance</p>
+            <h2>{detail.invoice_number}</h2><p>{detail.counterparty} · {percent(detail.probability)} estimated payment risk</p>
             <p className="portal-model-meta">{detail.explanation_method} · {detail.model_version}<br/>Artifact SHA-256: {detail.artifact_sha256}</p>
             <h3>Largest feature contributions</h3>
             {detail.contributions.slice(0,8).map(item=><div className="portal-contribution" key={item.feature}>

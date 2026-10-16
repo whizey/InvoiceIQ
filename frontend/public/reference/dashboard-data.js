@@ -93,14 +93,15 @@
     const billed = scenarioData ? Number(scenarioData.scenario_billed ?? 0) : Number(m.billed ?? 0);
     const allocationPct = Object.fromEntries(parts.map(key=>[key,allocation&&billed>0?100*Number(allocation[key])/billed:0]));
     const histogram = (scenarioData?.histogram||[]).map(h=>({...h,h:Math.round((h.n/Math.max(1,...scenarioData.histogram.map(x=>x.n)))*132),c:h.b==='On due'?'#525252':'#0B0B0B'}));
-    const pipeline = scenarioData?.pipeline;
+    const portalRec = logic.query.get('portal')==='1' ? logic.portalRecovery : null;
+    const pipeline = scenarioData?.pipeline || (portalRec ? {awaiting:portalRec.kpis.awaiting_review,escalated:portalRec.kpis.escalated,approved:portalRec.kpis.approved,rejected:portalRec.kpis.rejected,exposure:Number(portalRec.kpis.case_exposure)*100,real:true} : undefined);
     const bridgeKeys=['openStart','invoiced','collected','writtenOff','openEnd'];
     const bridgeValues=bridgeKeys.map(key=>Number(scenarioData?.bridge?.[key]||0));
     const bridgeMax=Math.max(1,...bridgeValues);
     const bridgeHeight=bridgeValues.map(n=>scenarioData?Math.max(3,120*n/bridgeMax):0);
     const bridgeText=bridgeValues.map(n=>scenarioData?money(n,'INR',true,true):missing);
-    const funnelNames=['New','Investigating','Awaiting approval','Action taken','Resolved, 30 days'];
-    const funnelCounts=pipeline?[pipeline.new,pipeline.investigating,pipeline.awaiting,pipeline.action,pipeline.resolved]:[];
+    const funnelNames=pipeline?.real?['Awaiting review','Escalated','Approved','Rejected']:['New','Investigating','Awaiting approval','Action taken','Resolved, 30 days'];
+    const funnelCounts=pipeline?(pipeline.real?[pipeline.awaiting,pipeline.escalated,pipeline.approved,pipeline.rejected]:[pipeline.new,pipeline.investigating,pipeline.awaiting,pipeline.action,pipeline.resolved]):[];
     const funnelMax=Math.max(1,...funnelCounts);
     const riskKeys=['0–20%','20–40','40–60','60–80','80–100','Not scored'];
     const riskMax=Math.max(1,...(d?.risk||[]).map(r=>r.count));
@@ -292,6 +293,9 @@
       logic.loadedQuery = query;
       logic.loadedScope = currentScope;
       logic.lastFetchAt = Date.now();
+      if (logic.query.get('portal') === '1') {
+        try { const rec = await fetch('/api/portal/recovery-summary', {signal:controller.signal,cache:'no-store'}); logic.portalRecovery = rec.ok ? await rec.json() : null; } catch { logic.portalRecovery = null; }
+      }
       logic.setState({data,loading:false,error:''});
     } catch (error) {
       if (!controller.signal.aborted) {

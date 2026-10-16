@@ -1,6 +1,7 @@
 import {cookies} from "next/headers";
 import {redirect} from "next/navigation";
 import ReferenceFrame from "@/components/ReferenceFrame";
+import RecoveryPanel from "@/components/RecoveryPanel";
 import PortalNavigation from "@/components/PortalNavigation";
 
 export const metadata={title:"Analytics | InvoiceIQ"};
@@ -10,5 +11,6 @@ export default async function WorkspaceDashboard(){
   return <div className="portal-shell">
     <PortalNavigation/>
     <ReferenceFrame page="overview" portal/>
+    <RecoveryPanel/>
   </div>;
 }
