@@ -153,7 +153,7 @@ class DetectionSummaryOut(BaseModel):
 
 class SendReminderEmailOut(BaseModel):
     """Result of a human-triggered real reminder email — always delivered to
-    (or simulated for) settings.demo_notify_email, never a seeded contact."""
+    (or simulated for) settings.sample_notify_email, never a seeded contact."""
 
     status: Literal["SENT", "SIMULATED", "REJECTED", "PENDING_APPROVAL"]
     to: str | None

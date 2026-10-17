@@ -1,0 +1,13 @@
+# Vercel builds only the frontend/ directory; keep the upload small.
+/backend
+/data
+/docs
+/deploy
+/tools
+/scripts
+/infra
+/.github
+*.zip
+*.csv.gz
+node_modules
+.next

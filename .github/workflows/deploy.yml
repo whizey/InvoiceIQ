@@ -1,0 +1,84 @@
+name: Deploy
+
+# Called by ci.yml as its last stage, so it only runs for a push to main or invoiceiq-integration
+# after every CI job has passed. It can also be started by hand from the Actions tab. The
+# `production` environment requires a reviewer's approval in GitHub (Settings -> Environments),
+# so nothing ships without a human yes.
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  api:
+    name: API to Hugging Face Space
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - name: Build the Space folder
+        run: scripts/build_hf_space.sh "$RUNNER_TEMP/space"
+      - name: Push to the Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE: ${{ vars.HF_SPACE || 'Riya1104/InvoiceIQ' }}
+        run: |
+          cd "$RUNNER_TEMP/space"
+          git remote add space "https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE}"
+          git push --force space main
+
+  web:
+    name: Frontend to Vercel
+    needs: api
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 20
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Build and deploy
+        run: |
+          npx --yes vercel@latest pull --yes --environment=production --token "$VERCEL_TOKEN"
+          npx --yes vercel@latest build --prod --token "$VERCEL_TOKEN"
+          npx --yes vercel@latest deploy --prebuilt --prod --token "$VERCEL_TOKEN"
+
+  smoke:
+    name: Smoke test the release
+    needs: [api, web]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      API_URL: ${{ vars.API_URL || 'https://riya1104-invoiceiq.hf.space' }}
+      SITE_URL: ${{ vars.SITE_URL || 'https://invoiceiq-ai.vercel.app' }}
+    steps:
+      - name: Wait for the API to come back after the Space rebuild
+        run: |
+          for i in $(seq 1 40); do
+            code=$(curl -s -o /dev/null -m 20 -w '%{http_code}' "$API_URL/health" || true)
+            [ "$code" = 200 ] && exit 0
+            sleep 15
+          done
+          echo "API did not become healthy" >&2; exit 1
+      - name: Site, showcase session and data respond
+        run: |
+          curl -fsS -m 60 -o /dev/null "$SITE_URL/home"
+          curl -fsS -m 120 -H "Origin: $SITE_URL" -c jar -X POST "$SITE_URL/api/portal/showcase" -o /dev/null
+          for path in overview recovery-summary alerts; do
+            curl -fsS -m 120 -H "Origin: $SITE_URL" -b jar "$SITE_URL/api/portal/$path" -o /dev/null
+            echo "$path ok"
+          done

@@ -58,14 +58,14 @@ def test_json_formatter_includes_arbitrary_extra_fields():
 
 def test_json_formatter_redacts_credentials_and_contact_details():
     formatted = JSONFormatter().format(_record(
-        "Bearer disposable-test-token for demo@example.com",
-        database_url="postgresql://reader:disposable-password@db.example/invoiceiq_demo",
-        nested={"api_key": "disposable-secret", "note": "Call demo@example.com"},
+        "Bearer disposable-test-token for sample@example.com",
+        database_url="postgresql://reader:disposable-password@db.example/invoiceiq_sample",
+        nested={"api_key": "disposable-secret", "note": "Call sample@example.com"},
     ))
     assert "disposable-test-token" not in formatted
     assert "disposable-password" not in formatted
     assert "disposable-secret" not in formatted
-    assert "demo@example.com" not in formatted
+    assert "sample@example.com" not in formatted
     assert "[REDACTED]" in formatted
 
 

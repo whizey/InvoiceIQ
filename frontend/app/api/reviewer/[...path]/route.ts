@@ -10,7 +10,7 @@ async function forward(req: NextRequest, p: string[], method: "GET" | "POST") {
   const reviewer = req.headers.get("x-invoiceiq-reviewer-key")?.trim();
   const analytics = (await cookies()).get("invoiceiq_session")?.value;
   if (!reviewer) return Response.json({detail:"Reviewer credential required"},{status:401});
-  if (!analytics && process.env.INVOICEIQ_DEMO_SYNTHETIC !== "true") return Response.json({detail:"Analytics workspace credential required"},{status:401});
+  if (!analytics && process.env.INVOICEIQ_SAMPLE_SYNTHETIC !== "true") return Response.json({detail:"Analytics workspace credential required"},{status:401});
   let target: string | null = null;
   if (method === "GET" && p.length === 1 && p[0] === "history")
     target = "/dashboard/workspace/review-history";

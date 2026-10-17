@@ -2,6 +2,7 @@
  * local illustrative operational scenarios. Does not alter Neon or authorize writes. */
 (function (global) {
   'use strict';
+  if (new URLSearchParams(global.location.search).get('portal') === '1') return;
   const scenario = global.InvoiceIQScenario;
   if (!scenario) throw Error('InvoiceIQ scenario adapter missing');
   const upstream = global.fetch.bind(global);

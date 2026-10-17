@@ -220,6 +220,6 @@
   }
   let attempts=0;const timer=setInterval(()=>{
     try{if(init()){clearInterval(timer);return;}}catch(e){clearInterval(timer);document.body.insertAdjacentHTML('afterbegin',`<p role="alert" style="padding:12px;background:#fff;color:#B91C1C">Approvals initialization failed: ${esc(e.message)}</p>`);return;}
-    if(++attempts>=150){clearInterval(timer);document.body.insertAdjacentHTML('afterbegin','<p role="alert">Original Approvals template unavailable. Demo data must not be used for decisions.</p>');}
+    if(++attempts>=150){clearInterval(timer);document.body.insertAdjacentHTML('afterbegin','<p role="alert">Original Approvals template unavailable. Sample data must not be used for decisions.</p>');}
   },100);
 })();

@@ -18,6 +18,9 @@ line-length = 110
 
 [tool.coverage.run]
 source = ["app"]
+# SQLAlchemy's asyncio layer runs request code inside greenlets; without this the
+# Python 3.12 tracer misses lines executed there and under-reports database-backed code.
+concurrency = ["thread", "greenlet"]
 omit = [
     "app/seed/*",              # narrative data generation, not application logic
     "app/ml/train.py",         # one-shot training script, exercised by running it, not asserted on
@@ -27,7 +30,7 @@ omit = [
     "app/ml/train_random_forest.py",
     "app/ml/train_gradient_boosting.py",
     "app/ml/datasets/*",       # offline feature/split build, run manually before training
-    "app/events/consumer.py",  # standalone demo script, not part of the app's request path
+    "app/events/consumer.py",  # standalone sample script, not part of the app's request path
     "app/ml/compare_models.py",  # offline model comparison script
     "app/ml/create_customer_holdout_manifest.py",  # offline dataset analysis utility
     "app/ml/rolling_backtest.py",  # offline model backtesting utility
