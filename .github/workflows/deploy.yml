@@ -33,7 +33,8 @@ jobs:
           HF_SPACE: ${{ vars.HF_SPACE || 'Riya1104/InvoiceIQ' }}
         run: |
           cd "$RUNNER_TEMP/space"
-          git remote add space "https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE}"
+          # Hugging Face expects the account name as the username and the access token as the password.
+          git remote add space "https://${HF_SPACE%%/*}:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE}"
           git push --force space main
 
   web:
