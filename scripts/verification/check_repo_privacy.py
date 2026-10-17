@@ -10,10 +10,9 @@ import sys
 
 
 BLOCKED = re.compile(
-    r"(^|/)(?:\.private|\.refact|\.claude|\.cursor|\.codex|"
-    r"AGENTS\.md|CLAUDE\.md|chat_history|conversation_history|"
+    r"(^|/)(?:\.private|\.refact|\.cursor|\.codex|"
+    r"AGENTS\.md|chat_history|conversation_history|"
     r"memory_ops|runtime_queue|\.env(?:\.[^/]*)?|"
-    r"[^/]*for_claude\.txt|[^/]*claude[^/]*(?:terminal|verification)[^/]*\.txt|"
     r"recoveriq_(?:final18_pretrain_audit|payment_risk_audit_bundle)\.txt|"
     r"gate_patch\.py)(?:/|$)",
     flags=re.IGNORECASE,

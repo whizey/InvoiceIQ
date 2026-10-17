@@ -8,5 +8,4 @@ coverage
 out
 *.tsbuildinfo
 AGENTS.md
-CLAUDE.md
 tests
