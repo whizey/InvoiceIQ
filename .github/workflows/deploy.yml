@@ -1,12 +1,11 @@
 name: Deploy
 
-# Runs only after CI succeeds on main (or by hand). The `production` environment can require a
-# reviewer's approval in GitHub (Settings -> Environments), so nothing ships without a human yes.
+# Called by ci.yml as its last stage, so it only runs for a push to main or invoiceiq-integration
+# after every CI job has passed. It can also be started by hand from the Actions tab. The
+# `production` environment requires a reviewer's approval in GitHub (Settings -> Environments),
+# so nothing ships without a human yes.
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main]
+  workflow_call:
   workflow_dispatch:
 
 permissions:
@@ -19,14 +18,12 @@ concurrency:
 jobs:
   api:
     name: API to Hugging Face Space
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           lfs: true
       - name: Build the Space folder
         run: scripts/build_hf_space.sh "$RUNNER_TEMP/space"
@@ -41,7 +38,6 @@ jobs:
 
   web:
     name: Frontend to Vercel
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     needs: api
     runs-on: ubuntu-latest
     environment: production
@@ -52,8 +48,6 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 24
