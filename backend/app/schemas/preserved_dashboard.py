@@ -140,4 +140,5 @@ class PreservedDashboard(BaseModel):
     total: int
     page: int
     page_size: int
+    bridge: dict | None = None
     chart_notes: dict[str, str]

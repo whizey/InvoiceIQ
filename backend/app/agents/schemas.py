@@ -45,7 +45,7 @@ class InterventionRecommendation(VersionedAgentOutput):
 
 
 class VoiceTurnResult(VersionedAgentOutput):
-    """One turn of the Hinglish voice-call demo (app/api/voice.py).
+    """One turn of the Hinglish voice-call sample (app/api/voice.py).
 
     agent_line_hi is spoken via Sarvam TTS, never executed as a tool.
     proposed_action is only a recommendation — evaluate_policy() decides

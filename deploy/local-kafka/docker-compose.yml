@@ -1,0 +1,20 @@
+# Local-only Kafka for demonstrating the event consumer. Not used by the hosted app.
+services:
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.3.7
+    container_name: invoiceiq-redpanda
+    command:
+      - redpanda
+      - start
+      - --mode=dev-container
+      - --smp=1
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://127.0.0.1:9092
+    ports: ["127.0.0.1:9092:9092"]
+  console:
+    image: docker.redpanda.com/redpandadata/console:v2.8.2
+    container_name: invoiceiq-redpanda-console
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+    ports: ["127.0.0.1:8080:8080"]
+    depends_on: [redpanda]

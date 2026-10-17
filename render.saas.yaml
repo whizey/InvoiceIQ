@@ -1,0 +1,60 @@
+# InvoiceIQ SaaS product API (accounts, dashboard, recovery, AI assistant).
+# render.yaml in this repo is the older read-only synthetic sample; this file is not.
+#
+# Use: Render dashboard -> New -> Blueprint -> pick this repo -> set the Blueprint
+# file path to render.saas.yaml. The `starter` plan is a paid instance; Render asks
+# you to confirm before creating it. The database is a Render PostgreSQL instance
+# named `invoiceiq` (no Neon needed). INVOICEIQ_SHOWCASE_DATABASE below is the explicit
+# opt-in the seeding script requires for any name other than invoiceiq_sample.
+previews:
+  generation: "off"
+
+databases:
+  - name: invoiceiq-db
+    databaseName: invoiceiq
+    user: invoiceiq
+    region: singapore
+    plan: 0.1c-256mb
+    ipAllowList: []   # reachable only from Render services in this account
+
+services:
+  - type: web
+    name: invoiceiq
+    runtime: docker
+    region: singapore
+    plan: starter
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    autoDeployTrigger: "off"
+    healthCheckPath: /health
+    # Idempotent: creates the portal tables and the illustrative showcase once.
+    preDeployCommand: alembic upgrade head && python -m scripts.provision_portal_showcase
+    envVars:
+      - key: PORT
+        value: "8000"
+      - key: ENV
+        value: staging
+      - key: DATABASE_URL
+        fromDatabase:
+          name: invoiceiq-db
+          property: connectionString
+      - key: GOOGLE_API_KEY      # Gemini key for the assistant and voice transcription
+        sync: false
+      - key: LLM_MODEL
+        value: gemini-3.6-flash
+      - key: INVOICEIQ_PORTAL_ENABLED
+        value: "true"
+      - key: INVOICEIQ_SHOWCASE_DATABASE
+        value: invoiceiq
+      - key: INVOICEIQ_PORTAL_SHOWCASE
+        value: "true"
+      - key: PUBLIC_READ_ONLY
+        value: "false"
+      - key: RUN_MIGRATIONS
+        value: "false"
+      - key: SCHEDULER_ENABLED
+        value: "false"
+      - key: OUTBOX_DISPATCH_ENABLED
+        value: "false"
+      - key: METRICS_ENABLED
+        value: "false"

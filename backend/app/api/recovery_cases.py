@@ -276,20 +276,20 @@ async def run_recovery_case(case_id: UUID, db: AsyncSession = Depends(get_db), i
 async def send_reminder_email_endpoint(
     case_id: UUID, db: AsyncSession = Depends(get_db)
 ) -> SendReminderEmailOut:
-    """Human-triggered real reminder email — always to settings.demo_notify_email,
+    """Human-triggered real reminder email — always to settings.sample_notify_email,
     never a seeded contact's @example.com. Still goes through evaluate_policy()
     with the same reminder cap/cooldown rules as an automated cycle (proposed_by
     is HUMAN here, not AI, but the gate is identical).
 
-    Errors clearly (400) if DEMO_NOTIFY_EMAIL isn't configured, rather than
+    Errors clearly (400) if SAMPLE_NOTIFY_EMAIL isn't configured, rather than
     silently falling back to any other address. Returns 409 if a cycle/other
     action is already running for this case.
     """
-    if not settings.demo_notify_email:
+    if not settings.sample_notify_email:
         raise HTTPException(
             status_code=400,
             detail=(
-                "DEMO_NOTIFY_EMAIL is not configured. Set it in backend/.env and "
+                "SAMPLE_NOTIFY_EMAIL is not configured. Set it in backend/.env and "
                 "restart the API before sending a reminder."
             ),
         )

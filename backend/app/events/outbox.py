@@ -24,16 +24,15 @@ class TransactionalEventPublisher:
     def __init__(self, session):
         self.session = session
 
-    async def publish(self, topic: str, key: str, payload: dict) -> None:
+    async def publish(self, topic: str, key: str, payload: dict) -> dict:
         if topic not in ALL_TOPICS or not key or len(key) > 100:
             raise ValueError("Invalid domain event contract")
         event_id = uuid4()
-        self.session.add(OutboxEvent(
-            id=event_id, topic=topic, key=key,
-            payload=json_value({"schema_version": 1, "event_id": str(event_id),
-                                "correlation_id": request_id_var.get() or str(event_id),
-                                "occurred_at": datetime.now(timezone.utc).isoformat(), "data": payload}),
-        ))
+        envelope = json_value({"schema_version": 1, "event_id": str(event_id),
+                               "correlation_id": request_id_var.get() or str(event_id),
+                               "occurred_at": datetime.now(timezone.utc).isoformat(), "data": payload})
+        self.session.add(OutboxEvent(id=event_id, topic=topic, key=key, payload=envelope))
+        return envelope
 
 
 async def dispatch_batch(session_factory, publisher, *, limit: int = 20, event_ids: set[UUID] | None = None) -> dict:

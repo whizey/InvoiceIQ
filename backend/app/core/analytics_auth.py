@@ -41,15 +41,15 @@ def configured_scopes() -> list[tuple[str, str, tuple[UUID, ...]]]:
 
 async def require_analytics(credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
                             db: AsyncSession = Depends(get_db)) -> AnalyticsIdentity:
-    if os.getenv("DEMO_SYNTHETIC", "").lower() == "true":
+    if os.getenv("SAMPLE_SYNTHETIC", "").lower() == "true":
         if os.getenv("PUBLIC_READ_ONLY", "").lower() != "true":
-            raise HTTPException(503, "Synthetic demo requires read-only mode")
-        from app.seed.synthetic_demo import synthetic_demo_scope
+            raise HTTPException(503, "Synthetic sample requires read-only mode")
+        from app.seed.synthetic_sample import synthetic_sample_scope
         try:
-            companies = await synthetic_demo_scope(db)
+            companies = await synthetic_sample_scope(db)
         except RuntimeError:
-            raise HTTPException(503, "Synthetic demo provenance is unavailable") from None
-        return AnalyticsIdentity("Synthetic demo (simulated actions)", companies)
+            raise HTTPException(503, "Synthetic sample provenance is unavailable") from None
+        return AnalyticsIdentity("Synthetic sample (simulated actions)", companies)
     if os.getenv("PUBLIC_READ_ONLY", "").lower() == "true":
         from app.api.public_analytics import public_dataset_db
         from app.models import Company, DatasetImport

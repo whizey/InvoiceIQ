@@ -4,7 +4,7 @@ WORKDIR /project/backend
 COPY backend/requirements.txt .
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential \
     && rm -rf /var/lib/apt/lists/*
-# The public demo has CPU inference only. Preserve the XGBoost version and
+# The public sample has CPU inference only. Preserve the XGBoost version and
 # Python API while omitting the CUDA/NCCL wheel pulled by the general package.
 RUN test "$(grep -c '^xgboost==3.4.1$' requirements.txt)" = 1 \
     && sed 's/^xgboost==3.4.1$/xgboost-cpu==3.4.1/' requirements.txt > requirements-container.txt \

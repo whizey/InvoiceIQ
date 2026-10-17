@@ -1,7 +1,7 @@
 """POST /recovery-cases/{id}/send-reminder-email — never sends anywhere but
-settings.demo_notify_email, always goes through evaluate_policy() with the
+settings.sample_notify_email, always goes through evaluate_policy() with the
 same reminder cap/cooldown as an automated cycle, and errors clearly (400)
-rather than guessing an address when DEMO_NOTIFY_EMAIL is unset.
+rather than guessing an address when SAMPLE_NOTIFY_EMAIL is unset.
 """
 
 import asyncio
@@ -67,25 +67,25 @@ def detect_and_get_case_id(client: TestClient, invoice_id: str) -> str:
     return next(c["id"] for c in cases if c["invoice_number"] == invoice["invoice_number"])
 
 
-def test_400_when_demo_notify_email_unset(monkeypatch):
-    monkeypatch.setattr(settings, "demo_notify_email", None)
+def test_400_when_sample_notify_email_unset(monkeypatch):
+    monkeypatch.setattr(settings, "sample_notify_email", None)
     invoice_id = create_overdue_case("INV-EMAILTEST-A001")
     with api_client() as client:
         case_id = detect_and_get_case_id(client, invoice_id)
         resp = client.post(f"/recovery-cases/{case_id}/send-reminder-email")
     assert resp.status_code == 400
-    assert "DEMO_NOTIFY_EMAIL" in resp.json()["detail"]
+    assert "SAMPLE_NOTIFY_EMAIL" in resp.json()["detail"]
 
 
 def test_404_for_missing_case(monkeypatch):
-    monkeypatch.setattr(settings, "demo_notify_email", FAKE_TO)
+    monkeypatch.setattr(settings, "sample_notify_email", FAKE_TO)
     with api_client() as client:
         resp = client.post(f"/recovery-cases/{NIL_UUID}/send-reminder-email")
     assert resp.status_code == 404
 
 
 def test_first_reminder_is_simulated_and_never_targets_the_fake_contact(monkeypatch):
-    monkeypatch.setattr(settings, "demo_notify_email", FAKE_TO)
+    monkeypatch.setattr(settings, "sample_notify_email", FAKE_TO)
     invoice_id = create_overdue_case("INV-EMAILTEST-B001")
 
     with api_client() as client:
@@ -109,9 +109,9 @@ def test_first_reminder_is_simulated_and_never_targets_the_fake_contact(monkeypa
 
 
 def test_real_send_when_resend_configured(monkeypatch):
-    monkeypatch.setattr(settings, "demo_notify_email", FAKE_TO)
+    monkeypatch.setattr(settings, "sample_notify_email", FAKE_TO)
     monkeypatch.setattr(settings, "resend_api_key", "re_fake")
-    monkeypatch.setattr(settings, "resend_from", "demo@example.com")
+    monkeypatch.setattr(settings, "resend_from", "sample@example.com")
     invoice_id = create_overdue_case("INV-EMAILTEST-C001")
 
     mock_response = MagicMock()
@@ -127,7 +127,7 @@ def test_real_send_when_resend_configured(monkeypatch):
 
 
 def test_cooldown_blocks_a_second_immediate_send(monkeypatch):
-    monkeypatch.setattr(settings, "demo_notify_email", FAKE_TO)
+    monkeypatch.setattr(settings, "sample_notify_email", FAKE_TO)
     invoice_id = create_overdue_case("INV-EMAILTEST-D001")
 
     with api_client() as client:

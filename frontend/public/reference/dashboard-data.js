@@ -30,6 +30,7 @@
   function link(logic, extra, path) {
     const q = new URLSearchParams(logic.query);q.delete('page');
     for (const [k,v] of Object.entries(extra || {})) { if(v)q.set(k,v);else q.delete(k); }
+    if(logic.query.get('portal')==='1' && (!path || path==='/invoices')) q.set('view','analytics');
     return (path || '/invoices') + '?' + q;
   }
   function vals(logic) {
@@ -92,19 +93,26 @@
     const billed = scenarioData ? Number(scenarioData.scenario_billed ?? 0) : Number(m.billed ?? 0);
     const allocationPct = Object.fromEntries(parts.map(key=>[key,allocation&&billed>0?100*Number(allocation[key])/billed:0]));
     const histogram = (scenarioData?.histogram||[]).map(h=>({...h,h:Math.round((h.n/Math.max(1,...scenarioData.histogram.map(x=>x.n)))*132),c:h.b==='On due'?'#525252':'#0B0B0B'}));
-    const pipeline = scenarioData?.pipeline;
+    const portalRec = logic.query.get('portal')==='1' ? logic.portalRecovery : null;
+    const pipeline = scenarioData?.pipeline || (portalRec ? {awaiting:portalRec.kpis.awaiting_review,escalated:portalRec.kpis.escalated,approved:portalRec.kpis.approved,rejected:portalRec.kpis.rejected,exposure:Number(portalRec.kpis.case_exposure)*100,real:true} : undefined);
     const bridgeKeys=['openStart','invoiced','collected','writtenOff','openEnd'];
-    const bridgeValues=bridgeKeys.map(key=>Number(scenarioData?.bridge?.[key]||0));
+    const portalBridge=(!scenarioData&&d?.bridge?.start_date&&d.bridge.end_date&&d.bridge.opening!==undefined)?{openStart:Number(d.bridge.opening),invoiced:Number(d.bridge.invoiced),collected:Number(d.bridge.collected),writtenOff:Number(d.bridge.written_off),openEnd:Number(d.bridge.closing)}:null;
+    const bridge=scenarioData?.bridge||portalBridge;
+    const bridgeValues=bridgeKeys.map(key=>Number(bridge?.[key]||0));
     const bridgeMax=Math.max(1,...bridgeValues);
-    const bridgeHeight=bridgeValues.map(n=>scenarioData?Math.max(3,120*n/bridgeMax):0);
-    const bridgeText=bridgeValues.map(n=>scenarioData?money(n,'INR',true,true):missing);
-    const funnelNames=['New','Investigating','Awaiting approval','Action taken','Resolved, 30 days'];
-    const funnelCounts=pipeline?[pipeline.new,pipeline.investigating,pipeline.awaiting,pipeline.action,pipeline.resolved]:[];
+    const bridgeHeight=bridgeValues.map(n=>bridge?Math.max(3,120*n/bridgeMax):0);
+    const bridgeText=bridgeValues.map(n=>bridge?money(n,'INR',true,true):missing);
+    const dayLabel=iso=>iso?new Date(iso+'T00:00:00Z').toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'2-digit',timeZone:'UTC'}):'';
+    const bridgeStartLabel=portalBridge?'Open '+dayLabel(new Date(Date.parse(d.bridge.start_date+'T00:00:00Z')-86400000).toISOString().slice(0,10)):'Open 30 Jun';
+    const bridgeEndLabel=portalBridge?'Open '+dayLabel(d.bridge.end_date):'Open 30 Sep';
+    const bridgeNote=portalBridge?'Opening balance + invoices posted − receipts = closing. No write-off ledger is held, so write-offs are zero.':d?.chart_notes?.bridge||'Bridge unavailable';
+    const funnelNames=pipeline?.real?['Awaiting review','Escalated','Approved','Rejected']:['New','Investigating','Awaiting approval','Action taken','Resolved, 30 days'];
+    const funnelCounts=pipeline?(pipeline.real?[pipeline.awaiting,pipeline.escalated,pipeline.approved,pipeline.rejected]:[pipeline.new,pipeline.investigating,pipeline.awaiting,pipeline.action,pipeline.resolved]):[];
     const funnelMax=Math.max(1,...funnelCounts);
     const riskKeys=['0–20%','20–40','40–60','60–80','80–100','Not scored'];
     const riskMax=Math.max(1,...(d?.risk||[]).map(r=>r.count));
     const risk=riskKeys.map((b,i)=>{const a=d?.risk.find(r=>r.key===b);return{b,n:d?.historical_available?n(a?.count):'—',h:d?.historical_available?(a?.count||0)/riskMax*120:0,style:i===5?'background: repeating-linear-gradient(135deg,#BDBDBA 0 2px,#FFFFFF 2px 6px); border: 1px dashed #8A8A87':'background: '+(i===4?accent:i===3?'#3F3F3F':'#8A8A87')};});
-    const top=(d?.top||[]).map(t=>({name:t.name,id:t.id,inv:t.count+' open',open:fmt(t.open),od:fmt(t.overdue),share:Number(m.overdue)?Number(t.overdue)/Number(m.overdue)*100:0,dpd:t.oldest+' d',risk:t.risk==null?'Not scored':Number(t.risk).toFixed(2),case:'See invoices',href:link(logic,{company_id:t.id})}));
+    const top=(d?.top||[]).map(t=>({name:t.name,id:t.id,inv:t.count+' open',open:fmt(t.open),od:fmt(t.overdue),share:Number(m.overdue)?Number(t.overdue)/Number(m.overdue)*100:0,dpd:t.oldest+' d',risk:t.risk==null?'Not scored':Number(t.risk).toFixed(2),case:'See invoices',href:link(logic,logic.query.get('portal')==='1'?{company_search:t.name}:{company_id:t.id})}));
     const weeks=[];const dayEnd=new Date((d?.as_of||'2000-01-01')+'T00:00:00Z');dayEnd.setUTCDate(dayEnd.getUTCDate()-((dayEnd.getUTCDay()+6)%7)+6);
     const first=new Date(dayEnd);first.setUTCDate(first.getUTCDate()-181);
     const heatMax=Math.max(1,...(d?.daily||[]).map(r=>Math.abs(Number(r.amount))));const shades=['#EDEDEB','#C9C9C6','#8A8A87','#3F3F3F','#0B0B0B'];
@@ -120,6 +128,7 @@
       funnel:funnelNames.map((s,i)=>({s,v:pipeline?funnelCounts[i]:missing,w:pipeline?(100*funnelCounts[i]/funnelMax):0,c:colors[i]||'#0B0B0B'})),
       hist:histogram,riskProvenance:scenario?'Illustrative scenario scores · not model predictions':'Stored scores with verified model provenance',
       caseExposure:pipeline?money(pipeline.exposure/100,'INR',true,true):missing,
+      bridgeStartLabel,bridgeEndLabel,bridgeNote:bridgeNote,
       bridgeStart:bridgeText[0],bridgeInvoiced:bridgeText[1],bridgeCollected:bridgeText[2],bridgeWriteOff:bridgeText[3],bridgeEnd:bridgeText[4],
       bridgeStartHeight:bridgeHeight[0],bridgeInvoicedHeight:bridgeHeight[1],bridgeCollectedHeight:bridgeHeight[2],bridgeWriteOffHeight:bridgeHeight[3],bridgeEndHeight:bridgeHeight[4],
       approvalsWaiting:pipeline?String(pipeline.awaiting)+' awaiting review · View →':'Unavailable · Review →',
@@ -162,7 +171,7 @@
       currencyNote:d?.currency_note||'No currency conversion performed.',calendarNote:d?.chart_notes.calendar||'Calendar policy not yet loaded.',
       openTotal:fmt(m.open),overdueTotal:fmt(m.overdue),billedTotal:allocation?money(billed,'INR',true,true):fmt(m.billed),invoiceCount:n(m.invoice_count),companyCount:n(m.company_count),medianInvoice:fmt(m.median_invoice),partialCount:n(m.partial_count),openCount:n(m.open_count),unpaidCount:m.open_count==null?missing:n(m.open_count-m.partial_count),overdueCount:n(m.overdue_count),settledCount:n(m.settled_count),cancelledCount:n(m.cancelled_count),writtenOffCount:n(m.written_off_count),
       riskNote:d?.historical_available?n(m.scored_open)+' of '+n(m.open_count)+' open invoices scored. '+n(m.open_count-m.scored_open)+' not scored.':'Open-invoice risk population unavailable without historical balances.',
-      chartGrainText:'Invoiced by posting '+(logic.query.get('grain')||'month')+' · Collected by payment '+(logic.query.get('grain')||'month')+' · Line is open balance at period end · '+(d?.chart_notes.open_line||'Historical balance unavailable.'),lineNote:d?.chart_notes.open_line||'Historical month-end balance unavailable.',bridgeNote:d?.chart_notes.bridge||'No dated adjustment ledger.',pipelineNote:d?.chart_notes.pipeline||'Stage mapping unavailable.',settlementNote:d?.chart_notes.settlement||'Settlement policy unavailable.',allocationNote:d?.chart_notes.allocation||'Adjustment evidence unavailable.',
+      chartGrainText:'Invoiced by posting '+(logic.query.get('grain')||'month')+' · Collected by payment '+(logic.query.get('grain')||'month')+' · Line is open balance at period end · '+(d?.chart_notes.open_line||'Historical balance unavailable.'),lineNote:d?.chart_notes.open_line||'Historical month-end balance unavailable.',pipelineNote:d?.chart_notes.pipeline||'Stage mapping unavailable.',settlementNote:d?.chart_notes.settlement||'Settlement policy unavailable.',allocationNote:d?.chart_notes.allocation||'Adjustment evidence unavailable.',
       axis:[1,.75,.5,.25,0].map(f=>fmt(maximum*f)),heatMax:fmt(heatMax),heatNote:d?'Cash receipts by payment date through '+d.as_of+'. Each square is one day.':'Loading dated cash receipts…',dueNote:'Contractual dates, not a cash forecast. '+(d?.chart_notes.calendar||''),
       topNote:'Top companies by overdue balance in the selected cohort.',rowLabel:d?'Rows '+(d.total?((d.page-1)*d.page_size+1):0)+'–'+Math.min(d.page*d.page_size,d.total)+' of '+d.total+' · combined dataset sorting':logic.state.error?'Data unavailable': 'Loading rows…',
       page:d?.page||1,previousDisabled:!d||d.page<=1,nextDisabled:!d||d.page*d.page_size>=d.total,previous:()=>change(logic,{page:String(Math.max(1,(d?.page||1)-1))}),next:()=>change(logic,{page:String((d?.page||1)+1)}),
@@ -265,7 +274,7 @@
     return String(period);
   }
 
-  function change(logic, values){for(const[k,v]of Object.entries(values)){if(v)logic.query.set(k,v);else logic.query.delete(k);}if(!('page'in values))logic.query.delete('page');const query=logic.query.toString();global.history.replaceState(null,'','?'+query);if(global.parent!==global)global.parent.history.replaceState(null,'',global.parent.location.pathname+'?'+query);load(logic);}
+  function change(logic, values){for(const[k,v]of Object.entries(values)){if(v)logic.query.set(k,v);else logic.query.delete(k);}if(!('page'in values))logic.query.delete('page');const query=logic.query.toString();global.history.replaceState(null,'','?'+query);if(global.parent!==global){const topQuery=new URLSearchParams(query);topQuery.delete('portal');global.parent.history.replaceState(null,'',global.parent.location.pathname+'?'+topQuery);}load(logic);}
   // Only query filters share data. Unknown parameters are treated as scope boundaries.
   function scope(query) {
     const filters = new Set(['start_date','end_date','as_of','compare_date','grain','date_basis','status','risk','search','sort','page','page_size','preset','case_id']);
@@ -282,7 +291,7 @@
     logic.setState({loading:true,error:'',data:logic.loadedScope === currentScope ? logic.state.data : null});
     try {
       const params = new URLSearchParams(query);
-      for (const key of ['preset','case_id']) params.delete(key);
+      for (const key of ['preset','case_id','portal']) params.delete(key);
       const response = await fetch('/api/finance/overview?' + params, {signal:controller.signal,cache:'no-store'});
       const data = await response.json().catch(() => null);
       if (!response.ok) throw Object.assign(new Error(typeof data?.detail === 'string' ? data.detail : 'HTTP ' + response.status), {status:response.status});
@@ -291,6 +300,9 @@
       logic.loadedQuery = query;
       logic.loadedScope = currentScope;
       logic.lastFetchAt = Date.now();
+      if (logic.query.get('portal') === '1') {
+        try { const rec = await fetch('/api/portal/recovery-summary', {signal:controller.signal,cache:'no-store'}); logic.portalRecovery = rec.ok ? await rec.json() : null; } catch { logic.portalRecovery = null; }
+      }
       logic.setState({data,loading:false,error:''});
     } catch (error) {
       if (!controller.signal.aborted) {

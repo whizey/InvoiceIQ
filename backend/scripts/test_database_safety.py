@@ -8,7 +8,7 @@ from sqlalchemy.engine import make_url
 
 DATABASES = {"invoiceiq_test", "invoiceiq_phase1_regression_test",
              "invoiceiq_phase1_corpus_test", "invoiceiq_phase1_replay_test",
-             "invoiceiq_demo_test"}
+             "invoiceiq_sample_test"}
 CONTAINER = "invoiceiq-ci-disposable-db"
 HOST = "127.0.0.1"
 HOST_PORT = 55436

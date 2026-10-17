@@ -177,7 +177,7 @@ async def simulate_payment(
 ) -> Invoice:
     """Mock payment simulation — stands in for a real payment gateway webhook.
 
-    Lets the demo close the loop on "customer actually pays": records a
+    Lets the sample close the loop on "customer actually pays": records a
     Payment, updates the invoice, and lets the next `/recovery-cases/{id}/run`
     call detect it and close the case.
     """

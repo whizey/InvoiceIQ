@@ -8,7 +8,7 @@ const realInvoice={id:'12345678-1234-4234-8234-123456789012', invoice_number:'B2
   company_id:'34567890-1234-4234-8234-123456789012',company:'Customer 0001',
   posting_date:'2015-08-15',due_date:'2015-09-15',amount_total:'2000000.00',
   amount_paid:'2000000.00',balance:'0.00',status:'PAID',probability:0.73,case_id:null};
-const demoHistorical=(q)=>{
+const sampleHistorical=(q)=>{
   const match=!q.get('search') || realInvoice.invoice_number.toLowerCase().includes(q.get('search').toLowerCase());
   const after=!q.get('start_date') || realInvoice.posting_date>=q.get('start_date');
   const before=!q.get('end_date') || realInvoice.posting_date<=q.get('end_date');
@@ -32,7 +32,7 @@ function boot(fail=false,priorFails=false){
     requests.push({url:String(url),method:options?.method||'GET', headers:options?.headers||{}});
     if(fail) return Response.json({detail:'Public readonly mode not yet enabled'},{status:401});
     if(priorFails && endpoint.searchParams.get('as_of')==='2015-10-01') return Response.json({detail:'Prior cutoff unavailable'},{status:503});
-    if(endpoint.pathname==='/api/finance/overview') return Response.json(demoHistorical(endpoint.searchParams));
+    if(endpoint.pathname==='/api/finance/overview') return Response.json(sampleHistorical(endpoint.searchParams));
     if(endpoint.pathname==='/api/workspace/cases')return Response.json({cases:[{
       id:'55555555-5555-4555-8555-555555555555',company:'Customer 0001',invoice:'B2B-REAL-00001',
       outstanding:'0.00',opened:'2016-01-01',status:'RESOLVED'}]});
@@ -116,7 +116,7 @@ test('public site has no workspace credential gate or source toggle',()=>{
  assert.ok(!overview.includes('Workspace access'));
  assert.ok(login.includes('redirect("/")'));
  const finance=fsFile('app/api/finance/[...path]/route.ts');
- assert.ok(!finance.includes("if(!token&&process.env.INVOICEIQ_DEMO_SYNTHETIC"));
+ assert.ok(!finance.includes("if(!token&&process.env.INVOICEIQ_SAMPLE_SYNTHETIC"));
 });
 
 test('comparison reconstructs an earlier as-of, not the current metrics',async()=>{
