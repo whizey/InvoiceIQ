@@ -12,7 +12,7 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.postgresql import insert
 
 from app.events import topics
@@ -66,15 +66,40 @@ async def _apply_risk_scored(session, event: dict) -> None:
     await session.execute(statement.on_conflict_do_update(index_elements=["case_id"], set_=values))
 
 
+def _workspace_id(data: dict) -> uuid.UUID | None:
+    try:
+        return uuid.UUID(str(data["workspace_id"])) if data.get("workspace_id") else None
+    except ValueError as exc:
+        raise PoisonEvent("Event has an invalid workspace_id") from exc
+
+
 async def _apply_review_requested(session, event: dict) -> None:
     data = event["data"]
     await session.execute(insert(ApprovalAlert).values(
         event_id=event["event_id"], case_id=_case_id(data), action_id=str(data.get("action_id") or "") or None,
         action_type=data.get("action_type"), reason=data.get("reason"),
+        workspace_id=_workspace_id(data), visibility_scope=data.get("visibility_scope"),
+        subject=(data.get("subject") or None) and str(data["subject"])[:240],
     ).on_conflict_do_nothing())
 
 
-HANDLERS = {topics.RISK_SCORED: _apply_risk_scored, topics.REVIEW_REQUESTED: _apply_review_requested}
+async def _apply_review_resolved(session, event: dict) -> None:
+    """A recorded decision closes the open alerts for that case in the same scope."""
+    data = event["data"]
+    decision = str(data.get("decision") or "").upper()
+    if not decision:
+        raise PoisonEvent("review.resolved without a decision")
+    scope = [ApprovalAlert.case_id == _case_id(data), ApprovalAlert.status == "OPEN"]
+    workspace_id = _workspace_id(data)
+    if workspace_id is not None:
+        scope += [ApprovalAlert.workspace_id == workspace_id,
+                  ApprovalAlert.visibility_scope == data.get("visibility_scope")]
+    await session.execute(update(ApprovalAlert).where(*scope).values(
+        status="RESOLVED", resolved_decision=decision, resolved_at=event["occurred_at"]))
+
+
+HANDLERS = {topics.RISK_SCORED: _apply_risk_scored, topics.REVIEW_REQUESTED: _apply_review_requested,
+            topics.REVIEW_RESOLVED: _apply_review_resolved}
 
 
 async def process_event(session, topic: str, raw) -> str:

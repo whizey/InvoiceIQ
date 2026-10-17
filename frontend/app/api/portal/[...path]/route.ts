@@ -2,7 +2,7 @@ import {NextRequest} from "next/server";
 import {cookies} from "next/headers";
 import {backendBase} from "../../../../lib/backend-base";
 export const dynamic = "force-dynamic";
-const allowedGet = new Set(["me", "overview", "invoices", "settings", "intelligence", "recovery-summary"]);
+const allowedGet = new Set(["me", "overview", "invoices", "settings", "intelligence", "recovery-summary","alerts"]);
 const allowedPost = new Set(["register", "login", "showcase", "decisions", "import", "score", "assistant", "transcribe"]);
 const cookieName = "invoiceiq_portal_session";
 type Params = {params: Promise<{path: string[]}>};

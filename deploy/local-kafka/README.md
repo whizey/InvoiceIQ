@@ -21,3 +21,10 @@ Expected result: 3 rows in `processed_events`, 2 in `case_risk_latest` (one HIGH
 console, the topics `risk.scored`, `review.requested` and their `.dlq` topics show the messages.
 
 Stop it with `docker compose -f deploy/local-kafka/docker-compose.yml down`.
+
+## Through the product
+
+With the broker running and `KAFKA_BOOTSTRAP_SERVERS` set, an escalation recorded in the portal no longer
+raises its alert immediately. The decision commits with an outbox event, the dispatcher publishes it to
+`review.requested`, and the consumer creates the alert a moment later; approving the invoice later emits
+`review.resolved`, which closes it. Run the dispatcher by setting `OUTBOX_DISPATCH_ENABLED=true` on the API.

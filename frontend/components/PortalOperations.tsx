@@ -2,6 +2,7 @@
 import {useCallback,useEffect,useState} from "react";
 import {useRouter} from "next/navigation";
 import RecoveryCharts from "@/components/RecoveryCharts";
+import ApprovalAlerts from "@/components/ApprovalAlerts";
 import PortalNavigation from "@/components/PortalNavigation";
 import {parseInvoiceCsv} from "@/lib/invoice-csv.mjs";
 import type {PortalFilters} from "@/lib/portal-filters";
@@ -101,6 +102,7 @@ export default function PortalOperations({section,initialFilters}:{section:Secti
       {loading&&<p role="status">Loading records…</p>}
       {error&&<div role="alert" style={{padding:16,background:"#fff0ee",borderRadius:8,color:"#922b1e"}}>{error} <button type="button" onClick={()=>setReload(value=>value+1)}>Retry invoices</button></div>}
       {success&&<p role="status" style={{padding:16,background:"#eff7ef",borderRadius:8,color:"#215a27"}}>{success}</p>}
+      {data&&section!=="invoices"&&<ApprovalAlerts refreshKey={data}/>}
       {data&&section!=="invoices"&&<RecoveryCharts view={section} refreshKey={data}/>}
       {data&&<>
         {section==="invoices"&&data.kind==="customer"&&<section style={panel}>

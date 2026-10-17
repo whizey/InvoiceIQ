@@ -30,6 +30,11 @@ from app.models.portal import (
 from app.ml.champion_serving import verified_contract
 from app.ml.payment_risk_model import PaymentRiskArtifactError
 from app.services.portal_risk import explain_invoice, provenance, score_workspace
+from app.events import topics as event_topics
+from app.events.inline import deliver_inline, uses_broker
+from app.events.outbox import TransactionalEventPublisher
+from app.core.db import async_session_factory
+from app.models.event_effects import ApprovalAlert
 from app.services.portal_recovery import SHOWCASE_BASELINE_SCOPE, recovery_summary
 
 router = APIRouter(prefix="/portal", tags=["customer portal"])
@@ -604,10 +609,40 @@ async def decision(payload: DecisionInput, subject=Depends(identity), db: AsyncS
     db.add(PortalCaseEvent(workspace_id=workspace.id, invoice_id=payload.invoice_id,
                            actor_scope=str(session.user_id) if session.user_id else session.token_digest,
                            decision=payload.decision, note=payload.note.strip()))
+    invoice = await db.get(PortalInvoice, payload.invoice_id)
+    # The decision and its domain event commit together; the event drives the approval alerts.
+    scope = session.token_digest if workspace.kind == "showcase" else "workspace"
+    base = {"case_id": str(payload.invoice_id), "workspace_id": str(workspace.id), "visibility_scope": scope}
+    if payload.decision == "ESCALATE":
+        topic = event_topics.REVIEW_REQUESTED
+        data = {**base, "action_type": "ESCALATION", "reason": payload.note.strip(),
+                "subject": f"{invoice.invoice_number} · {invoice.counterparty} · ₹{invoice.amount_total - invoice.amount_paid:,.2f} outstanding"}
+    else:
+        topic, data = event_topics.REVIEW_RESOLVED, {**base, "decision": payload.decision}
+    envelope = await TransactionalEventPublisher(db).publish(topic, str(payload.invoice_id), data)
     await db.commit()
     _bump(workspace.id)
+    if not uses_broker():  # with a broker the outbox dispatcher and consumer apply it instead
+        try:
+            await deliver_inline(async_session_factory, topic, envelope)
+        except Exception:  # noqa: BLE001 - the decision is already saved; the outbox row stays pending
+            pass
     return {"ok": True, "mode": "isolated_showcase" if workspace.kind == "showcase" else "customer_portal",
             "external_effects": False}
+
+
+@router.get("/alerts")
+async def approval_alerts(subject=Depends(identity), db: AsyncSession = Depends(get_db)):
+    """Alerts raised by escalations; open ones first. Showcase visitors see only their own."""
+    session, workspace = subject
+    scope = session.token_digest if workspace.kind == "showcase" else "workspace"
+    rows = (await db.scalars(select(ApprovalAlert).where(
+        ApprovalAlert.workspace_id == workspace.id, ApprovalAlert.visibility_scope == scope)
+        .order_by(ApprovalAlert.status.asc(), ApprovalAlert.created_at.desc()).limit(50))).all()
+    return {"open": sum(r.status == "OPEN" for r in rows),
+            "alerts": [{"id": str(r.event_id), "invoice_id": str(r.case_id), "subject": r.subject,
+                        "reason": r.reason, "status": r.status, "resolved_decision": r.resolved_decision,
+                        "created_at": r.created_at.isoformat() if r.created_at else None} for r in rows]}
 
 
 class ImportItem(BaseModel):
