@@ -39,16 +39,19 @@ Neon also works: create a database named `invoiceiq`, remove the `databases:` bl
 
 ## Optional: event stream (hosted Kafka)
 
-The recovery workflow writes domain events to an outbox; the consumer (`python -m app.events.consumer`)
-turns `risk.scored` into the live high-risk case table and `review.requested` into in-app approval
-alerts. Each event is applied once per `event_id`, so redelivery is harmless. Events that fail three
+Recording a decision in the portal writes a domain event to an outbox in the same transaction.
+Escalating an invoice emits `review.requested`, which raises an approval alert; approving, rejecting
+or resetting it emits `review.resolved`, which closes the alert. The consumer
+(`python -m app.events.consumer`) applies these events, and also turns the recovery workflow's
+`risk.scored` into the live high-risk case table. With no broker configured the same handlers run
+in-process right after the commit, so the Approvals and Cases pages behave identically. Each event is applied once per `event_id`, so redelivery is harmless. Events that fail three
 times are stored in `dead_letter_events` and published to `<topic>.dlq`.
 
 A Hugging Face Space cannot run a broker, so use a hosted one with a free tier (Upstash Kafka or
 Redpanda Cloud):
 
-1. Create a cluster and the topics `risk.scored`, `review.requested`, `risk.scored.dlq` and
-   `review.requested.dlq` (hosted brokers usually do not auto-create topics).
+1. Create a cluster and the topics `risk.scored`, `review.requested`, `review.resolved` and a `.dlq` twin of each
+   (hosted brokers usually do not auto-create topics).
 2. Set on the API service: `KAFKA_BOOTSTRAP_SERVERS`, `KAFKA_SECURITY_PROTOCOL=SASL_SSL`,
    `KAFKA_SASL_MECHANISM` (`SCRAM-SHA-256` or `PLAIN`, per the provider), `KAFKA_USERNAME`,
    `KAFKA_PASSWORD`, and `OUTBOX_DISPATCH_ENABLED=true`.

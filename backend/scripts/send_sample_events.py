@@ -24,8 +24,8 @@ def envelope(data: dict) -> dict:
 
 async def main() -> None:
     options = kafka_client_options(settings)
-    wanted = [topics.RISK_SCORED, topics.REVIEW_REQUESTED,
-              topics.dead_letter_topic(topics.RISK_SCORED), topics.dead_letter_topic(topics.REVIEW_REQUESTED)]
+    wanted = [name for topic in (topics.RISK_SCORED, topics.REVIEW_REQUESTED, topics.REVIEW_RESOLVED)
+              for name in (topic, topics.dead_letter_topic(topic))]
     admin = AIOKafkaAdminClient(bootstrap_servers=settings.kafka_bootstrap_servers, **options)
     await admin.start()
     try:

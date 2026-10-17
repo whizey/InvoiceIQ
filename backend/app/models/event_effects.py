@@ -37,12 +37,20 @@ class CaseRiskLatest(Base):
 class ApprovalAlert(Base, CreatedAtMixin):
     """In-app alert raised when an action needs a human decision. Sends nothing externally."""
     __tablename__ = "approval_alerts"
+    __table_args__ = (Index("ix_approval_alerts_scope", "workspace_id", "visibility_scope", "status"),)
 
     event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
     case_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
     action_id: Mapped[str | None] = mapped_column(String(64))
     action_type: Mapped[str | None] = mapped_column(String(60))
     reason: Mapped[str | None] = mapped_column(Text)
+    workspace_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    # Showcase visitors see only their own alerts; customer workspaces share one scope.
+    visibility_scope: Mapped[str | None] = mapped_column(String(80))
+    subject: Mapped[str | None] = mapped_column(String(240))
+    status: Mapped[str] = mapped_column(String(12), nullable=False, default="OPEN", server_default="OPEN")
+    resolved_decision: Mapped[str | None] = mapped_column(String(12))
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class DeadLetterEvent(Base, UUIDPrimaryKeyMixin, CreatedAtMixin):
