@@ -54,6 +54,8 @@ jobs:
           node-version: 24
       - name: Build and deploy
         run: |
+          # A pasted secret often carries a trailing newline, which the Vercel CLI rejects.
+          VERCEL_TOKEN="$(printf '%s' "$VERCEL_TOKEN" | tr -d '[:space:]')"
           npx --yes vercel@latest pull --yes --environment=production --token "$VERCEL_TOKEN"
           npx --yes vercel@latest build --prod --token "$VERCEL_TOKEN"
           npx --yes vercel@latest deploy --prebuilt --prod --token "$VERCEL_TOKEN"
