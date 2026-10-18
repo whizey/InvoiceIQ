@@ -62,7 +62,7 @@
     "rows_checked": null,
     "status": "Not independently verified"
   },
-  "test_status": "Retrospective held-out result from a public dataset. The test split had already been examined during prior development; it is not pristine blind or prospective production evidence.",
+  "test_status": "Retrospective held-out result from a public dataset; not pristine held-out test evidence because the split had already been examined during prior development. It is not prospective production evidence.",
   "limitations": [
     "Test split was examined during prior development and does not provide a pristine blind estimate",
     "Explainability cohort count is not independently verified",
