@@ -23,7 +23,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app.core.config import settings
 from app.core.db import get_db
-from app.core.login_throttle import login_throttle
+from app.core.login_throttle import login_throttle, registration_limit
 from app.models.portal import (
     PortalWorkspace, PortalUser, PortalMembership, PortalSession, PortalInvoice, PortalCaseEvent,
     PortalPayment,
@@ -163,6 +163,7 @@ async def identity(request: Request, db: AsyncSession = Depends(get_db)):
 
 @router.post("/register", status_code=201)
 async def register(payload: RegisterInput, db: AsyncSession = Depends(get_db)):
+    registration_limit.check()
     if os.getenv("PUBLIC_READ_ONLY", "").lower() == "true":
         raise HTTPException(503, "Customer registration is disabled on the read-only dataset service")
     email = normalize_email(payload.email)

@@ -5,6 +5,7 @@ forwarded address can be spoofed by anyone who calls the API directly. Unknown e
 known ones, so the response never reveals whether an account exists. State is per API process (see the hardening
 roadmap for a shared limiter when more than one instance runs).
 """
+import os
 import time
 from dataclasses import dataclass
 
@@ -72,3 +73,30 @@ class LoginThrottle:
 
 
 login_throttle = LoginThrottle()
+
+
+class SlidingWindowLimit:
+    """Allow at most `limit` events per `window` seconds, process-wide.
+
+    Used for account creation, where the source address is not trustworthy behind the web proxy, so a global ceiling
+    bounds how fast anyone can create workspaces and rows.
+    """
+
+    def __init__(self, limit: int, window: float, clock=time.monotonic):
+        self._limit = limit
+        self._window = window
+        self._clock = clock
+        self._hits: list[float] = []
+
+    def check(self) -> None:
+        now = self._clock()
+        self._hits = [t for t in self._hits if now - t < self._window]
+        if len(self._hits) >= self._limit:
+            wait = int(self._window - (now - self._hits[0])) + 1
+            raise HTTPException(429, "Too many new accounts right now. Please try again shortly.",
+                                headers={"Retry-After": str(wait)})
+        self._hits.append(now)
+
+
+# Generous for real signups, tight enough to stop scripted account creation. Tunable per deployment.
+registration_limit = SlidingWindowLimit(int(os.getenv("REGISTRATION_LIMIT_PER_10_MIN", "60")), 600)

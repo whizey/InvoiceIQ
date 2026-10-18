@@ -124,3 +124,17 @@ async def test_sign_in_locks_out_guessing_without_revealing_which_accounts_exist
                 await db.execute(delete(PortalUser).where(PortalUser.id.in_(users)))
             await db.commit()
         await engine.dispose()
+
+
+def test_registration_limit_is_a_sliding_window():
+    from app.core.login_throttle import SlidingWindowLimit
+    clock = Clock()
+    limit = SlidingWindowLimit(3, 60, clock)
+    for _ in range(3):
+        limit.check()
+    with pytest.raises(HTTPException) as blocked:
+        limit.check()
+    assert blocked.value.status_code == 429
+    assert int(blocked.value.headers["Retry-After"]) > 0
+    clock.now += 61   # the window has passed
+    limit.check()
