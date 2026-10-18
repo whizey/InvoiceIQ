@@ -93,6 +93,8 @@ def compute_payment_risk_features(
                 row.clearing_date,
                 row.posting_date,
                 row.invoice_number,
+                # Frozen training features use strict lateness; only the target
+                # uses weekend-adjusted due dates (FEATURE_PROVENANCE.md).
                 (row.clearing_date - row.due_date).days,
             )
             for row in resolved

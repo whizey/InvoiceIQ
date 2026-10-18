@@ -1,0 +1,309 @@
+{
+  "task": "case_level_survival_challengers",
+  "production_model_changed": false,
+  "horizons": [
+    7,
+    15,
+    30,
+    45,
+    60,
+    90
+  ],
+  "models": {
+    "coxnet": {
+      "folds": [
+        {
+          "fold": {
+            "name": "fold_0",
+            "train_cutoff": "2018-07-01",
+            "eval_start": "2018-07-01",
+            "eval_end": "2018-09-01"
+          },
+          "training_invoices": 50000,
+          "evaluation_invoices": 36905,
+          "encoded_features": 38,
+          "horizons": {
+            "7": {
+              "known_rows": 36905,
+              "positive_rate": 0.06053380300772253,
+              "brier": 0.05181187248683057,
+              "ece": 0.016683661873394626,
+              "roc_auc": 0.8108680736924273,
+              "pr_auc": 0.26742586454993944
+            },
+            "15": {
+              "known_rows": 36905,
+              "positive_rate": 0.12526757891884568,
+              "brier": 0.09746400371923834,
+              "ece": 0.060569312194481646,
+              "roc_auc": 0.8122457789143299,
+              "pr_auc": 0.37453614830002885
+            },
+            "30": {
+              "known_rows": 36905,
+              "positive_rate": 0.3957729304972226,
+              "brier": 0.17551853039317117,
+              "ece": 0.17147504194480667,
+              "roc_auc": 0.8671064365606016,
+              "pr_auc": 0.7229745636684829
+            },
+            "45": {
+              "known_rows": 36905,
+              "positive_rate": 0.5371358894458745,
+              "brier": 0.1819582052159923,
+              "ece": 0.18515845439213635,
+              "roc_auc": 0.8681080932367834,
+              "pr_auc": 0.8222761729689905
+            },
+            "60": {
+              "known_rows": 36905,
+              "positive_rate": 0.6639479745291966,
+              "brier": 0.15337130633368437,
+              "ece": 0.15787158789930195,
+              "roc_auc": 0.8811275790517454,
+              "pr_auc": 0.8945270419142737
+            },
+            "90": {
+              "known_rows": 36905,
+              "positive_rate": 0.8544641647473242,
+              "brier": 0.07913412584319005,
+              "ece": 0.05976927577265208,
+              "roc_auc": 0.8646058542881674,
+              "pr_auc": 0.9552705123806304
+            }
+          },
+          "aggregate": {
+            "mean_horizon_brier": 0.12320967399868445,
+            "mean_horizon_auc": 0.8506769692906758,
+            "worst_horizon_auc": 0.8108680736924273,
+            "mean_horizon_ece": 0.10858788901279558
+          }
+        },
+        {
+          "fold": {
+            "name": "fold_1",
+            "train_cutoff": "2018-09-01",
+            "eval_start": "2018-09-01",
+            "eval_end": "2018-11-01"
+          },
+          "training_invoices": 50000,
+          "evaluation_invoices": 34985,
+          "encoded_features": 39,
+          "horizons": {
+            "7": {
+              "known_rows": 34985,
+              "positive_rate": 0.04621980848935258,
+              "brier": 0.04027746619389451,
+              "ece": 0.04106307975491194,
+              "roc_auc": 0.8467085511216756,
+              "pr_auc": 0.2860188677587597
+            },
+            "15": {
+              "known_rows": 34985,
+              "positive_rate": 0.08203515792482492,
+              "brier": 0.07026544574757251,
+              "ece": 0.08425830758763227,
+              "roc_auc": 0.8439364630918612,
+              "pr_auc": 0.3597567572956099
+            },
+            "30": {
+              "known_rows": 34985,
+              "positive_rate": 0.38350721737887666,
+              "brier": 0.1644656299874412,
+              "ece": 0.13769721378255295,
+              "roc_auc": 0.8761375611269993,
+              "pr_auc": 0.7467168288265132
+            },
+            "45": {
+              "known_rows": 34985,
+              "positive_rate": 0.5349149635558096,
+              "brier": 0.1754878756649617,
+              "ece": 0.1601343977473332,
+              "roc_auc": 0.8755526510352891,
+              "pr_auc": 0.8405090541637872
+            },
+            "60": {
+              "known_rows": 34985,
+              "positive_rate": 0.6509075317993426,
+              "brier": 0.16252822788263283,
+              "ece": 0.16412803308363094,
+              "roc_auc": 0.88056609546151,
+              "pr_auc": 0.8945220714507197
+            },
+            "90": {
+              "known_rows": 33392,
+              "positive_rate": 0.870148538572113,
+              "brier": 0.06544828533305765,
+              "ece": 0.0629480255532316,
+              "roc_auc": 0.8875876504411383,
+              "pr_auc": 0.9627335265384911
+            }
+          },
+          "aggregate": {
+            "mean_horizon_brier": 0.1130788218015934,
+            "mean_horizon_auc": 0.868414828713079,
+            "worst_horizon_auc": 0.8439364630918612,
+            "mean_horizon_ece": 0.10837150958488216
+          }
+        },
+        {
+          "fold": {
+            "name": "fold_2",
+            "train_cutoff": "2018-11-01",
+            "eval_start": "2018-11-01",
+            "eval_end": "2018-12-01"
+          },
+          "training_invoices": 50000,
+          "evaluation_invoices": 15588,
+          "encoded_features": 38,
+          "horizons": {
+            "7": {
+              "known_rows": 15588,
+              "positive_rate": 0.040928919681806515,
+              "brier": 0.0372415813362557,
+              "ece": 0.011179081362538007,
+              "roc_auc": 0.7974748639666182,
+              "pr_auc": 0.2570297661936841
+            },
+            "15": {
+              "known_rows": 15588,
+              "positive_rate": 0.10456761611496022,
+              "brier": 0.08411798385913162,
+              "ece": 0.03156677448234168,
+              "roc_auc": 0.7914092848220383,
+              "pr_auc": 0.3372043475114153
+            },
+            "30": {
+              "known_rows": 15588,
+              "positive_rate": 0.35322042596869385,
+              "brier": 0.1428380628014271,
+              "ece": 0.12440879411500275,
+              "roc_auc": 0.8885420878257065,
+              "pr_auc": 0.7576205861066491
+            },
+            "45": {
+              "known_rows": 15588,
+              "positive_rate": 0.5102643058763151,
+              "brier": 0.12906599238076233,
+              "ece": 0.10690428287983988,
+              "roc_auc": 0.9126411237157539,
+              "pr_auc": 0.8959407878484813
+            },
+            "60": {
+              "known_rows": 12959,
+              "positive_rate": 0.7186511304884636,
+              "brier": 0.08949095695858687,
+              "ece": 0.07312249730611113,
+              "roc_auc": 0.9416892223688401,
+              "pr_auc": 0.9711931756146183
+            },
+            "90": {
+              "known_rows": 10037,
+              "positive_rate": 1.0,
+              "brier": 0.006152204896876658,
+              "ece": 0.026650437209834277,
+              "roc_auc": null,
+              "pr_auc": null
+            }
+          },
+          "aggregate": {
+            "mean_horizon_brier": 0.08148446370550673,
+            "mean_horizon_auc": 0.8663513165397914,
+            "worst_horizon_auc": 0.7914092848220383,
+            "mean_horizon_ece": 0.062305311225944626
+          }
+        },
+        {
+          "fold": {
+            "name": "fold_3",
+            "train_cutoff": "2018-12-01",
+            "eval_start": "2018-12-01",
+            "eval_end": "2019-01-18"
+          },
+          "training_invoices": 50000,
+          "evaluation_invoices": 25253,
+          "encoded_features": 39,
+          "horizons": {
+            "7": {
+              "known_rows": 22012,
+              "positive_rate": 0.04602035253498092,
+              "brier": 0.042629945541803584,
+              "ece": 0.0030527537426863474,
+              "roc_auc": 0.7429703205441034,
+              "pr_auc": 0.1371971690054629
+            },
+            "15": {
+              "known_rows": 17513,
+              "positive_rate": 0.09615714040998116,
+              "brier": 0.08034573886013795,
+              "ece": 0.03257972593020124,
+              "roc_auc": 0.7746855158809058,
+              "pr_auc": 0.2671849376403472
+            },
+            "30": {
+              "known_rows": 12421,
+              "positive_rate": 0.37162869334192095,
+              "brier": 0.1713692454450448,
+              "ece": 0.08774551787008439,
+              "roc_auc": 0.8327818067563231,
+              "pr_auc": 0.7057189090728088
+            },
+            "45": {
+              "known_rows": 7564,
+              "positive_rate": 0.9175039661554732,
+              "brier": 0.07852987254765122,
+              "ece": 0.1972036883360001,
+              "roc_auc": 0.9406797273331854,
+              "pr_auc": 0.9931743365690676
+            },
+            "60": {
+              "known_rows": 6990,
+              "positive_rate": 1.0,
+              "brier": 0.022682830599770467,
+              "ece": 0.10255039848201966,
+              "roc_auc": null,
+              "pr_auc": null
+            },
+            "90": {
+              "known_rows": 6990,
+              "positive_rate": 1.0,
+              "brier": 0.0033026275918721574,
+              "ece": 0.014042681352564751,
+              "roc_auc": null,
+              "pr_auc": null
+            }
+          },
+          "aggregate": {
+            "mean_horizon_brier": 0.06647671009771336,
+            "mean_horizon_auc": 0.8227793426286295,
+            "worst_horizon_auc": 0.7429703205441034,
+            "mean_horizon_ece": 0.07286246095225941
+          }
+        }
+      ],
+      "summary": {
+        "median_mean_horizon_brier": 0.09728164275355006,
+        "worst_mean_horizon_brier": 0.12320967399868445,
+        "median_mean_horizon_auc": 0.8585141429152336,
+        "worst_horizon_auc_across_folds": 0.7429703205441034,
+        "auc_std": 0.018241379770863625,
+        "median_mean_horizon_ece": 0.09061698526857079
+      }
+    }
+  },
+  "challenger_ranking": [
+    "coxnet"
+  ],
+  "best_challenger": "coxnet",
+  "current_production_reference": {
+    "winner": "lightgbm_hazard",
+    "summary": {
+      "median_mean_horizon_brier": 0.07480021823576705,
+      "worst_mean_horizon_brier": 0.10774369531638488,
+      "median_mean_horizon_auc": 0.9156864938688123,
+      "worst_horizon_auc_across_folds": 0.8798525257578799,
+      "auc_std": 0.015309611981212088,
+      "median_mean_horizon_ece": 0.055738263270804264
+    }
+  }
+}

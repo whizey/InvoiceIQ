@@ -1,0 +1,70 @@
+{
+  "classification": {
+    "late_payment": {
+      "raw": {
+        "rows": 13355,
+        "prevalence": 0.4021714713590416,
+        "roc_auc": 0.6836139347210526,
+        "pr_auc": 0.558121223818898,
+        "pr_lift": 1.3877693062933125,
+        "brier": 0.23988132839214837,
+        "log_loss": 0.7381913358914775,
+        "ece_10": 0.13751512331378127
+      },
+      "temporally_calibrated": {
+        "rows": 13355,
+        "prevalence": 0.4021714713590416,
+        "roc_auc": 0.6459197836186243,
+        "pr_auc": 0.5319284245809053,
+        "pr_lift": 1.3226408695360248,
+        "brier": 0.23997206022980913,
+        "log_loss": 0.740559551880454,
+        "ece_10": 0.14815175310436482
+      },
+      "rows": 13355,
+      "test_used": false
+    },
+    "delay_over_7d": {
+      "raw": {
+        "rows": 13355,
+        "prevalence": 0.01976787719955073,
+        "roc_auc": 0.611015866787962,
+        "pr_auc": 0.02672923120967151,
+        "pr_lift": 1.352154859110466,
+        "brier": 0.05160838675336335,
+        "log_loss": 0.2502821263020808,
+        "ece_10": 0.08067709157014319
+      },
+      "temporally_calibrated": {
+        "rows": 13355,
+        "prevalence": 0.01976787719955073,
+        "roc_auc": 0.5215886810971221,
+        "pr_auc": 0.024636096623773397,
+        "pr_lift": 1.246269206100355,
+        "brier": 0.022737591202989623,
+        "log_loss": 0.22068635677343204,
+        "ece_10": 0.017338637572468493
+      },
+      "rows": 13355,
+      "test_used": false
+    },
+    "delay_over_15d": {
+      "status": "insufficient_temporal_calibration_support",
+      "oof_rows": 13347,
+      "positives": 161,
+      "negative": 13186,
+      "test_used": false
+    }
+  },
+  "quantiles": {
+    "p80": {
+      "target_coverage": 0.8,
+      "raw_coverage": 0.8776764103518898,
+      "temporal_calibrated_coverage": 0.8350400297896109,
+      "coverage_error": 0.03504002978961085,
+      "mean_adjustment_days": -0.979062405901406
+    }
+  },
+  "test_split_read": false,
+  "evaluation_type": "strict sequential temporal calibration evaluation"
+}

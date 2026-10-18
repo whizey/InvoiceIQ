@@ -1,4 +1,4 @@
-"""Hinglish voice-call demo — Sarvam does speech I/O only (see
+"""Hinglish voice-call sample — Sarvam does speech I/O only (see
 app/tools/sarvam_client.py); app/agents/llm_client.voice_turn() decides what
 to say and what to *propose*; evaluate_policy() (app/services/policy_engine.py)
 decides what actually happens, exactly like the LangGraph workflow does for
@@ -11,7 +11,7 @@ by the client and validated here per request (turn_number/started_at) —
 every turn still writes a real CommunicationLog row, so the audit trail is
 complete even without a session concept. See the project plan notes for the
 trade-off (a determined API caller could fake turn_number; acceptable for a
-single-user local demo with no auth anywhere else in this app either).
+single-user local sample with no auth anywhere else in this app either).
 """
 
 import base64
@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.llm_client import MAX_VOICE_TURNS, voice_turn
 from app.agents.schemas import VoiceTurnResult
 from app.core.db import get_db
+from app.core.case_company_scope import require_case_company_scope
 from app.core.locks import LockAcquisitionError, acquire_lock
 from app.models import AuditLog, Company, Contact, CommunicationLog, Invoice, RecoveryCase
 from app.models.enums import (
@@ -119,17 +120,24 @@ async def _speak_turn(
         recorded = await evaluate_and_record_action(db, case, invoice, recommended, proposed_by=ProposedBy.HUMAN)
         action = recorded.action
         outcome = recorded.outcome
-        exec_result = await execute_mock_action(db, outcome.final_action, case, invoice, contact)
-        action.status = RecoveryActionStatus.EXECUTED
-        action.executed_at = _now()
-        action.result = exec_result
-        await db.flush()
+        if action.status == RecoveryActionStatus.PENDING_APPROVAL:
+            # Human review is a hold, not an advisory flag. No tool executes.
+            await db.flush()
+        else:
+            exec_result = await execute_mock_action(db, outcome.final_action, case, invoice, contact)
+            action.status = RecoveryActionStatus.EXECUTED
+            action.executed_at = _now()
+            action.result = exec_result
+            await db.flush()
         db.add(
             AuditLog(
                 recovery_case_id=case.id,
                 entity_type="recovery_action",
                 entity_id=action.id,
-                event_type="VOICE_CALL_CONCLUDED",
+                event_type=(
+                    "REVIEW_REQUESTED" if action.status == RecoveryActionStatus.PENDING_APPROVAL
+                    else "VOICE_CALL_CONCLUDED"
+                ),
                 actor=AuditActor.SYSTEM,
                 description=f"Voice call concluded: policy {outcome.decision.value} {outcome.final_action.value}.",
                 occurred_at=_now(),
@@ -142,7 +150,7 @@ async def _speak_turn(
     return result, audio_b64, outcome_out
 
 
-@router.post("/{case_id}/voice/start", response_model=VoiceStartOut)
+@router.post("/{case_id}/voice/start", response_model=VoiceStartOut, dependencies=[Depends(require_case_company_scope)])
 async def start_voice_call(case_id: UUID, db: AsyncSession = Depends(get_db)) -> VoiceStartOut:
     """Human-triggered only (case-page "Start Hinglish recovery call" button).
     Gated by evaluate_policy() exactly like every other action — blocked if
@@ -194,7 +202,7 @@ async def start_voice_call(case_id: UUID, db: AsyncSession = Depends(get_db)) ->
     )
 
 
-@router.post("/{case_id}/voice/turn", response_model=VoiceTurnOut)
+@router.post("/{case_id}/voice/turn", response_model=VoiceTurnOut, dependencies=[Depends(require_case_company_scope)])
 async def submit_voice_turn(
     case_id: UUID,
     turn_number: int = Form(...),
@@ -294,7 +302,7 @@ async def submit_voice_turn(
                 )
                 if not user_text:
                     # No Sarvam key, or STT failed — simulated fallback so the
-                    # demo still works (browser mic/Sarvam issues shouldn't crash it).
+                    # sample still works (browser mic/Sarvam issues shouldn't crash it).
                     user_text = "(simulated reply — no speech-to-text available)"
 
             db.add(

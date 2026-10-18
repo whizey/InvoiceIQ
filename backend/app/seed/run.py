@@ -1,11 +1,11 @@
-"""Seed the database with a realistic, narrative demo dataset.
+"""Seed the database with a realistic, narrative sample dataset.
 
 Run with:  python -m app.seed.run
 
 This clears all domain tables first, so it is safe to re-run at any time —
 each run rebuilds the same story with dates recalculated relative to
 "today", so scenarios like "5 days overdue" stay true no matter when you
-seed. This is demo/dev data only; it is not the synthetic *training* set
+seed. This is sample/dev data only; it is not the synthetic *training* set
 used for the Phase 6 ML model (that will be generated separately, at a
 larger scale, purely for model fitting).
 """
@@ -101,9 +101,9 @@ async def create_companies(session: AsyncSession) -> dict[str, tuple[Company, di
             name=spec.name,
             industry=spec.industry,
             segment=spec.segment,
-            region="DEMO_REGION",
-            city=f"DEMO_{spec.key.upper()}",
-            zipcode=f"DEMO_{spec.key.upper()}_ZIP",
+            region="SAMPLE_REGION",
+            city=f"SAMPLE_{spec.key.upper()}",
+            zipcode=f"SAMPLE_{spec.key.upper()}_ZIP",
         )
         session.add(company)
         await session.flush()
@@ -250,7 +250,7 @@ async def scenario_a_low_risk(session: AsyncSession, company: Company, contacts:
         AgentDecision(
             recovery_case_id=case.id,
             stage=AgentDecisionStage.DIAGNOSIS,
-            model_name="gpt-4o-mini",
+            model_name="synthetic_fixture",
             input_context={"days_overdue": 5, "prior_late_payments": 0, "amount": str(invoice.amount_total)},
             output={"diagnosis": "Isolated late payment", "recommended_priority": "low"},
             rationale="Customer has a clean four-invoice payment history with no prior lateness; likely an administrative delay.",
@@ -260,7 +260,7 @@ async def scenario_a_low_risk(session: AsyncSession, company: Company, contacts:
         AgentDecision(
             recovery_case_id=case.id,
             stage=AgentDecisionStage.INTERVENTION_RECOMMENDATION,
-            model_name="gpt-4o-mini",
+            model_name="synthetic_fixture",
             input_context={"diagnosis": "Isolated late payment"},
             output={"action": "SEND_EMAIL"},
             rationale="A single friendly reminder is proportionate for a first-time, short delay from a reliable payer.",
@@ -380,7 +380,7 @@ async def scenario_b_medium_risk(session: AsyncSession, company: Company, contac
         AgentDecision(
             recovery_case_id=case.id,
             stage=AgentDecisionStage.DIAGNOSIS,
-            model_name="gpt-4o-mini",
+            model_name="synthetic_fixture",
             input_context={"days_overdue": 30, "prior_late_payments": 3, "prior_on_time_payments": 1},
             output={"diagnosis": "Recurring late-payment pattern", "recommended_priority": "medium"},
             rationale="Customer has paid late in 3 of the last 4 invoices (15-18 days late); this is consistent behavior, not an anomaly.",
@@ -390,7 +390,7 @@ async def scenario_b_medium_risk(session: AsyncSession, company: Company, contac
         AgentDecision(
             recovery_case_id=case.id,
             stage=AgentDecisionStage.INTERVENTION_RECOMMENDATION,
-            model_name="gpt-4o-mini",
+            model_name="synthetic_fixture",
             input_context={"reminder_count": 1, "days_since_last_action": 14},
             output={"action": "SEND_PAYMENT_LINK"},
             rationale="First reminder had no response after two weeks; a direct payment link lowers friction for a customer who habitually pays late rather than disputes.",
@@ -515,13 +515,13 @@ async def scenario_c_high_risk_escalated(session: AsyncSession, company: Company
     ))
 
     session.add(AgentDecision(
-        recovery_case_id=case.id, stage=AgentDecisionStage.DIAGNOSIS, model_name="gpt-4o-mini",
+        recovery_case_id=case.id, stage=AgentDecisionStage.DIAGNOSIS, model_name="synthetic_fixture",
         input_context={"days_overdue": 60, "amount": "1800000.00", "prior_late_payments": 2},
         output={"diagnosis": "High-value invoice significantly overdue with no response to two prior interventions", "recommended_priority": "high"},
         rationale="Two reminders over 45 days produced no payment or communication from a customer with an otherwise acceptable but inconsistent payment history at this value tier.",
     ))
     session.add(AgentDecision(
-        recovery_case_id=case.id, stage=AgentDecisionStage.INTERVENTION_RECOMMENDATION, model_name="gpt-4o-mini",
+        recovery_case_id=case.id, stage=AgentDecisionStage.INTERVENTION_RECOMMENDATION, model_name="synthetic_fixture",
         input_context={"reminder_count": 2, "days_since_last_action": 25},
         output={"action": "ESCALATE"},
         rationale="Recommend escalation to human finance team given amount, elapsed time, and lack of response to automated outreach.",
@@ -635,13 +635,13 @@ async def scenario_d_promise_to_pay(session: AsyncSession, company: Company, con
     ))
 
     session.add(AgentDecision(
-        recovery_case_id=case.id, stage=AgentDecisionStage.DIAGNOSIS, model_name="gpt-4o-mini",
+        recovery_case_id=case.id, stage=AgentDecisionStage.DIAGNOSIS, model_name="synthetic_fixture",
         input_context={"days_overdue": 15, "customer_response": "cash-flow delay, requested extension"},
         output={"diagnosis": "Customer communicated a temporary cash-flow delay and requested an extension", "recommended_priority": "medium"},
         rationale="Direct, specific commitment from a contact with a mostly clean payment history suggests genuine short-term delay rather than avoidance.",
     ))
     session.add(AgentDecision(
-        recovery_case_id=case.id, stage=AgentDecisionStage.INTERVENTION_RECOMMENDATION, model_name="gpt-4o-mini",
+        recovery_case_id=case.id, stage=AgentDecisionStage.INTERVENTION_RECOMMENDATION, model_name="synthetic_fixture",
         input_context={"customer_committed_date": promise_date.isoformat()},
         output={"action": "TRACK_PROMISE_TO_PAY"},
         rationale="Customer gave a concrete date; track the commitment rather than sending another reminder that could damage the relationship.",
@@ -716,13 +716,13 @@ async def scenario_e_recovered(session: AsyncSession, company: Company, contacts
     session.add(PaymentEvent(invoice_id=invoice.id, event_type=PaymentEventType.PAYMENT_RECEIVED, payload={"amount": "95000.00"}, occurred_at=payment_time))
 
     session.add(AgentDecision(
-        recovery_case_id=case.id, stage=AgentDecisionStage.DIAGNOSIS, model_name="gpt-4o-mini",
+        recovery_case_id=case.id, stage=AgentDecisionStage.DIAGNOSIS, model_name="synthetic_fixture",
         input_context={"days_overdue": 10, "prior_late_payments": 0},
         output={"diagnosis": "Isolated late payment", "recommended_priority": "low"},
         rationale="Small business customer with a consistently on-time history; single reminder is proportionate.",
     ))
     session.add(AgentDecision(
-        recovery_case_id=case.id, stage=AgentDecisionStage.INTERVENTION_RECOMMENDATION, model_name="gpt-4o-mini",
+        recovery_case_id=case.id, stage=AgentDecisionStage.INTERVENTION_RECOMMENDATION, model_name="synthetic_fixture",
         input_context={"diagnosis": "Isolated late payment"},
         output={"action": "SEND_EMAIL"},
         rationale="A single reminder is expected to resolve this given the customer's history.",
@@ -798,7 +798,7 @@ async def seed() -> None:
         healthy_company, _ = created["orbit"]
         await seed_healthy_current_invoice(session, healthy_company)
 
-        demo_current_invoice_numbers = [
+        sample_current_invoice_numbers = [
             "INV-NORTHWIND-2001",
             "INV-BLUEPEAK-2005",
             "INV-VERTEX-3010",
@@ -810,7 +810,7 @@ async def seed() -> None:
         result = await session.execute(
             select(Invoice).where(
                 Invoice.invoice_number.in_(
-                    demo_current_invoice_numbers
+                    sample_current_invoice_numbers
                 )
             )
         )

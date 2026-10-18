@@ -1,0 +1,528 @@
+{
+  "created_at_utc": "2026-10-08T08:02:16.901578+00:00",
+  "target": "late_payment_weekend_adjusted",
+  "features": [
+    "amount",
+    "payment_term",
+    "prior_resolved_invoice_count",
+    "prior_open_invoice_count",
+    "open_invoice_ratio",
+    "has_resolved_history",
+    "historical_late_rate",
+    "historical_avg_days_late",
+    "historical_avg_invoice_amount",
+    "amount_vs_historical_avg_ratio",
+    "customer_tenure_days",
+    "days_since_previous_invoice",
+    "recent_5_late_rate",
+    "recent_5_avg_days_late",
+    "recent_late_streak",
+    "recent_on_time_streak",
+    "recent_5_late_rate_delta",
+    "recent_5_avg_days_late_delta"
+  ],
+  "test_split_read": false,
+  "production_model_unchanged": true,
+  "results": {
+    "random_forest": {
+      "temporal_folds": [
+        {
+          "fold": 0,
+          "cutoff": "2015-05-22",
+          "training_rows": 9476,
+          "all_invoices": {
+            "within_period_auc": 0.6100293763802935,
+            "pooled_auc": 0.5674596988945612,
+            "pr_auc": 0.885785823527179,
+            "brier": 0.5269899953033335,
+            "rows": 4384,
+            "late_rate": 0.8252737226277372
+          },
+          "history_eligible": {
+            "within_period_auc": 0.611412453571617,
+            "pooled_auc": 0.5684059972917562,
+            "pr_auc": 0.8868700559731553,
+            "brier": 0.5272560476667717,
+            "rows": 4378,
+            "late_rate": 0.8257195066240293
+          }
+        },
+        {
+          "fold": 1,
+          "cutoff": "2015-07-02",
+          "training_rows": 14718,
+          "all_invoices": {
+            "within_period_auc": 0.6187834279654009,
+            "pooled_auc": 0.6217181581439394,
+            "pr_auc": 0.1972047919860137,
+            "brier": 0.7110300472465758,
+            "rows": 4336,
+            "late_rate": 0.14760147601476015
+          },
+          "history_eligible": {
+            "within_period_auc": 0.6200770002378042,
+            "pooled_auc": 0.623156470581241,
+            "pr_auc": 0.1973604897973196,
+            "brier": 0.711704189397434,
+            "rows": 4329,
+            "late_rate": 0.1473781473781474
+          }
+        },
+        {
+          "fold": 2,
+          "cutoff": "2015-08-06",
+          "training_rows": 18736,
+          "all_invoices": {
+            "within_period_auc": 0.8399367667867134,
+            "pooled_auc": 0.8414180557719271,
+            "pr_auc": 0.5147877303185405,
+            "brier": 0.11990899783071655,
+            "rows": 4508,
+            "late_rate": 0.18633540372670807
+          },
+          "history_eligible": {
+            "within_period_auc": 0.8395436997425711,
+            "pooled_auc": 0.8410678486812987,
+            "pr_auc": 0.5148221171330793,
+            "brier": 0.12015041277452833,
+            "rows": 4498,
+            "late_rate": 0.18674966651845265
+          }
+        },
+        {
+          "fold": 3,
+          "cutoff": "2015-09-15",
+          "training_rows": 23628,
+          "all_invoices": {
+            "within_period_auc": 0.5461684802231351,
+            "pooled_auc": 0.5196421613280312,
+            "pr_auc": 0.583992421180942,
+            "brier": 0.3621396070982233,
+            "rows": 4313,
+            "late_rate": 0.5035937862276837
+          },
+          "history_eligible": {
+            "within_period_auc": 0.546321635995682,
+            "pooled_auc": 0.5198622705622501,
+            "pr_auc": 0.5844241327404682,
+            "brier": 0.3624469312204285,
+            "rows": 4309,
+            "late_rate": 0.5040612671153399
+          }
+        }
+      ],
+      "temporal_mean_auc": 0.6537295128388858,
+      "temporal_min_auc": 0.5461684802231351,
+      "temporal_std_auc": 0.11110068399276589,
+      "inverted_folds": 0,
+      "validation": {
+        "within_period_auc": 0.8348625783772146,
+        "pooled_auc": 0.8133546865562414,
+        "pr_auc": 0.7634658003671391,
+        "brier": 0.17499250990184903,
+        "rows": 6404,
+        "late_rate": 0.41770768269831354
+      }
+    },
+    "gradient_boosting": {
+      "temporal_folds": [
+        {
+          "fold": 0,
+          "cutoff": "2015-05-22",
+          "training_rows": 9476,
+          "all_invoices": {
+            "within_period_auc": 0.4876284652058291,
+            "pooled_auc": 0.4334315512660082,
+            "pr_auc": 0.8362449599398238,
+            "brier": 0.6680317895651732,
+            "rows": 4384,
+            "late_rate": 0.8252737226277372
+          },
+          "history_eligible": {
+            "within_period_auc": 0.488876502186226,
+            "pooled_auc": 0.43417644190418186,
+            "pr_auc": 0.8374042799122852,
+            "brier": 0.668498653606952,
+            "rows": 4378,
+            "late_rate": 0.8257195066240293
+          }
+        },
+        {
+          "fold": 1,
+          "cutoff": "2015-07-02",
+          "training_rows": 14718,
+          "all_invoices": {
+            "within_period_auc": 0.5830002204209066,
+            "pooled_auc": 0.5807917343073593,
+            "pr_auc": 0.16334094826102308,
+            "brier": 0.7877623863623638,
+            "rows": 4336,
+            "late_rate": 0.14760147601476015
+          },
+          "history_eligible": {
+            "within_period_auc": 0.5841471333928459,
+            "pooled_auc": 0.5820469854233249,
+            "pr_auc": 0.1633905963445762,
+            "brier": 0.7885727320359226,
+            "rows": 4329,
+            "late_rate": 0.1473781473781474
+          }
+        },
+        {
+          "fold": 2,
+          "cutoff": "2015-08-06",
+          "training_rows": 18736,
+          "all_invoices": {
+            "within_period_auc": 0.8160539529598525,
+            "pooled_auc": 0.7832487861556836,
+            "pr_auc": 0.475503186084,
+            "brier": 0.11667461119040243,
+            "rows": 4508,
+            "late_rate": 0.18633540372670807
+          },
+          "history_eligible": {
+            "within_period_auc": 0.8159332340351736,
+            "pooled_auc": 0.7833816618500871,
+            "pr_auc": 0.4757952123197627,
+            "brier": 0.11690807474528819,
+            "rows": 4498,
+            "late_rate": 0.18674966651845265
+          }
+        },
+        {
+          "fold": 3,
+          "cutoff": "2015-09-15",
+          "training_rows": 23628,
+          "all_invoices": {
+            "within_period_auc": 0.5655421079280234,
+            "pooled_auc": 0.5567215497138649,
+            "pr_auc": 0.6349052456812501,
+            "brier": 0.3715432787063146,
+            "rows": 4313,
+            "late_rate": 0.5035937862276837
+          },
+          "history_eligible": {
+            "within_period_auc": 0.5660239450341709,
+            "pooled_auc": 0.5571836346541813,
+            "pr_auc": 0.6354980703401351,
+            "brier": 0.37186042950324255,
+            "rows": 4309,
+            "late_rate": 0.5040612671153399
+          }
+        }
+      ],
+      "temporal_mean_auc": 0.6130561866286529,
+      "temporal_min_auc": 0.4876284652058291,
+      "temporal_std_auc": 0.12257768477197288,
+      "inverted_folds": 1,
+      "validation": {
+        "within_period_auc": 0.7850190784108206,
+        "pooled_auc": 0.7849491357207841,
+        "pr_auc": 0.6993894268569241,
+        "brier": 0.1953963392381827,
+        "rows": 6404,
+        "late_rate": 0.41770768269831354
+      }
+    },
+    "xgboost": {
+      "temporal_folds": [
+        {
+          "fold": 0,
+          "cutoff": "2015-05-22",
+          "training_rows": 9476,
+          "all_invoices": {
+            "within_period_auc": 0.4343531117169816,
+            "pooled_auc": 0.4102318044243535,
+            "pr_auc": 0.8406457335919747,
+            "brier": 0.6732913255691528,
+            "rows": 4384,
+            "late_rate": 0.8252737226277372
+          },
+          "history_eligible": {
+            "within_period_auc": 0.43524689643048153,
+            "pooled_auc": 0.4108143040230292,
+            "pr_auc": 0.8418192644021069,
+            "brier": 0.6737194061279297,
+            "rows": 4378,
+            "late_rate": 0.8257195066240293
+          }
+        },
+        {
+          "fold": 1,
+          "cutoff": "2015-07-02",
+          "training_rows": 14718,
+          "all_invoices": {
+            "within_period_auc": 0.6908035829693925,
+            "pooled_auc": 0.6945667613636364,
+            "pr_auc": 0.24163381640264778,
+            "brier": 0.8037055134773254,
+            "rows": 4336,
+            "late_rate": 0.14760147601476015
+          },
+          "history_eligible": {
+            "within_period_auc": 0.6924459975051119,
+            "pooled_auc": 0.6963349807079663,
+            "pr_auc": 0.2419291091912049,
+            "brier": 0.8045072555541992,
+            "rows": 4329,
+            "late_rate": 0.1473781473781474
+          }
+        },
+        {
+          "fold": 2,
+          "cutoff": "2015-08-06",
+          "training_rows": 18736,
+          "all_invoices": {
+            "within_period_auc": 0.8296069268501063,
+            "pooled_auc": 0.79917286571117,
+            "pr_auc": 0.4718460639594773,
+            "brier": 0.12843087315559387,
+            "rows": 4508,
+            "late_rate": 0.18633540372670807
+          },
+          "history_eligible": {
+            "within_period_auc": 0.8295748880726589,
+            "pooled_auc": 0.7993938595120935,
+            "pr_auc": 0.47220549343725393,
+            "brier": 0.12869511544704437,
+            "rows": 4498,
+            "late_rate": 0.18674966651845265
+          }
+        },
+        {
+          "fold": 3,
+          "cutoff": "2015-09-15",
+          "training_rows": 23628,
+          "all_invoices": {
+            "within_period_auc": 0.5753135207725195,
+            "pooled_auc": 0.567043033366794,
+            "pr_auc": 0.6196744283277178,
+            "brier": 0.3884597718715668,
+            "rows": 4313,
+            "late_rate": 0.5035937862276837
+          },
+          "history_eligible": {
+            "within_period_auc": 0.575810568383826,
+            "pooled_auc": 0.567529608554358,
+            "pr_auc": 0.6203019995643062,
+            "brier": 0.3887832760810852,
+            "rows": 4309,
+            "late_rate": 0.5040612671153399
+          }
+        }
+      ],
+      "temporal_mean_auc": 0.6325192855772499,
+      "temporal_min_auc": 0.4343531117169816,
+      "temporal_std_auc": 0.14558754209607536,
+      "inverted_folds": 1,
+      "validation": {
+        "within_period_auc": 0.7916482526450533,
+        "pooled_auc": 0.7763644884875552,
+        "pr_auc": 0.7061477127239978,
+        "brier": 0.19560809433460236,
+        "rows": 6404,
+        "late_rate": 0.41770768269831354
+      }
+    },
+    "lightgbm": {
+      "temporal_folds": [
+        {
+          "fold": 0,
+          "cutoff": "2015-05-22",
+          "training_rows": 9476,
+          "all_invoices": {
+            "within_period_auc": 0.5019119984437552,
+            "pooled_auc": 0.46884359028761036,
+            "pr_auc": 0.8479765639195385,
+            "brier": 0.6790414049728695,
+            "rows": 4384,
+            "late_rate": 0.8252737226277372
+          },
+          "history_eligible": {
+            "within_period_auc": 0.5033310336494027,
+            "pooled_auc": 0.46976700764435353,
+            "pr_auc": 0.8491093958062654,
+            "brier": 0.6793199601877303,
+            "rows": 4378,
+            "late_rate": 0.8257195066240293
+          }
+        },
+        {
+          "fold": 1,
+          "cutoff": "2015-07-02",
+          "training_rows": 14718,
+          "all_invoices": {
+            "within_period_auc": 0.7316226734921748,
+            "pooled_auc": 0.7334542410714286,
+            "pr_auc": 0.25522704718954675,
+            "brier": 0.8305601438080472,
+            "rows": 4336,
+            "late_rate": 0.14760147601476015
+          },
+          "history_eligible": {
+            "within_period_auc": 0.7334480636496286,
+            "pooled_auc": 0.7353976333180174,
+            "pr_auc": 0.2555650046467157,
+            "brier": 0.8313644688888083,
+            "rows": 4329,
+            "late_rate": 0.1473781473781474
+          }
+        },
+        {
+          "fold": 2,
+          "cutoff": "2015-08-06",
+          "training_rows": 18736,
+          "all_invoices": {
+            "within_period_auc": 0.8547445186549305,
+            "pooled_auc": 0.8197657020823597,
+            "pr_auc": 0.7392055572642096,
+            "brier": 0.0996577044172704,
+            "rows": 4508,
+            "late_rate": 0.18633540372670807
+          },
+          "history_eligible": {
+            "within_period_auc": 0.854779360392232,
+            "pooled_auc": 0.8200449438933584,
+            "pr_auc": 0.7395684528135551,
+            "brier": 0.09986404019087573,
+            "rows": 4498,
+            "late_rate": 0.18674966651845265
+          }
+        },
+        {
+          "fold": 3,
+          "cutoff": "2015-09-15",
+          "training_rows": 23628,
+          "all_invoices": {
+            "within_period_auc": 0.5945662742213171,
+            "pooled_auc": 0.5801946862234563,
+            "pr_auc": 0.6027090117313716,
+            "brier": 0.3917286629269257,
+            "rows": 4313,
+            "late_rate": 0.5035937862276837
+          },
+          "history_eligible": {
+            "within_period_auc": 0.5951162098066153,
+            "pooled_auc": 0.5807433658137644,
+            "pr_auc": 0.603446929030421,
+            "brier": 0.3920422398593099,
+            "rows": 4309,
+            "late_rate": 0.5040612671153399
+          }
+        }
+      ],
+      "temporal_mean_auc": 0.6707113662030444,
+      "temporal_min_auc": 0.5019119984437552,
+      "temporal_std_auc": 0.13404261462860562,
+      "inverted_folds": 0,
+      "validation": {
+        "within_period_auc": 0.7804915162337549,
+        "pooled_auc": 0.7713220702601233,
+        "pr_auc": 0.6832162273574833,
+        "brier": 0.21085383214462292,
+        "rows": 6404,
+        "late_rate": 0.41770768269831354
+      }
+    },
+    "catboost": {
+      "temporal_folds": [
+        {
+          "fold": 0,
+          "cutoff": "2015-05-22",
+          "training_rows": 9476,
+          "all_invoices": {
+            "within_period_auc": 0.5990555941099693,
+            "pooled_auc": 0.5581587637674695,
+            "pr_auc": 0.8750274183869873,
+            "brier": 0.6630675808329368,
+            "rows": 4384,
+            "late_rate": 0.8252737226277372
+          },
+          "history_eligible": {
+            "within_period_auc": 0.6009327732102392,
+            "pooled_auc": 0.5594341691909167,
+            "pr_auc": 0.8762464164629684,
+            "brier": 0.6634146843248152,
+            "rows": 4378,
+            "late_rate": 0.8257195066240293
+          }
+        },
+        {
+          "fold": 1,
+          "cutoff": "2015-07-02",
+          "training_rows": 14718,
+          "all_invoices": {
+            "within_period_auc": 0.6500230448968422,
+            "pooled_auc": 0.6406106263528139,
+            "pr_auc": 0.2362031799048449,
+            "brier": 0.8272115198445735,
+            "rows": 4336,
+            "late_rate": 0.14760147601476015
+          },
+          "history_eligible": {
+            "within_period_auc": 0.6515702874476522,
+            "pooled_auc": 0.6421351096329375,
+            "pr_auc": 0.23648128903844512,
+            "brier": 0.8280632062759758,
+            "rows": 4329,
+            "late_rate": 0.1473781473781474
+          }
+        },
+        {
+          "fold": 2,
+          "cutoff": "2015-08-06",
+          "training_rows": 18736,
+          "all_invoices": {
+            "within_period_auc": 0.7988729440640084,
+            "pooled_auc": 0.7938295165394401,
+            "pr_auc": 0.39235459519417926,
+            "brier": 0.14396973342191052,
+            "rows": 4508,
+            "late_rate": 0.18633540372670807
+          },
+          "history_eligible": {
+            "within_period_auc": 0.7986505035360699,
+            "pooled_auc": 0.793959098128043,
+            "pr_auc": 0.3926664426924594,
+            "brier": 0.14426446770465062,
+            "rows": 4498,
+            "late_rate": 0.18674966651845265
+          }
+        },
+        {
+          "fold": 3,
+          "cutoff": "2015-09-15",
+          "training_rows": 23628,
+          "all_invoices": {
+            "within_period_auc": 0.49590537639696053,
+            "pooled_auc": 0.4995266923168895,
+            "pr_auc": 0.5894225528589228,
+            "brier": 0.40366052863989704,
+            "rows": 4313,
+            "late_rate": 0.5035937862276837
+          },
+          "history_eligible": {
+            "within_period_auc": 0.4963791081055189,
+            "pooled_auc": 0.4998950784692401,
+            "pr_auc": 0.5899930575958539,
+            "brier": 0.4040198979037839,
+            "rows": 4309,
+            "late_rate": 0.5040612671153399
+          }
+        }
+      ],
+      "temporal_mean_auc": 0.6359642398669452,
+      "temporal_min_auc": 0.49590537639696053,
+      "temporal_std_auc": 0.10921953725198694,
+      "inverted_folds": 1,
+      "validation": {
+        "within_period_auc": 0.7969285938672545,
+        "pooled_auc": 0.7832961155680533,
+        "pr_auc": 0.7119023156040554,
+        "brier": 0.19195593247927648,
+        "rows": 6404,
+        "late_rate": 0.41770768269831354
+      }
+    }
+  }
+}

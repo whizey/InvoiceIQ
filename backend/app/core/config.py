@@ -12,8 +12,19 @@ _ENV_FILE = _BACKEND_DIR / ".env"
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=_ENV_FILE, env_file_encoding="utf-8")
 
+    business_timezone: str = "Asia/Kolkata"
+
+    @field_validator("business_timezone")
+    @classmethod
+    def valid_business_timezone(cls, value: str) -> str:
+        from zoneinfo import ZoneInfo
+        ZoneInfo(value)
+        return value
+
     app_name: str = "invoiceiq"
     env: str = "local"
+    # An explicit blank disables serving; otherwise use the evaluated champion.
+    payment_risk_model: str = "b2b_v2"
     database_url: str = (
         "postgresql+asyncpg://recovery_user:recovery_pass@localhost:5432/recovery_db"
     )
@@ -44,12 +55,21 @@ class Settings(BaseSettings):
     # Gemini (GOOGLE_API_KEY) is preferred when both keys are present.
     google_api_key: str | None = None
     openai_api_key: str | None = None
+    groq_api_key: str | None = None
+    # Groq requires an explicit model because available model IDs change.
+    groq_model: str | None = None
     # Optional override. If omitted, Gemini uses gemini-2.5-flash and OpenAI uses gpt-4o-mini.
     llm_model: str | None = None
 
     # Event publishing: if unset, domain events are logged instead of
     # published (see app/events/) — no Kafka required to run the app.
     kafka_bootstrap_servers: str | None = None
+    # Hosted Kafka (Upstash, Redpanda Cloud) needs TLS plus SASL; a local broker needs neither.
+    kafka_security_protocol: str = "PLAINTEXT"
+    kafka_sasl_mechanism: str | None = None
+    kafka_username: str | None = None
+    kafka_password: str | None = None
+    outbox_dispatch_enabled: bool = False
 
     # Locking/idempotency: if unset, falls back to an in-process lock
     # (see app/core/locks.py) — no Redis required to run the app, but the
@@ -60,6 +80,9 @@ class Settings(BaseSettings):
     # app/core/observability.py). LangSmith tracing of the LangGraph
     # workflow is opt-in — off by default, no account required to run the app.
     log_level: str = "INFO"
+    # Off by default; metrics endpoint requires a separate collector key in hosted environments.
+    metrics_enabled: bool = False
+    metrics_token: str | None = None
     langchain_tracing_v2: bool = False
     langchain_api_key: str | None = None
     langchain_project: str = "invoiceiq"
@@ -70,25 +93,27 @@ class Settings(BaseSettings):
     scheduler_interval_seconds: int = 60
     scheduler_initial_delay_seconds: int = 5
 
-    # Real-reminder-email demo (see app/tools/email_provider.py). The ONLY
+    # Real-reminder-email sample (see app/tools/email_provider.py). The ONLY
     # allowed destination for a real send is this address — never a seeded
     # contact's @example.com. If unset, the send-reminder endpoint errors
     # rather than silently falling back to a fake address.
-    demo_notify_email: str | None = None
+    sample_notify_email: str | None = None
     # If unset, the endpoint still runs (policy still gates it) but records
     # a SIMULATED CommunicationLog instead of calling Resend.
     resend_api_key: str | None = None
     resend_from: str | None = None
 
-    # Hinglish voice-call demo (see app/tools/sarvam_client.py). If unset,
+    # Hinglish voice-call sample (see app/tools/sarvam_client.py). If unset,
     # calls run as a fully simulated (text-only, no audio) turn sequence.
     sarvam_api_key: str | None = None
 
     @field_validator(
         "google_api_key",
         "openai_api_key",
+        "groq_api_key",
+        "groq_model",
         "llm_model",
-        "demo_notify_email",
+        "sample_notify_email",
         "resend_api_key",
         "resend_from",
         "sarvam_api_key",

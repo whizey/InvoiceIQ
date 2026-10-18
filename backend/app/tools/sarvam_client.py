@@ -1,4 +1,4 @@
-"""Sarvam speech I/O for the Hinglish voice-call demo.
+"""Sarvam speech I/O for the Hinglish voice-call sample.
 
 Sarvam is speech-only here — it never decides anything, it just converts
 text to Hinglish speech (TTS) and the customer's recorded reply back to
@@ -60,11 +60,11 @@ async def text_to_speech(text: str) -> bytes | None:
             data = response.json()
         audio_b64 = data.get("audios", [None])[0] or data.get("audio")
         if not audio_b64:
-            logger.warning("Sarvam TTS response had no audio field: keys=%s", list(data.keys()))
+            logger.warning("Sarvam TTS response had no audio field")
             return None
         return base64.b64decode(audio_b64)
     except Exception:
-        logger.warning("Sarvam TTS call failed", exc_info=True)
+        logger.warning("Sarvam TTS call failed")
         return None
 
 
@@ -87,9 +87,9 @@ async def speech_to_text(audio_bytes: bytes, filename: str, content_type: str) -
             data = response.json()
         transcript = data.get("transcript")
         if not transcript:
-            logger.warning("Sarvam STT response had no transcript field: keys=%s", list(data.keys()))
+            logger.warning("Sarvam STT response had no transcript field")
             return None
         return transcript
     except Exception:
-        logger.warning("Sarvam STT call failed", exc_info=True)
+        logger.warning("Sarvam STT call failed")
         return None

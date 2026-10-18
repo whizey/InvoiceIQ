@@ -1,0 +1,100 @@
+{
+  "ranking": {
+    "p_late": {
+      "50": {
+        "k": 50,
+        "precision": 0.12,
+        "recall": 0.0011171104077452988,
+        "lift": 0.2983801899087693,
+        "risky_cash_capture": 0.00045836934942927016,
+        "actual_risky_cash_captured": 34873.0,
+        "selected_invoice_value": 131884.0
+      },
+      "100": {
+        "k": 100,
+        "precision": 0.22,
+        "recall": 0.0040960714950660955,
+        "lift": 0.5470303481660771,
+        "risky_cash_capture": 0.0057126545862887694,
+        "actual_risky_cash_captured": 434622.0,
+        "selected_invoice_value": 1385249.0
+      },
+      "250": {
+        "k": 250,
+        "precision": 0.424,
+        "recall": 0.01973561720350028,
+        "lift": 1.0542766710109848,
+        "risky_cash_capture": 0.021104784878903438,
+        "actual_risky_cash_captured": 1605664.0,
+        "selected_invoice_value": 3479269.0
+      },
+      "500": {
+        "k": 500,
+        "precision": 0.426,
+        "recall": 0.03965741947495811,
+        "lift": 1.059249674176131,
+        "risky_cash_capture": 0.046465071691697564,
+        "actual_risky_cash_captured": 3535089.0,
+        "selected_invoice_value": 7712555.0
+      },
+      "1000": {
+        "k": 1000,
+        "precision": 0.53,
+        "recall": 0.0986780860175014,
+        "lift": 1.317845838763731,
+        "risky_cash_capture": 0.09818692597283088,
+        "actual_risky_cash_captured": 7470117.0,
+        "selected_invoice_value": 18068505.0
+      }
+    },
+    "expected_overdue_exposure": {
+      "50": {
+        "k": 50,
+        "precision": 0.46,
+        "recall": 0.004282256563023646,
+        "lift": 1.1437907279836157,
+        "risky_cash_capture": 0.07068256996559975,
+        "actual_risky_cash_captured": 5377570.0,
+        "selected_invoice_value": 17979962.0
+      },
+      "100": {
+        "k": 100,
+        "precision": 0.47,
+        "recall": 0.008750698194004841,
+        "lift": 1.1686557438093463,
+        "risky_cash_capture": 0.1098947908734697,
+        "actual_risky_cash_captured": 8360858.0,
+        "selected_invoice_value": 27148468.0
+      },
+      "250": {
+        "k": 250,
+        "precision": 0.496,
+        "recall": 0.023086948426736177,
+        "lift": 1.2333047849562464,
+        "risky_cash_capture": 0.21800698462197318,
+        "actual_risky_cash_captured": 16586095.0,
+        "selected_invoice_value": 47372308.0
+      },
+      "500": {
+        "k": 500,
+        "precision": 0.52,
+        "recall": 0.04840811766896295,
+        "lift": 1.2929808229380004,
+        "risky_cash_capture": 0.3440886290976249,
+        "actual_risky_cash_captured": 26178458.0,
+        "selected_invoice_value": 70414468.0
+      },
+      "1000": {
+        "k": 1000,
+        "precision": 0.525,
+        "recall": 0.09774716067771365,
+        "lift": 1.3054133308508657,
+        "risky_cash_capture": 0.5203985269983595,
+        "actual_risky_cash_captured": 39592215.0,
+        "selected_invoice_value": 103811667.0
+      }
+    }
+  },
+  "evaluation_rows": 13355,
+  "test_split_read": false
+}

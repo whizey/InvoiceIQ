@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from app.models.enums import (
     AgentDecisionStage,
@@ -83,6 +83,8 @@ class CommunicationLogOut(BaseModel):
 
 
 class AuditLogOut(BaseModel):
+    original_description: str | None = None
+    display_event_type: str | None = None
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
@@ -95,29 +97,29 @@ class AuditLogOut(BaseModel):
 
 
 class RiskFeatureContributionOut(BaseModel):
-    """One local SHAP contribution for a recovery-risk prediction."""
-
-    model_config = ConfigDict(from_attributes=True)
+    """SHAP contribution to the late-payment model output."""
 
     feature: str
     label: str
-    value: float
+    value: float | str | None = None
     shap_value: float
     direction: Literal[
-        "increases_recovery_probability",
-        "decreases_recovery_probability",
+        "increases_late_payment_probability",
+        "decreases_late_payment_probability",
     ]
 
 
 class RiskExplanationOut(BaseModel):
-    """Local XGBoost + SHAP explanation for one recovery case."""
+    """Posting-time B2B risk, not overdue recovery probability."""
 
-    model_config = ConfigDict(from_attributes=True)
-
-    risk_score: float
-    risk_level: RiskLevel
-    recovery_probability: float
-    base_value: float
+    prediction_target: Literal["late_payment_weekend_adjusted"]
+    experimental: bool
+    model_name: str | None
+    model_version: str | None
+    scored_at: datetime | None
+    late_payment_probability: float | None
+    risk_score: float | None
+    risk_level: RiskLevel | None
     contributions: list[RiskFeatureContributionOut]
 
 
@@ -127,6 +129,7 @@ class RecoveryCaseListItemOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    invoice_id: UUID
     company_name: str
     invoice_number: str
     amount_total: Decimal
@@ -136,6 +139,8 @@ class RecoveryCaseListItemOut(BaseModel):
     recovery_probability: Decimal | None
     current_action: RecoveryActionType | None
     recovered_amount: Decimal
+    outstanding_amount: Decimal
+    pending_approval: bool
 
 
 class DetectionSummaryOut(BaseModel):
@@ -148,9 +153,9 @@ class DetectionSummaryOut(BaseModel):
 
 class SendReminderEmailOut(BaseModel):
     """Result of a human-triggered real reminder email — always delivered to
-    (or simulated for) settings.demo_notify_email, never a seeded contact."""
+    (or simulated for) settings.sample_notify_email, never a seeded contact."""
 
-    status: Literal["SENT", "SIMULATED", "REJECTED"]
+    status: Literal["SENT", "SIMULATED", "REJECTED", "PENDING_APPROVAL"]
     to: str | None
     sent_at: datetime | None
     policy_decision: PolicyDecisionResult
@@ -176,3 +181,15 @@ class RecoveryCaseDetailOut(BaseModel):
     promises_to_pay: list[PromiseToPayOut]
     communication_logs: list[CommunicationLogOut]
     audit_logs: list[AuditLogOut]
+
+    @model_validator(mode='after')
+    def describe_legacy_simulation(self):
+        actions = {action.id: action for action in self.actions}
+        for audit in self.audit_logs:
+            action = actions.get(audit.entity_id)
+            if (action and action.result and action.result.get('simulated')
+                    and audit.event_type in {'EMAIL_SENT', 'PAYMENT_LINK_SENT'}):
+                audit.original_description = audit.description
+                audit.description = 'Simulated communication — not sent. Original audit wording retained as historical evidence.'
+                audit.display_event_type = 'COMMUNICATION_SIMULATED'
+        return self

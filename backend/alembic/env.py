@@ -17,7 +17,8 @@ from app.models import Base  # noqa: E402
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# configparser treats "%" as interpolation, so percent-encoded passwords must be escaped.
+config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

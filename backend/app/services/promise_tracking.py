@@ -2,7 +2,7 @@
 
 Runs as part of the same deterministic housekeeping sweep as overdue
 detection (POST /recovery-cases/detect-overdue) — there's no separate
-scheduler in V1 (see docs/architecture.md decision #2).
+scheduler in V1 (see docs/ARCHITECTURE.md).
 """
 
 from dataclasses import dataclass

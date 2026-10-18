@@ -3,7 +3,7 @@
 One graph invocation = one recovery cycle for a single case, triggered
 manually or by a scheduler (POST /recovery-cases/{id}/run) — there is no
 long-running consumer or persisted graph state in V1 (see
-docs/architecture.md decision #2). Every node re-fetches what it needs from
+docs/ARCHITECTURE.md). Every node re-fetches what it needs from
 Postgres via the IDs in state and writes its own audit trail as it goes, so
 the sequence of events is fully reconstructable from recovery_cases'
 audit_logs afterward.
@@ -15,11 +15,11 @@ Node order: check_terminal -> load_customer_context -> calculate_recovery_risk
 in execute_action.
 """
 
-import functools
+import asyncio
 import logging
 from datetime import datetime, timezone
 from decimal import Decimal
-from uuid import UUID
+from uuid import UUID, uuid4
 from app.core.time import utc_today
 
 from langgraph.graph import END, StateGraph
@@ -27,11 +27,11 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.llm_client import diagnose, recommend
+from app.agents.guardrails import assert_action_can_execute
 from app.agents.state import RecoveryState
-from app.events import get_publisher
+from app.agents.schemas import PersistedRecoveryRecommendation
+from app.events.outbox import TransactionalEventPublisher
 from app.events import topics
-from app.ml.features import FEATURE_NAMES, RiskFeatures
-from app.ml.risk_model import explain as explain_risk
 from app.models import (
     AgentDecision,
     AuditLog,
@@ -55,6 +55,7 @@ from app.models.enums import (
 from app.services.policy_engine import evaluate_policy
 from app.services.promise_tracking import has_unresolved_broken_promise
 from app.services.risk_context import build_risk_features
+from app.services.invoice_risk_bridge import apply_invoice_risk_to_case
 from app.services.payment_risk_scoring import ensure_payment_risk_score
 from app.tools.mock_tools import execute_mock_action
 
@@ -65,6 +66,13 @@ TERMINAL_STATUSES = {
 }
 
 logger = logging.getLogger("app.recovery_workflow")
+
+
+def _assert_case_scope(session: AsyncSession, case: RecoveryCase) -> None:
+    # ORM SELECT filtering does not run for an identity-map cache hit.
+    scope = session.info.get("analytics_scope")
+    if scope is not None and case.company_id not in scope:
+        raise PermissionError("Recovery case is outside authorized scope")
 
 _ACTION_EVENT_TYPE = {
     RecoveryActionType.SEND_EMAIL: "EMAIL_SENT",
@@ -167,6 +175,8 @@ async def _next_sequence_number(session: AsyncSession, case_id: UUID) -> int:
 
 
 def _describe_execution(action_type: RecoveryActionType, invoice: Invoice, result: dict) -> str:
+    if result.get('simulated'):
+        return f"Simulated {action_type.value.replace('_', ' ').lower()} for invoice {invoice.invoice_number} — no outbound communication or financial action executed."
     if action_type == RecoveryActionType.SEND_EMAIL:
         return f"Reminder email sent regarding invoice {invoice.invoice_number}."
     if action_type == RecoveryActionType.SEND_PAYMENT_LINK:
@@ -191,6 +201,38 @@ async def check_terminal_node(state: RecoveryState, session: AsyncSession) -> di
         raise ValueError(f"RecoveryCase {state['case_id']} not found")
     if case.status in TERMINAL_STATUSES:
         return {"terminal": True, "outcome_summary": "case already terminal, no action taken"}
+
+    invoice = await session.get(Invoice, case.invoice_id)
+    if invoice is None:
+        raise ValueError("Recovery case references a missing invoice")
+
+    if (
+        invoice.amount_total > 0
+        and invoice.amount_paid >= invoice.amount_total
+    ):
+        now = _now()
+        case.status = RecoveryCaseStatus.CLOSED
+        case.recovered_amount = case.revenue_at_risk
+        case.closed_at = now
+
+        session.add(
+            AuditLog(
+                recovery_case_id=case.id,
+                entity_type="recovery_case",
+                entity_id=case.id,
+                event_type="CASE_CLOSED",
+                actor=AuditActor.SYSTEM,
+                description="Case closed after verified full invoice settlement.",
+                occurred_at=now,
+            )
+        )
+        await session.flush()
+        return {
+            "terminal": True,
+            "case_status": case.status.value,
+            "outcome_summary": "reconciled_full_payment",
+        }
+
     pending = (
         await session.execute(
             select(func.count(RecoveryAction.id)).where(
@@ -217,6 +259,7 @@ async def load_customer_context_node(
         RecoveryCase,
         case_id,
     )
+    _assert_case_scope(session, case)
     invoice = await session.get(
         Invoice,
         case.invoice_id,
@@ -225,6 +268,8 @@ async def load_customer_context_node(
         Company,
         case.company_id,
     )
+    if invoice is None or invoice.company_id != case.company_id:
+        raise PermissionError("Invoice does not belong to the recovery case company")
 
     # Posting-time late-payment prediction.
     # This is a separate signal from the existing
@@ -264,6 +309,12 @@ async def load_customer_context_node(
 
     return {
         "invoice_context": {
+            "invoice_id": str(invoice.id),
+            "company_id": str(invoice.company_id),
+            "payment_risk_scored_at": invoice.payment_risk_scored_at.isoformat() if invoice.payment_risk_scored_at else None,
+            "payment_risk_artifact_sha256": invoice.payment_risk_artifact_sha256,
+            "payment_risk_features": invoice.payment_risk_features,
+            "payment_risk_explanation_metadata": invoice.payment_risk_explanation_metadata,
             "invoice_number": (
                 invoice.invoice_number
             ),
@@ -291,6 +342,9 @@ async def load_customer_context_node(
             "payment_risk_model": (
                 invoice.payment_risk_model
             ),
+            "payment_risk_model_version": (
+                invoice.payment_risk_model_version
+            ),
             "payment_risk_drivers": (
                 invoice.payment_risk_drivers
                 or []
@@ -307,26 +361,25 @@ async def load_customer_context_node(
     }
 
 
-async def calculate_recovery_risk_node(state: RecoveryState, session: AsyncSession) -> dict:
-    customer_context = state["customer_context"]
-    features = RiskFeatures(**{name: customer_context[name] for name in FEATURE_NAMES})
-    result = explain_risk(features)
-    drivers = [
-        {
-            "feature": c.feature,
-            "label": c.label,
-            "value": c.value,
-            "shap_value": c.shap_value,
-            "direction": c.direction,
-        }
-        for c in result.contributions[:3]
-    ]
-    driver_text = "; ".join(f"{d['label']} ({d['shap_value']:+.2f})" for d in drivers)
+async def calculate_recovery_risk_node(
+    state: RecoveryState,
+    session: AsyncSession,
+) -> dict:
+    case = await session.get(
+        RecoveryCase,
+        UUID(state["case_id"]),
+    )
+    if case is None:
+        raise ValueError("Recovery case not found")
 
-    case = await session.get(RecoveryCase, UUID(state["case_id"]))
-    case.risk_score = Decimal(str(result.risk_score))
-    case.risk_level = result.risk_level
-    case.recovery_probability = Decimal(str(result.recovery_probability))
+    invoice = await session.get(Invoice, case.invoice_id)
+    if invoice is None:
+        raise ValueError("Invoice not found")
+
+    await ensure_payment_risk_score(session, invoice)
+    apply_invoice_risk_to_case(invoice, case)
+
+    drivers = invoice.payment_risk_drivers or []
 
     session.add(
         AuditLog(
@@ -336,9 +389,23 @@ async def calculate_recovery_risk_node(state: RecoveryState, session: AsyncSessi
             event_type="RISK_SCORED",
             actor=AuditActor.SYSTEM,
             description=(
-                f"Risk re-scored via ML model: {result.risk_level.value} ({result.risk_score}), "
-                f"recovery probability {result.recovery_probability:.0%}. "
-                f"Top SHAP drivers: {driver_text}."
+                "Using the invoice's historical B2B "
+                "late-payment prediction; "
+                f"model={invoice.payment_risk_model_version}. "
+                "Recovery probability is not estimated. "
+                + (
+                    "Top SHAP drivers: "
+                    + ", ".join(
+                        str(
+                            driver.get("label")
+                            or driver.get("feature")
+                            or "unknown"
+                        )
+                        for driver in drivers[:3]
+                    )
+                    if drivers
+                    else "SHAP drivers unavailable."
+                )
             ),
             occurred_at=_now(),
         )
@@ -346,24 +413,76 @@ async def calculate_recovery_risk_node(state: RecoveryState, session: AsyncSessi
     await session.flush()
 
     return {
-        "risk_score": result.risk_score,
-        "risk_level": result.risk_level.value,
-        "recovery_probability": result.recovery_probability,
+        "risk_score": (
+            float(case.risk_score)
+            if case.risk_score is not None else None
+        ),
+        "risk_level": (
+            case.risk_level.value
+            if case.risk_level is not None else None
+        ),
+        "recovery_probability": None,
         "risk_drivers": drivers,
     }
 
-
 async def diagnose_case_node(state: RecoveryState, session: AsyncSession) -> dict:
     case_id = UUID(state["case_id"])
-    result, model_name = await diagnose(state["invoice_context"], state["customer_context"])
+    case = await session.get(RecoveryCase, case_id)
+    if case is None or state["invoice_context"].get("invoice_id") != str(case.invoice_id):
+        raise ValueError("Invoice evidence does not belong to the recovery case")
+    # This is database provenance, not a retrieved document: do not fabricate
+    # document hashes or line numbers for an invoice record.
+    invoice_source = {"source_id": "invoice:" + str(case.invoice_id),
+                      "source_type": "invoice", "source_invoice_id": str(case.invoice_id)}
+    from app.tools.knowledge import retrieve_investigation_evidence
+    from starlette.concurrency import run_in_threadpool
+
+    try:
+        evidence = await run_in_threadpool(
+            retrieve_investigation_evidence,
+            "late payment calibration limitations historical features recovery reminder approval policy",
+        )
+    except Exception:
+        logger.warning("Knowledge retrieval unavailable")
+        evidence = []
+    from app.tools.read_only_queries import investigate_question
+    from app.core.db import async_session_factory
+    from app.core.json_values import json_value
+
+    try:
+        query_result = await investigate_question(
+            async_session_factory, question="summarize invoice history", company_id=case.company_id,
+            as_of=utc_today(),
+            authorized_company_ids=tuple(session.info.get("analytics_scope", (case.company_id,))),
+        )
+        # Normalize dates/Decimal before sending structured data to the provider or audit JSON.
+        query_result = {**query_result, "rows": [
+            {key: float(value) if isinstance(value, Decimal) else value for key, value in row.items()}
+            for row in query_result["rows"]
+        ]}
+    except Exception:
+        logger.warning("Scoped read-only investigation query unavailable")
+        query_result = {"status": "unavailable", "rows": []}
+    customer_context = json_value({**state["customer_context"], "knowledge_evidence": evidence,
+                                  "read_only_investigation": query_result})
+    result, model_name = await diagnose(state["invoice_context"], customer_context)
+    from app.agents.recordings import response_provenance
 
     session.add(
         AgentDecision(
             recovery_case_id=case_id,
             stage=AgentDecisionStage.DIAGNOSIS,
             model_name=model_name,
-            input_context={"invoice": state["invoice_context"], "customer": state["customer_context"]},
-            output=result.model_dump(),
+            input_context={"invoice": state["invoice_context"], "customer": customer_context},
+            output={**result.model_dump(), "provenance": response_provenance(), "investigation_id": state.get("investigation_id"),
+                "source_invoice_id": state["invoice_context"]["invoice_id"],
+                "uncertainty": "Diagnosis is an interpretation of available history; the cause and recovery outcome are unverified.",
+                "verified_invoice_context": {key: state["invoice_context"].get(key)
+                    for key in ("invoice_id", "amount_total", "amount_paid", "due_date", "currency")},
+                "sources": [invoice_source] + [
+                {key: item[key] for key in ("source_id", "source_sha256", "chunk_id", "start_line", "end_line")}
+                for item in evidence
+            ]},
             rationale=result.reason,
         )
     )
@@ -380,16 +499,27 @@ async def diagnose_case_node(state: RecoveryState, session: AsyncSession) -> dic
     )
     await session.flush()
 
-    return {"diagnosis": result.model_dump()}
+    return {"diagnosis": result.model_dump(), "knowledge_evidence": evidence}
 
 
 async def recommend_intervention_node(state: RecoveryState, session: AsyncSession) -> dict:
+    if "investigation_id" not in state:
+        state["investigation_id"] = str(uuid4())
     case_id = UUID(state["case_id"])
     reminder_count = await _reminder_count(session, case_id)
 
     result, model_name = await recommend(
-        state["invoice_context"], state["customer_context"], state["diagnosis"], reminder_count
+        state["invoice_context"], {**state["customer_context"], "knowledge_evidence": state.get("knowledge_evidence", [])},
+        state["diagnosis"], reminder_count
     )
+    from app.agents.recordings import response_provenance
+    from app.services.recommendation_evidence import recommendation_evidence
+    from app.ml.champion_serving import verified_contract
+    try:
+        contract = verified_contract()
+    except Exception:
+        contract = None
+    evidence = recommendation_evidence(state["invoice_context"], timestamp=_now(), contract=contract)
 
     session.add(
         AgentDecision(
@@ -397,7 +527,15 @@ async def recommend_intervention_node(state: RecoveryState, session: AsyncSessio
             stage=AgentDecisionStage.INTERVENTION_RECOMMENDATION,
             model_name=model_name,
             input_context={"diagnosis": state["diagnosis"], "reminder_count": reminder_count},
-            output=result.model_dump(),
+            output=PersistedRecoveryRecommendation(
+                **result.model_dump(), investigation_id=state["investigation_id"], reasons=[result.rationale],
+                evidence_references=["invoice:" + state["invoice_context"]["invoice_id"]] + [item["source_id"] for item in state.get("knowledge_evidence", []) if item.get("source_id")],
+                uncertainty="Recovery outcomes are not modeled. Recommendation uses available invoice history and policy constraints.",
+                execution_mode=("recorded" if model_name.startswith("recorded:") else "deterministic_fallback" if model_name == "rule-based-fallback" else "external_llm"),
+            ).model_dump() | {"provenance": response_provenance(),
+                "verified_invoice_context": {key: state["invoice_context"].get(key)
+                    for key in ("invoice_id", "amount_total", "amount_paid", "due_date", "currency")},
+                **evidence},
             rationale=result.rationale,
         )
     )
@@ -426,7 +564,8 @@ async def policy_check_node(state: RecoveryState, session: AsyncSession) -> dict
     case = await session.get(RecoveryCase, case_id)
 
     last_action_at = await _last_action_at(session, case_id)
-    days_since_last_action = (utc_today() - last_action_at.date()).days if last_action_at else None
+    from app.core.time import days_since_workflow_action
+    days_since_last_action = days_since_workflow_action(last_action_at) if last_action_at else None
     has_broken_promise = await has_unresolved_broken_promise(session, case_id)
 
     outcome = evaluate_policy(
@@ -438,6 +577,20 @@ async def policy_check_node(state: RecoveryState, session: AsyncSession) -> dict
         days_since_last_action=days_since_last_action,
         has_broken_promise=has_broken_promise,
     )
+
+    recommendation = (await session.execute(
+        select(AgentDecision).where(
+            AgentDecision.recovery_case_id == case_id,
+            AgentDecision.stage == AgentDecisionStage.INTERVENTION_RECOMMENDATION,
+        ).order_by(AgentDecision.created_at.desc(), AgentDecision.id.desc()).limit(1)
+    )).scalar_one_or_none()
+    if recommendation is not None and recommendation.output.get("investigation_id") == state.get("investigation_id"):
+        recommendation.output = {**recommendation.output,
+            "policy_decision": outcome.decision.value,
+            "policy_reason": outcome.reason,
+            "suggested_next_action": outcome.final_action.value,
+            "approval_required": outcome.decision == PolicyDecisionResult.REQUIRES_HUMAN_REVIEW,
+        }
 
     seq = await _next_sequence_number(session, case_id)
     action = RecoveryAction(
@@ -482,26 +635,40 @@ async def policy_check_node(state: RecoveryState, session: AsyncSession) -> dict
     )
     await session.flush()
 
-    return {
+    result = {
         "action_id": str(action.id),
         "final_action": outcome.final_action.value,
         "policy_decision": outcome.decision.value,
         "policy_reason": outcome.reason,
     }
+    if outcome.decision == PolicyDecisionResult.REJECTED:
+        # The graph stops here. Expose the simulated policy block to callers
+        # without claiming that the rejected action was executed.
+        result["action_result"] = {"simulated": True, "blocked": True, "success": False}
+    return result
 
 
 async def execute_action_node(state: RecoveryState, session: AsyncSession) -> dict:
-    action = await session.get(RecoveryAction, UUID(state["action_id"]))
-    case = await session.get(RecoveryCase, UUID(state["case_id"]))
+    action = (await session.execute(select(RecoveryAction).where(
+        RecoveryAction.id == UUID(state["action_id"])
+    ).with_for_update().execution_options(populate_existing=True))).scalar_one_or_none()
+    case_id = UUID(state["case_id"])
+    assert_action_can_execute(action, case_id)
+    case = await session.get(RecoveryCase, case_id)
+    _assert_case_scope(session, case)
     invoice = await session.get(Invoice, case.invoice_id)
+    if invoice is None or invoice.company_id != case.company_id:
+        raise PermissionError("Invoice does not belong to the recovery case company")
+    if state["final_action"] != action.action_type.value:
+        raise PermissionError("Execution state differs from authorized action")
     contact = await _primary_contact(session, case.company_id)
 
-    result = await execute_mock_action(session, action.action_type, case, invoice, contact)
-
-    action.status = RecoveryActionStatus.EXECUTED
-    action.executed_at = _now()
-    action.result = result
-    await session.flush()
+    from app.services.action_execution import execute_authorized_action
+    result = await execute_authorized_action(
+        session, action, case, invoice, contact, executor=execute_mock_action,
+    )
+    if action.status == RecoveryActionStatus.FAILED:
+        return {"action_result": result}
 
     session.add(
         AuditLog(
@@ -524,6 +691,8 @@ async def record_outcome_node(state: RecoveryState, session: AsyncSession) -> di
     invoice = await session.get(Invoice, case.invoice_id)
     now = _now()
     final_action = state["final_action"]
+    if state.get("action_result", {}).get("success") is False:
+        return {"case_status": case.status.value, "outcome_summary": "action_failed"}
 
     if invoice.amount_paid >= invoice.amount_total:
         case.status = RecoveryCaseStatus.CLOSED
@@ -549,7 +718,7 @@ async def record_outcome_node(state: RecoveryState, session: AsyncSession) -> di
                 entity_id=case.id,
                 event_type="CASE_CLOSED",
                 actor=AuditActor.SYSTEM,
-                description=f"Case closed: ₹{invoice.amount_paid:,.2f} recovered.",
+                description=f"Case closed: ₹{case.recovered_amount:,.2f} recovered.",
                 occurred_at=now,
             )
         )
@@ -606,14 +775,51 @@ async def record_outcome_node(state: RecoveryState, session: AsyncSession) -> di
 
 def _build_graph(session: AsyncSession):
     graph = StateGraph(RecoveryState)
-    graph.add_node("check_terminal", functools.partial(check_terminal_node, session=session))
-    graph.add_node("load_customer_context", functools.partial(load_customer_context_node, session=session))
-    graph.add_node("calculate_recovery_risk", functools.partial(calculate_recovery_risk_node, session=session))
-    graph.add_node("diagnose_case", functools.partial(diagnose_case_node, session=session))
-    graph.add_node("recommend_intervention", functools.partial(recommend_intervention_node, session=session))
-    graph.add_node("policy_check", functools.partial(policy_check_node, session=session))
-    graph.add_node("execute_action", functools.partial(execute_action_node, session=session))
-    graph.add_node("record_outcome", functools.partial(record_outcome_node, session=session))
+    from app.agents.state import validate_transition, validate_node_output
+
+    def guarded(name, node):
+        async def invoke(state):
+            validated = validate_transition(name, state)
+            from time import perf_counter_ns
+            started_ns = perf_counter_ns()
+            try:
+                result = await node(validated, session=session)
+                validate_node_output(name, validated, result)
+            except BaseException:
+                logger.warning(
+                    "Recovery graph node failed; cycle will roll back",
+                    extra={
+                        "trace_node": name,
+                        "investigation_id": validated.get("investigation_id"),
+                    },
+                )
+                raise
+            from app.services.agent_tracing import (
+                tracing_enabled,
+                persist_span,
+            )
+            if tracing_enabled():
+                await persist_span(
+                    session,
+                    validated,
+                    name,
+                    started_ns,
+                    result,
+                )
+            return result  # INVOICEIQ_PHASE7C_NODE_TRACING_V1
+        return invoke
+
+    for name, node in (
+        ("check_terminal", check_terminal_node),
+        ("load_customer_context", load_customer_context_node),
+        ("calculate_recovery_risk", calculate_recovery_risk_node),
+        ("diagnose_case", diagnose_case_node),
+        ("recommend_intervention", recommend_intervention_node),
+        ("policy_check", policy_check_node),
+        ("execute_action", execute_action_node),
+        ("record_outcome", record_outcome_node),
+    ):
+        graph.add_node(name, guarded(name, node))
 
     graph.set_entry_point("check_terminal")
     graph.add_conditional_edges(
@@ -627,7 +833,7 @@ def _build_graph(session: AsyncSession):
     graph.add_edge("recommend_intervention", "policy_check")
     graph.add_conditional_edges(
         "policy_check",
-        lambda s: "hold" if s.get("policy_decision") == PolicyDecisionResult.REQUIRES_HUMAN_REVIEW.value
+        lambda s: "hold" if s.get("policy_decision") != PolicyDecisionResult.APPROVED.value
         else "execute",
         {"hold": END, "execute": "execute_action"},
     )
@@ -641,11 +847,26 @@ async def run_recovery_cycle(session: AsyncSession, case_id: UUID) -> RecoverySt
     case = await session.get(RecoveryCase, case_id)
     if case is None:
         raise ValueError(f"RecoveryCase {case_id} not found")
+    _assert_case_scope(session, case)
+    # API and scheduler share this transaction lock; Redis leases can expire.
+    case = (await session.execute(select(RecoveryCase).where(
+        RecoveryCase.id == case_id
+    ).with_for_update().execution_options(populate_existing=True))).scalar_one_or_none()
+    if case is None:
+        raise PermissionError("Recovery case is unavailable in authorized scope")
+    _assert_case_scope(session, case)
 
     logger.info("recovery cycle starting", extra={"case_id": str(case_id)})
     graph = _build_graph(session)
-    final_state: RecoveryState = await graph.ainvoke({"case_id": str(case_id)})
-    await session.commit()
+    try:
+        final_state: RecoveryState = await asyncio.wait_for(
+            graph.ainvoke({"case_id": str(case_id), "investigation_id": str(uuid4())}, config={"recursion_limit": 16}), timeout=60,
+        )
+    except BaseException:
+        logger.warning("Recovery cycle failed; transaction rolled back")
+        # Cancellation and tool failures must not leave a half-written recovery cycle.
+        await session.rollback()
+        raise
     logger.info(
         "recovery cycle finished",
         extra={
@@ -657,8 +878,21 @@ async def run_recovery_cycle(session: AsyncSession, case_id: UUID) -> RecoverySt
         },
     )
 
+
+    if final_state.get("outcome_summary") == "reconciled_full_payment":
+        publisher = TransactionalEventPublisher(session)
+        await publisher.publish(
+            topics.RECOVERY_CASE_CLOSED,
+            str(case_id),
+            {
+                "case_id": str(case_id),
+                "status": RecoveryCaseStatus.CLOSED.value,
+                "recovered_amount": str(case.recovered_amount),
+            },
+        )
+
     if not final_state.get("terminal") and "action_id" in final_state:
-        publisher = get_publisher()
+        publisher = TransactionalEventPublisher(session)
         await publisher.publish(
             topics.RISK_SCORED,
             str(case_id),
@@ -692,6 +926,10 @@ async def run_recovery_cycle(session: AsyncSession, case_id: UUID) -> RecoverySt
                     "reason": final_state.get("policy_reason"),
                 },
             )
+            await session.commit()
+            return final_state
+        if final_state.get("policy_decision") == PolicyDecisionResult.REJECTED.value or final_state.get("action_result", {}).get("success") is False:
+            await session.commit()
             return final_state
         await publisher.publish(
             topics.RECOVERY_ACTION_COMPLETED,
@@ -725,4 +963,5 @@ async def run_recovery_cycle(session: AsyncSession, case_id: UUID) -> RecoverySt
                 },
             )
 
+    await session.commit()
     return final_state

@@ -12,8 +12,13 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 @pytest.fixture(scope="module", autouse=True)
 def seeded_db():
-    asyncio.run(seed())
-    asyncio.run(engine.dispose())
+    async def prepare():
+        try:
+            await seed()
+        finally:
+            await engine.dispose()
+
+    asyncio.run(prepare())
     yield
     asyncio.run(engine.dispose())
 
@@ -35,4 +40,7 @@ async def test_dashboard_metrics_match_seed_scenarios():
     # Active cases are 5, 30, 60, 15 days overdue.
     assert metrics.average_days_overdue == pytest.approx((5 + 30 + 60 + 15) / 4)
 
-    assert sum(metrics.cases_by_risk_level.values()) == 5
+    assert sum(metrics.cases_by_risk_level.values()) == metrics.active_cases
+    assert metrics.total_cases == 5
+    assert metrics.pending_approvals == 0
+    assert metrics.data_as_of.tzinfo is not None

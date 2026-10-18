@@ -1,4 +1,8 @@
+from app.models.analytics_history import AnalyticsHistoryState, InvoiceStateSnapshot, CaseStateSnapshot, InferenceRecord
 from app.models.base import Base
+from app.models.dataset_import import DatasetImport, OfflineEvaluation
+from app.models.outbox import OutboxEvent
+from app.models.event_effects import ApprovalAlert, CaseRiskLatest, DeadLetterEvent, ProcessedEvent
 from app.models.company import Company, Contact
 from app.models.invoice import Invoice, Payment, PaymentEvent
 from app.models.recovery import (
@@ -13,6 +17,24 @@ from app.models.recovery import (
 
 __all__ = [
     "Base",
+    "PortalWorkspace",
+    "PortalUser",
+    "PortalMembership",
+    "PortalSession",
+    "PortalInvoice",
+    "PortalCaseEvent",
+    "PortalPayment",
+    "AnalyticsHistoryState",
+    "InvoiceStateSnapshot",
+    "CaseStateSnapshot",
+    "InferenceRecord",
+    "DatasetImport",
+    "OfflineEvaluation",
+    "OutboxEvent",
+    "ProcessedEvent",
+    "CaseRiskLatest",
+    "ApprovalAlert",
+    "DeadLetterEvent",
     "Company",
     "Contact",
     "Invoice",
@@ -26,3 +48,5 @@ __all__ = [
     "PolicyDecision",
     "AuditLog",
 ]
+
+from app.models.portal import PortalWorkspace, PortalUser, PortalMembership, PortalSession, PortalInvoice, PortalCaseEvent, PortalPayment

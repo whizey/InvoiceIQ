@@ -18,6 +18,9 @@ line-length = 110
 
 [tool.coverage.run]
 source = ["app"]
+# SQLAlchemy's asyncio layer runs request code inside greenlets; without this the
+# Python 3.12 tracer misses lines executed there and under-reports database-backed code.
+concurrency = ["thread", "greenlet"]
 omit = [
     "app/seed/*",              # narrative data generation, not application logic
     "app/ml/train.py",         # one-shot training script, exercised by running it, not asserted on
@@ -27,11 +30,33 @@ omit = [
     "app/ml/train_random_forest.py",
     "app/ml/train_gradient_boosting.py",
     "app/ml/datasets/*",       # offline feature/split build, run manually before training
-    "app/events/consumer.py",  # standalone demo script, not part of the app's request path
+    "app/events/consumer.py",  # standalone sample script, not part of the app's request path
     "app/ml/compare_models.py",  # offline model comparison script
     "app/ml/create_customer_holdout_manifest.py",  # offline dataset analysis utility
     "app/ml/rolling_backtest.py",  # offline model backtesting utility
     "app/ml/verify_pretraining.py",  # offline pre-training verification utility
+    # Offline training, benchmark, audit, and report generation added after
+    # the runtime coverage gate was established. Runtime-imported survival
+    # helpers and every serving module remain in the 80% denominator.
+    "app/ml/audit_b2b_v2_calibration.py",
+    "app/ml/audit_b2b_v2_platt.py",
+    "app/ml/audit_b2b_v2_targets.py",
+    "app/ml/audit_bpi_vendor_history.py",
+    "app/ml/audit_lightgbm_calibration.py",
+    "app/ml/backtest_bpi_recovery_policy.py",
+    "app/ml/benchmark_bpi_survival_models.py",
+    "app/ml/benchmark_bpi_xgboost_aft.py",
+    "app/ml/benchmark_payment_models.py",
+    "app/ml/build_bpi_model_comparison.py",
+    "app/ml/build_model_comparison_contract.py",
+    "app/ml/calibrate_b2b_v2.py",
+    "app/ml/challenge_b2b_v2_lightgbm.py",
+    "app/ml/evaluate_collections.py",
+    "app/ml/finalize_b2b_v2_calibration.py",
+    "app/ml/promote_b2b_v2_champions.py",
+    "app/ml/stage3_validation.py",
+    "app/ml/train_b2b_v2.py",
+    "app/ml/train_late_days.py",
 ]
 
 [tool.coverage.report]

@@ -1,0 +1,90 @@
+{
+  "supported": {
+    "late_payment_risk": {
+      "answer": true,
+      "source": "B2B LightGBM",
+      "note": "Return as risk score rather than calibrated probability."
+    },
+    "clear_by_due_date": {
+      "answer": true,
+      "source": "B2B late-payment risk head",
+      "note": "Because late-payment head is uncalibrated, avoid presenting this as a precise calibrated probability."
+    },
+    "delay_over_7_days": {
+      "answer": true,
+      "source": "Random Forest + Platt",
+      "probability_supported": true
+    },
+    "expected_days_late_if_late": {
+      "answer": true,
+      "source": "XGBoost"
+    },
+    "p80_lateness": {
+      "answer": true,
+      "source": "Gradient Boosting Quantile",
+      "status": "provisional"
+    },
+    "invoice_priority": {
+      "answer": true,
+      "source": "risk + exposure + deterministic policy"
+    },
+    "cash_at_risk": {
+      "answer": true,
+      "source": "amount \u00d7 late risk score",
+      "note": "Treat as expected-risk exposure score, not audited accounting loss."
+    },
+    "intervention_recommendation": {
+      "answer": true,
+      "source": "deterministic business policy",
+      "note": "Not a learned causal treatment model."
+    },
+    "model_comparison": {
+      "answer": true,
+      "source": "model_comparison_contract.json"
+    },
+    "why_model_selected": {
+      "answer": true,
+      "source": "temporal model tournament"
+    },
+    "model_metrics": {
+      "answer": true,
+      "source": "training/calibration/model comparison artifacts"
+    },
+    "calibration_status": {
+      "answer": true
+    },
+    "feature_set_used": {
+      "answer": true
+    },
+    "why_not_other_model": {
+      "answer": true
+    }
+  },
+  "experimental": {
+    "delay_over_15_days": {
+      "answer": true,
+      "must_disclose": "Experimental and uncalibrated; limited temporal support."
+    }
+  },
+  "requires_bpi_survival_model": {
+    "will_invoice_eventually_recover": true,
+    "when_will_it_clear_from_today": true,
+    "probability_clear_within_next_7_days": true,
+    "probability_clear_within_next_30_days": true,
+    "probability_clear_within_next_60_days": true,
+    "probability_clear_within_next_90_days": true,
+    "likely_clearance_window": true,
+    "recovery_curve": true,
+    "process_delay_risk": true
+  },
+  "unsupported_without_new_data": {
+    "did_intervention_cause_payment": "Requires treatment/control or intervention outcome data.",
+    "optimal_contact_channel": "Requires historical channel/action outcome data.",
+    "best_collector_for_invoice": "Requires collector assignment and outcome history.",
+    "customer_will_never_pay": "Requires reliable non-recovery/default labels.",
+    "causal_reason_for_late_payment": "Predictive feature importance does not establish causality."
+  },
+  "fallback_policy": {
+    "rule": "If no model, tool or dataset provides evidence for the question, explicitly state that RecoverIQ cannot answer it reliably yet. Never invent a probability, date, cause or recommendation."
+  }
+}

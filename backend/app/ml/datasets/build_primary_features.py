@@ -97,12 +97,12 @@ TARGET_COLUMN = SHARED_TARGET_COLUMN
 #
 #     net_due_date + OBSERVATION_HORIZON_DAYS <= data cutoff
 #
-# Within the retained set, a late payer is as visible as a prompt one,
-# so train / validation / test are drawn from one population again.
+# This reduces end-of-extract selection but cannot recover invoices absent
+# from a completed-only extract. Never-paid invoices remain unobservable.
 #
 # Choosing 45 days, measured rather than guessed. On invoices with at
 # least a 200-day observation window (where the distribution is
-# unbiased), the share of late payments that resolve within H days of
+# less exposed to the extract boundary), the share of observed late payments that resolve within H days of
 # the due date is:
 #
 #     H= 7d  87.4%      H= 45d  96.8%
@@ -115,8 +115,8 @@ TARGET_COLUMN = SHARED_TARGET_COLUMN
 #
 # Residual limitation, stated rather than hidden: an invoice that runs
 # more than 45 days past due AND is due within 45 days of the cutoff is
-# still unobservable. That is ~3% of late cases in the tail, not the
-# systematic, split-correlated bias that was there before.
+# still unobservable. The observed tail fraction is not an estimate of
+# missing unpaid invoices; population censoring bias remains unquantified.
 OBSERVATION_HORIZON_DAYS = 45
 
 
@@ -275,7 +275,7 @@ def load_raw() -> pd.DataFrame:
 def apply_observation_horizon(
     df: pd.DataFrame,
 ) -> tuple[pd.DataFrame, dict]:
-    """Drop invoices whose outcome could not have been fully observed.
+    """Restrict the evaluation cohort to invoices with a 45-day window.
 
     See OBSERVATION_HORIZON_DAYS for why. Returns the filtered frame and
     an audit dict, because the number of rows this removes and what it
@@ -349,9 +349,8 @@ def apply_observation_horizon(
             4,
         ),
 
-        # The late rate RISES after filtering. That is the censoring
-        # being corrected: the rows removed were disproportionately
-        # fast-clearing ones near the end of the extract.
+        # Descriptive cohort change, not proof that censoring is removed:
+        # unpaid invoices missing from this extract cannot be recovered.
         "observed_late_rate_before": round(
             float(
                 (
@@ -1136,9 +1135,10 @@ def build() -> pd.DataFrame:
         f"({OBSERVATION_HORIZON_DAYS} days)..."
     )
 
-    df, horizon_audit = (
+    eligible, horizon_audit = (
         apply_observation_horizon(df)
     )
+    eligible_documents = set(eligible["document_no"])
 
     print(
         "  data cutoff:",
@@ -1162,8 +1162,7 @@ def build() -> pd.DataFrame:
         horizon_audit[
             "observed_late_rate_after"
         ],
-        "(rises because censored fast-clearing "
-        "rows were removed)",
+        "(observed cohort changed; unpaid invoices remain absent)",
     )
 
     df = construct_targets(
@@ -1237,6 +1236,15 @@ def build() -> pd.DataFrame:
     )
 
     df = repair_feature_scales(df)
+
+    # Cohort eligibility depends on the extract cutoff. It must not decide
+    # which prior invoices existed at prediction time. Build history from
+    # every source invoice first, then restrict the outcome cohort.
+    df = df.loc[df["document_no"].isin(eligible_documents)].copy().reset_index(drop=True)
+    # Manifest rates describe the retained cohort, not the history universe.
+    strict_rate = float(df[STRICT_TARGET_COLUMN].mean())
+    adjusted_rate = float(df[TARGET_COLUMN].mean())
+    changed_labels = int((df[STRICT_TARGET_COLUMN] != df[TARGET_COLUMN]).sum())
 
     feature_columns = (
         MODEL_NUMERIC_FEATURES

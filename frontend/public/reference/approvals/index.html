@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Approvals</title>
+<script src="../session-state.js"></script>
+<script src="../scenario-data.js"></script>
+<script src="../unified-data.js"></script>
+<script src="../vendor/react.js"></script>
+<script src="../vendor/react-dom.js"></script>
+<script src="../support.js"></script>
+<style id="iq-no-sample-flash">x-dc,#dc-root{visibility:hidden}</style>
+</head>
+<body>
+<p id="iq-initial-loading" role="status" style="padding:24px;color:#666;font:13px system-ui">Loading workspace…</p>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0;background:#F4F4F2}
+*{box-sizing:border-box}
+a{color:#0B0B0B}a:hover{color:#525252}
+.nav{display:flex;align-items:center;gap:12px;padding:9px 10px;color:#B5B5B5;text-decoration:none;font-size:13.5px;border-radius:6px}
+.nav:hover{color:#FFFFFF;background:#1C1C1C}
+.nav.on{color:#FFFFFF;background:#222222}
+.nav .ix{font-family:'Geist Mono',monospace;font-size:11px;color:#8A8A8A;width:18px}
+.card{background:#FFFFFF;border:1px solid #E5E5E2;border-radius:10px}
+.lbl{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:#6B6B6B;font-weight:500}
+.mono{font-family:'Geist Mono',ui-monospace,monospace}
+.num{font-variant-numeric:tabular-nums}
+.pill{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:999px;border:1px solid #D9D9D6;font-size:11px;color:#3F3F3F;white-space:nowrap;background:#fff}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;padding:0 16px;border-radius:8px;border:1px solid #D9D9D6;background:#fff;font:inherit;font-size:13.5px;color:#0B0B0B;cursor:pointer;text-decoration:none;white-space:nowrap}
+.btn.dark{background:#0B0B0B;color:#fff;border-color:#0B0B0B}
+table.t{width:100%;border-collapse:collapse;font-size:12.5px}
+table.t th{text-align:left;font-weight:500;color:#6B6B6B;font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:9px 14px;border-bottom:1px solid #E5E5E2;white-space:nowrap}
+table.t td{padding:11px 14px;border-bottom:1px solid #F0F0EE;white-space:nowrap}
+table.t tr:last-child td{border-bottom:0}
+</style>
+</helmet>
+<div style="display: flex; flex-wrap: wrap; min-height: 100vh; font-family: 'Geist', system-ui, sans-serif; color: #0B0B0B; background: #F4F4F2">
+
+<nav aria-label="Primary" style="flex: 0 1 236px; background: #0B0B0B; padding: 22px 14px; display: flex; flex-direction: column; gap: 2px">
+  <div style="display: flex; align-items: center; gap: 10px; padding: 4px 10px 24px">
+    <div class="mono" style="width: 28px; height: 28px; border: 1.5px solid #FFFFFF; border-radius: 6px; display: grid; place-items: center; color: #FFFFFF; font-size: 11px; font-weight: 500">IQ</div>
+    <div style="color: #FFFFFF; font-weight: 600; font-size: 15px; letter-spacing: -0.01em">InvoiceIQ</div>
+  </div>
+  <div class="lbl" style="color: #8A8A8A; padding: 6px 10px; font-size: 10.5px">Receivables</div>
+  <a class="nav" href="/" target="_top"><span class="ix">01</span>Overview</a>
+  <a class="nav" href="/invoices" target="_top"><span class="ix">02</span>Invoice intelligence</a>
+  <div class="lbl" style="color: #8A8A8A; padding: 18px 10px 6px; font-size: 10.5px">Recovery</div>
+  <a class="nav" href="/cases" target="_top"><span class="ix">03</span>Recovery cases<span class="mono" style="margin-left: auto; font-size: 11px; color: #B5B5B5">5</span></a>
+  <a class="nav on" href="/approvals" target="_top" aria-current="page"><span class="ix">05</span>Approvals<span class="mono" style="margin-left: auto; font-size: 11px; color: #0B0B0B; background: #FFFFFF; border-radius: 999px; padding: 1px 7px">2</span></a>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 18px 32px; background: #FFFFFF; border-bottom: 1px solid #E5E5E2">
+    <div style="display: flex; flex-direction: column; gap: 4px; flex: 1 1 280px">
+      <div class="lbl">Recovery</div>
+      <h1 style="margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.02em">Approvals</h1>
+    </div>
+    <span class="pill" style="height: 30px; padding: 0 12px; font-size: 12px">Signed in as A. Rao · reviewer for 21 companies</span>
+  </header>
+
+  <div style="padding: 24px 32px 48px; display: flex; flex-direction: column; gap: 20px">
+    <section class="card" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr))" aria-label="Approval totals">
+      <div style="padding: 16px 20px; border-right: 1px solid #F0F0EE"><div class="lbl">Waiting</div><div class="num" style="font-size: 24px; font-weight: 600; margin-top: 6px; color: {{accent}}">2</div><div style="font-size: 12px; color: #6B6B6B">₹17.2K balance affected</div></div>
+      <div style="padding: 16px 20px; border-right: 1px solid #F0F0EE"><div class="lbl">Oldest waiting</div><div class="num" style="font-size: 24px; font-weight: 600; margin-top: 6px">9 d</div><div style="font-size: 12px; color: #6B6B6B">AP-0085, since 03 Oct</div></div>
+      <div style="padding: 16px 20px; border-right: 1px solid #F0F0EE"><div class="lbl">Decided, 30 d</div><div class="num" style="font-size: 24px; font-weight: 600; margin-top: 6px">3</div><div style="font-size: 12px; color: #6B6B6B">2 approved · 1 rejected</div></div>
+      <div style="padding: 16px 20px"><div class="lbl">Median time to decide</div><div class="num" style="font-size: 24px; font-weight: 600; margin-top: 6px">6.5 h</div><div style="font-size: 12px; color: #6B6B6B">from hold to decision</div></div>
+    </section>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start">
+      <section class="card" style="flex: 1 1 300px; min-width: 0; overflow: hidden" aria-label="Queue">
+        <div style="padding: 14px 18px; border-bottom: 1px solid #E5E5E2" class="lbl">Waiting for you</div>
+        <a href="/approvals" target="_top" style="display: block; padding: 16px 18px; border-bottom: 1px solid #F0F0EE; background: #FAFAF9; box-shadow: inset 3px 0 0 #0B0B0B; text-decoration: none; color: #0B0B0B">
+          <div style="display: flex; justify-content: space-between"><span class="mono" style="font-size: 12.5px; font-weight: 500">AP-0087</span><span class="mono" style="font-size: 11px; color: #6B6B6B">7 d</span></div>
+          <div style="font-size: 14px; font-weight: 600; margin-top: 6px">Reminder 2 with payment plan</div>
+          <div style="font-size: 12.5px; color: #525252; margin-top: 2px">Halden Foods · CS-0219 · ₹12,400</div>
+          <div style="margin-top: 8px"><span class="pill" style="border-color: {{accent}}; color: {{accent}}">Balance over ₹10,000</span></div>
+        </a>
+        <a href="/approvals" target="_top" style="display: block; padding: 16px 18px; border-bottom: 1px solid #F0F0EE; text-decoration: none; color: #0B0B0B">
+          <div style="display: flex; justify-content: space-between"><span class="mono" style="font-size: 12.5px; font-weight: 500">AP-0085</span><span class="mono" style="font-size: 11px; color: #6B6B6B">9 d</span></div>
+          <div style="font-size: 14px; font-weight: 600; margin-top: 6px">Escalate to account owner</div>
+          <div style="font-size: 12.5px; color: #525252; margin-top: 2px">Orbis Components · CS-0207 · ₹4,800</div>
+          <div style="margin-top: 8px"><span class="pill" style="border-color: {{accent}}; color: {{accent}}">Over 180 days past due</span></div>
+        </a>
+        <div style="padding: 14px 18px; font-size: 12px; color: #6B6B6B">Only actions for companies in your scope appear here.</div>
+      </section>
+
+      <section class="card" style="flex: 3 1 620px; min-width: 0; overflow: hidden">
+        <div style="padding: 20px 24px; border-bottom: 1px solid #E5E5E2; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px">
+          <div>
+            <div style="display: flex; align-items: center; gap: 10px"><h2 class="mono" style="margin: 0; font-size: 17px; font-weight: 500">AP-0087</h2><span class="pill" style="border-color: {{accent}}; color: {{accent}}">Held by policy</span><span class="pill mono">SIMULATION</span></div>
+            <div style="font-size: 18px; font-weight: 600; margin-top: 8px">Send reminder 2 with a 3-part payment plan</div>
+            <div style="font-size: 13px; color: #525252; margin-top: 4px">Proposed by agent run on 05 Oct 2026 14:02 · case <a href="/cases" target="_top" class="mono">CS-0219</a></div>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-wrap: wrap">
+          <div style="flex: 1 1 340px; min-width: 0; padding: 20px 24px; border-right: 1px solid #F0F0EE; display: flex; flex-direction: column; gap: 18px">
+            <div>
+              <div class="lbl" style="margin-bottom: 8px">Why it's held</div>
+              <div style="border: 1px solid {{accent}}; border-radius: 8px; padding: 12px 14px; font-size: 13px; line-height: 1.5">Rule <span class="mono">approval.amount_threshold</span>: any outbound action on a balance above ₹10,000 needs a reviewer. Balance is ₹12,400.</div>
+            </div>
+            <div>
+              <div class="lbl" style="margin-bottom: 8px">Evidence</div>
+              <div style="display: flex; flex-direction: column; gap: 8px; font-size: 13px">
+                <div style="display: flex; justify-content: space-between; gap: 10px"><span>Risk score at posting</span><span class="mono">0.84</span></div>
+                <div style="display: flex; justify-content: space-between; gap: 10px"><span>Days past due</span><span class="mono">121</span></div>
+                <div style="display: flex; justify-content: space-between; gap: 10px"><span>Reminders sent</span><span class="mono">1 of 3</span></div>
+                <div style="display: flex; justify-content: space-between; gap: 10px"><span>Last payment</span><span class="mono">₹6,000 · 22 Jul</span></div>
+                <div style="display: flex; justify-content: space-between; gap: 10px"><span>Open disputes</span><span class="mono">none</span></div>
+              </div>
+            </div>
+            <div>
+              <div class="lbl" style="margin-bottom: 8px">Proposed plan</div>
+              <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+                <div style="border: 1px solid #E5E5E2; border-radius: 8px; padding: 10px"><div class="mono" style="font-size: 11px; color: #6B6B6B">26 Oct</div><div class="num" style="font-weight: 600; margin-top: 2px">₹4,134</div></div>
+                <div style="border: 1px solid #E5E5E2; border-radius: 8px; padding: 10px"><div class="mono" style="font-size: 11px; color: #6B6B6B">25 Nov</div><div class="num" style="font-weight: 600; margin-top: 2px">₹4,133</div></div>
+                <div style="border: 1px solid #E5E5E2; border-radius: 8px; padding: 10px"><div class="mono" style="font-size: 11px; color: #6B6B6B">28 Dec</div><div class="num" style="font-weight: 600; margin-top: 2px">₹4,133</div></div>
+              </div>
+            </div>
+          </div>
+
+          <div style="flex: 1 1 340px; min-width: 0; padding: 20px 24px; display: flex; flex-direction: column; gap: 16px">
+            <div>
+              <div class="lbl" style="margin-bottom: 8px">Message draft</div>
+              <div style="border: 1px solid #E5E5E2; border-radius: 8px; padding: 14px; font-size: 13px; line-height: 1.6; color: #3F3F3F; background: #FAFAF9">
+                <div class="mono" style="font-size: 11px; color: #6B6B6B; margin-bottom: 8px">To: [AP contact, Halden Foods] · not sent</div>
+                Hi, thanks for the ₹6,000 payment in July. INV-104382 still has ₹12,400 open. If it helps, we can split it into three payments of about ₹4,130, with the first on 26 Oct. Let us know if anything on the invoice is holding this up.
+              </div>
+            </div>
+            <label style="display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; color: #3F3F3F">Reason for your decision (saved to audit log)
+              <textarea rows="3" style="border: 1px solid #D9D9D6; border-radius: 8px; padding: 10px 12px; font: inherit; font-size: 13px; resize: vertical">Customer is paying. Plan is within policy limits.</textarea>
+            </label>
+            <div style="display: flex; gap: 10px"><button class="btn dark" style="flex: 1">Approve and run simulation</button><button class="btn" style="flex: 1">Reject</button></div>
+            <div style="font-size: 11.5px; color: #6B6B6B; line-height: 1.5">Approving writes one audit event, moves CS-0219 to Action taken and sends nothing outside InvoiceIQ. Retrying with the same key <span class="mono">ap-0087-v1</span> does nothing twice.</div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <section class="card" style="overflow: hidden">
+      <div style="padding: 16px 22px; border-bottom: 1px solid #E5E5E2; display: flex; justify-content: space-between"><h2 style="margin: 0; font-size: 15px; font-weight: 600">Decision history</h2><button class="btn" style="height: 34px">Export CSV</button></div>
+      <div style="overflow-x: auto">
+        <table class="t">
+          <thead><tr><th scope="col" style="padding-left: 22px">Approval</th><th scope="col">Action</th><th scope="col">Company</th><th scope="col">Held by</th><th scope="col">Decision</th><th scope="col">Reviewer</th><th scope="col">Decided</th><th scope="col">Reason</th></tr></thead>
+          <tbody>
+            <tr><td class="mono" style="padding-left: 22px">AP-0083</td><td>Reminder 1</td><td>Kestrel Logistics</td><td class="mono">first_contact</td><td><span class="pill" style="background: #0B0B0B; color: #FFFFFF; border-color: #0B0B0B">Approved</span></td><td>A. Rao</td><td class="mono">21 Sep 11:30</td><td style="color: #525252">Standard first reminder</td></tr>
+            <tr><td class="mono" style="padding-left: 22px">AP-0081</td><td>Write-off ₹6,000</td><td>Tessel Engineering</td><td class="mono">writeoff.finance_lead</td><td><span class="pill" style="background: #0B0B0B; color: #FFFFFF; border-color: #0B0B0B">Approved</span></td><td>S. Menon</td><td class="mono">17 Sep 16:05</td><td style="color: #525252">Company closed, confirmed</td></tr>
+            <tr><td class="mono" style="padding-left: 22px">AP-0080</td><td>Reminder 2</td><td>Arrow Mills</td><td class="mono">approval.amount_threshold</td><td><span class="pill">Rejected</span></td><td>M. Iyer</td><td class="mono">16 Sep 10:12</td><td style="color: #525252">Remittance info missing first</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#C2410C","options":["#C2410C","#B91C1C","#1D4ED8","#0B0B0B"]},"$preview":{"width":1440,"height":1460}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { accent: this.props.accent ?? '#C2410C' };
+  }
+}
+</script>
+
+
+<script src="/reference/approvals-original-live.js" defer></script>
+<script src="/reference/approvals-policy-activity.js?v=2" defer></script>
+</body>
+</html>

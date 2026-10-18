@@ -22,10 +22,14 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 @pytest.fixture(scope="module", autouse=True)
 def seeded_db():
-    asyncio.run(seed())
-    # Seeding ran on its own throwaway loop; dispose so this module's shared
-    # loop opens fresh connections instead of inheriting dead ones.
-    asyncio.run(engine.dispose())
+    async def prepare():
+        try:
+            await seed()
+        finally:
+            # The module test loop must open its own pooled connections.
+            await engine.dispose()
+
+    asyncio.run(prepare())
     yield
     asyncio.run(engine.dispose())
 
@@ -73,12 +77,33 @@ async def test_detection_creates_case_for_newly_overdue_invoice():
     assert case.revenue_at_risk == Decimal("50000.00")
     assert case.recovery_window_deadline == due + timedelta(days=90)
 
-    # Phase 6: the ML model scores every newly-created case immediately.
-    assert case.risk_level is not None
-    assert case.risk_score is not None
-    assert Decimal("0") <= case.risk_score <= Decimal("100")
-    assert case.recovery_probability is not None
-    assert Decimal("0") <= case.recovery_probability <= Decimal("1")
+    # Recovery cases reuse the invoice's B2B late-payment prediction.
+    # No synthetic recovery probability is generated.
+    async with async_session_factory() as session:
+        scored_invoice = await session.get(Invoice, invoice_id)
+        probability = scored_invoice.late_payment_probability
+
+    assert case.recovery_probability is None
+
+    if probability is None:
+        # Model disabled, unavailable, or missing required inputs.
+        assert case.risk_score is None
+        assert case.risk_level is None
+    else:
+        from app.models.enums import RiskLevel
+
+        expected_score = Decimal(
+            str(round(float(probability) * 100, 2))
+        )
+        expected_level = (
+            RiskLevel.HIGH if probability >= Decimal("0.70")
+            else RiskLevel.MEDIUM if probability >= Decimal("0.35")
+            else RiskLevel.LOW
+        )
+
+        assert case.risk_score == expected_score
+        assert case.risk_level == expected_level
+        assert scored_invoice.payment_risk_model_version is not None
 
     async with async_session_factory() as session:
         result2 = await run_detection(session)

@@ -1,0 +1,31 @@
+{
+  "late_payment": {
+    "model": "LightGBM",
+    "feature_set": "behaviour_heavy",
+    "calibration": "raw",
+    "status": "SUPPORTED_UNCALIBRATED"
+  },
+  "delay_over_7d": {
+    "model": "RandomForest",
+    "feature_set": "no_open_ratio",
+    "calibration": "Platt",
+    "status": "SUPPORTED_CALIBRATED"
+  },
+  "delay_over_15d": {
+    "model": "RandomForest",
+    "feature_set": "behaviour_heavy",
+    "calibration": "none",
+    "status": "EXPERIMENTAL_UNCALIBRATED"
+  },
+  "days_late_if_late_mean": {
+    "model": "XGBoost",
+    "feature_set": "no_open_ratio",
+    "status": "SUPPORTED"
+  },
+  "days_late_p80": {
+    "model": "GradientBoostingQuantile",
+    "feature_set": "behaviour_heavy",
+    "status": "SUPPORTED_PROVISIONAL"
+  },
+  "test_split_read": false
+}

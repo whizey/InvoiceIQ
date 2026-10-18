@@ -13,7 +13,7 @@ existing workflow.
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from uuid import UUID
-from app.core.time import utc_today
+from app.core.time import utc_today, days_since_workflow_action
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -126,7 +126,7 @@ async def evaluate_policy_for_case(
         revenue_at_risk=float(case.revenue_at_risk),
         case_status=case.status,
         days_since_last_action=(
-            (utc_today() - last_action_at.date()).days if last_action_at else None
+            days_since_workflow_action(last_action_at) if last_action_at else None
         ),
         has_broken_promise=await has_unresolved_broken_promise(session, case.id),
     )
@@ -150,9 +150,7 @@ async def evaluate_and_record_action(
     days_overdue = max((utc_today() - invoice.due_date).days, 0)
     reminder_count = await _reminder_count(session, case.id)
     last_action_at = await _last_action_at(session, case.id)
-    days_since_last_action = (
-    utc_today() - last_action_at.date()
-).days if last_action_at else None
+    days_since_last_action = days_since_workflow_action(last_action_at) if last_action_at else None
     has_broken_promise = await has_unresolved_broken_promise(session, case.id)
 
     outcome = evaluate_policy(
@@ -177,11 +175,12 @@ async def evaluate_and_record_action(
     session.add(action)
     await session.flush()
 
-    action.status = (
-        RecoveryActionStatus.POLICY_REJECTED
-        if outcome.decision.value == "REJECTED"
-        else RecoveryActionStatus.POLICY_APPROVED
-    )
+    if outcome.decision.value == "REJECTED":
+        action.status = RecoveryActionStatus.POLICY_REJECTED
+    elif outcome.decision.value == "REQUIRES_HUMAN_REVIEW":
+        action.status = RecoveryActionStatus.PENDING_APPROVAL
+    else:
+        action.status = RecoveryActionStatus.POLICY_APPROVED
 
     session.add(
         PolicyDecision(

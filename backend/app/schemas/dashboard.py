@@ -1,4 +1,5 @@
 from decimal import Decimal
+from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
@@ -14,6 +15,9 @@ class DashboardMetricsOut(BaseModel):
     escalated_cases: int
     average_days_overdue: float | None
     cases_by_risk_level: dict[str, int]
+    total_cases: int
+    pending_approvals: int
+    data_as_of: datetime
 
 
 class PolicyOverrideExampleOut(BaseModel):

@@ -1,0 +1,25 @@
+{
+  "selected_model": "random_forest",
+  "selection_metric": "validation_mae",
+  "test_used": false,
+  "models": {
+    "random_forest": {
+      "mae": 1.370887226068946,
+      "median_absolute_error": 0.07446559004407405,
+      "rmse": 3.974118323088136,
+      "r2": 0.22943402742223618
+    },
+    "xgboost": {
+      "mae": 1.4791446924209595,
+      "median_absolute_error": 0.487438440322876,
+      "rmse": 3.746605162969856,
+      "r2": 0.31513625383377075
+    },
+    "gradient_boosting": {
+      "mae": 1.5205931830033204,
+      "median_absolute_error": 0.22266704308780239,
+      "rmse": 4.18831884267324,
+      "r2": 0.1441301815787579
+    }
+  }
+}

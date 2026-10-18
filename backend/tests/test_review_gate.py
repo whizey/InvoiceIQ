@@ -27,8 +27,13 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 @pytest.fixture(scope="module", autouse=True)
 def seeded_db():
-    asyncio.run(seed())
-    asyncio.run(engine.dispose())
+    async def prepare():
+        try:
+            await seed()
+        finally:
+            await engine.dispose()
+
+    asyncio.run(prepare())
     yield
     asyncio.run(engine.dispose())
 
@@ -142,22 +147,70 @@ async def test_unknown_action_is_404():
     assert err.value.status_code == 404
 
 
-async def test_risk_scored_audit_row_carries_shap_drivers():
+async def test_risk_scored_audit_row_carries_shap_drivers(monkeypatch):
+    drivers = [
+        {
+            "feature": "historical_late_rate",
+            "label": "Historical late rate",
+            "value": 0.4,
+            "shap_value": 0.12,
+            "direction": "increases_late_payment_probability",
+        },
+        {
+            "feature": "invoice_amount",
+            "label": "Invoice amount",
+            "value": 1200000,
+            "shap_value": 0.08,
+            "direction": "increases_late_payment_probability",
+        },
+        {
+            "feature": "payment_term",
+            "label": "Payment term",
+            "value": 30,
+            "shap_value": -0.04,
+            "direction": "decreases_late_payment_probability",
+        },
+    ]
+
+    async def controlled_scoring(session, invoice):
+        invoice.late_payment_probability = Decimal("0.700000")
+        invoice.payment_risk_model = "xgboost"
+        invoice.payment_risk_model_version = "test-fixture"
+        invoice.payment_risk_drivers = drivers
+        await session.flush()
+        return True
+
+    monkeypatch.setattr(
+        "app.agents.graph.ensure_payment_risk_score",
+        controlled_scoring,
+    )
+
     case = await _high_value_case("E")
+
     async with async_session_factory() as session:
         state = await run_recovery_cycle(session, case.id)
 
-    assert len(state["risk_drivers"]) == 3
+    assert state["risk_drivers"] == drivers
+    assert state["recovery_probability"] is None
+
     async with async_session_factory() as session:
         rows = (
             await session.execute(
                 select(AuditLog).where(
-                    AuditLog.recovery_case_id == case.id, AuditLog.event_type == "RISK_SCORED"
+                    AuditLog.recovery_case_id == case.id,
+                    AuditLog.event_type == "RISK_SCORED",
                 )
             )
         ).scalars().all()
-    # run_detection writes the first RISK_SCORED row; the cycle's re-score carries the drivers
-    assert any("Top SHAP drivers" in r.description for r in rows)
+
+    assert any(
+        "Top SHAP drivers" in row.description
+        and all(
+            driver["label"] in row.description
+            for driver in drivers
+        )
+        for row in rows
+    )
 
 
 async def test_new_kafka_topics_are_registered():

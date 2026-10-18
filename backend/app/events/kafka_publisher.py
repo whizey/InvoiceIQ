@@ -13,16 +13,36 @@ logger = logging.getLogger("app.events")
 PUBLISH_TIMEOUT_SECONDS = 5
 
 
+def kafka_client_options(config) -> dict:
+    """Connection security shared by the producer and the consumer."""
+    options = {"security_protocol": config.kafka_security_protocol}
+    if config.kafka_sasl_mechanism:
+        options.update(sasl_mechanism=config.kafka_sasl_mechanism,
+                       sasl_plain_username=config.kafka_username,
+                       sasl_plain_password=config.kafka_password)
+    return options
+
+
 class KafkaEventPublisher:
-    def __init__(self, bootstrap_servers: str) -> None:
+    delivery_mode = "kafka"
+
+    def __init__(self, bootstrap_servers: str, **client_options) -> None:
         self._bootstrap_servers = bootstrap_servers
+        self._client_options = client_options
         self._producer: AIOKafkaProducer | None = None
+        self._start_lock = asyncio.Lock()
 
     async def _get_producer(self) -> AIOKafkaProducer:
-        if self._producer is None:
-            producer = AIOKafkaProducer(bootstrap_servers=self._bootstrap_servers)
-            await producer.start()
-            self._producer = producer
+        async with self._start_lock:
+            if self._producer is None:
+                producer = AIOKafkaProducer(bootstrap_servers=self._bootstrap_servers, enable_idempotence=True,
+                                            **self._client_options)
+                try:
+                    await producer.start()
+                except BaseException:
+                    await producer.stop()
+                    raise
+                self._producer = producer
         return self._producer
 
     async def publish(self, topic: str, key: str, payload: dict) -> None:
@@ -38,6 +58,9 @@ class KafkaEventPublisher:
             key=key.encode("utf-8"),
             value=json.dumps(payload, default=str).encode("utf-8"),
         )
+
+    async def publish_reliably(self, topic: str, key: str, payload: dict) -> None:
+        await asyncio.wait_for(self._publish(topic, key, payload), timeout=PUBLISH_TIMEOUT_SECONDS)
 
     async def close(self) -> None:
         if self._producer is not None:

@@ -1,5 +1,11 @@
 node_modules
 .next
+.env
+.env.*
 .git
-*.md
-.env.local
+*.log
+coverage
+out
+*.tsbuildinfo
+AGENTS.md
+tests

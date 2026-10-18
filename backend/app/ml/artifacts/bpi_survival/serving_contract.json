@@ -1,0 +1,34 @@
+{
+  "engine": "BPI discrete-time survival",
+  "champion": "lightgbm_hazard",
+  "status": "supported",
+  "prediction_timestamp": "Record Invoice Receipt",
+  "default_outputs": [
+    "clearance_probability_7d",
+    "clearance_probability_30d",
+    "clearance_probability_60d",
+    "clearance_probability_90d",
+    "likely_clearance_window_days"
+  ],
+  "advanced_outputs": [
+    "recovery_curve"
+  ],
+  "serving_horizons_days": [
+    7,
+    30,
+    60,
+    90
+  ],
+  "evaluation_horizons_days": [
+    7,
+    15,
+    30,
+    45,
+    60,
+    90
+  ],
+  "likely_clearance_window_definition": "Earliest modeled horizon where cumulative clearance probability reaches at least 50%.",
+  "censoring": "right-censoring supported",
+  "direct_vendor_id_used": false,
+  "formal_ipcw_integrated_brier_score": false
+}

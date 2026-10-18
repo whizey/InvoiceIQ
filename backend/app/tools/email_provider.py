@@ -1,8 +1,8 @@
-"""Real email delivery for the "reminder to my inbox" demo feature.
+"""Real email delivery for the "reminder to my inbox" sample feature.
 
 Mirrors app/events/publisher.py's shape exactly: a Protocol, a real
 implementation, a simulated fallback, and a config-keyed factory. The
-destination is always settings.demo_notify_email — this module has no path
+destination is always settings.sample_notify_email — this module has no path
 that can send anywhere else — and a delivery failure is logged, never
 raised, matching every other optional-integration in this app (LLM, Kafka,
 Redis all fail soft).
@@ -64,7 +64,7 @@ class ResendEmailProvider:
                 response.raise_for_status()
             return "SENT"
         except Exception:
-            logger.warning("failed to send reminder email via Resend to=%s", to, exc_info=True)
+            logger.warning("Reminder email provider failed")
             return "FAILED"
 
 
@@ -72,7 +72,7 @@ class SimulatedEmailProvider:
     """Fallback used when RESEND_API_KEY isn't configured — no network call."""
 
     async def send(self, *, to: str, subject: str, body: str, html: str | None = None) -> SendStatus:
-        logger.info("email (no Resend configured) to=%s subject=%s", to, subject)
+        logger.info("Email provider is not configured; no email sent")
         return "FAILED"
 
 
@@ -94,19 +94,22 @@ async def send_reminder_email(
     contact: Contact | None,
     company_name: str,
 ) -> dict:
-    """Send (or simulate) exactly one reminder email to settings.demo_notify_email.
+    """Send (or simulate) exactly one reminder email to settings.sample_notify_email.
 
     Never sends to `contact.email` — that address is only used to describe,
     in the body, who this would notionally be for in a real system.
-    Callers must check settings.demo_notify_email is set before calling this
+    Callers must check settings.sample_notify_email is set before calling this
     (see the API layer, which errors clearly instead of silently no-op'ing).
 
     company_name is passed explicitly (not read off case.invoice.company)
     to avoid a lazy-load in this async session — callers already have the
     company loaded as a flat object, same as app/agents/graph.py's nodes do.
     """
-    to = settings.demo_notify_email
-    assert to, "send_reminder_email requires settings.demo_notify_email to be set"
+    from app.core.time import historical_replay_active
+    if historical_replay_active():
+        raise RuntimeError('Outbound email integrations are disabled during historical replay')
+    to = settings.sample_notify_email
+    assert to, "send_reminder_email requires settings.sample_notify_email to be set"
 
     contact_name = contact.name if contact else "there"
     greeting_name = contact_name.split()[0] if contact else "there"
@@ -117,7 +120,7 @@ async def send_reminder_email(
     subject = f"Payment Reminder — Invoice {invoice.invoice_number} ({amount_str})"
 
     disclosure = (
-        f'Portfolio demo notice: "{contact_name}" and "{company_name}" are fictional test data. '
+        f'Portfolio sample notice: "{contact_name}" and "{company_name}" are fictional test data. '
         f"This email is always delivered to {to}, the developer's own inbox — never to a real "
         f"recipient — regardless of which case triggers it."
     )

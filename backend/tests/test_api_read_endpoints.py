@@ -13,11 +13,14 @@ NIL_UUID = "00000000-0000-0000-0000-000000000000"
 
 @pytest.fixture(scope="module")
 def client():
-    asyncio.run(seed())
-    # The engine's pooled connections are bound to the event loop that just
-    # closed with asyncio.run(); dispose so the TestClient's requests (on
-    # its own portal loop) open fresh connections instead of reusing dead ones.
-    asyncio.run(engine.dispose())
+    async def prepare():
+        try:
+            await seed()
+        finally:
+            # The TestClient portal must open its own pooled connections.
+            await engine.dispose()
+
+    asyncio.run(prepare())
 
     # Used as a context manager so all requests share one background event
     # loop (a "portal") for the lifetime of the fixture — without this,
@@ -128,6 +131,13 @@ def test_list_recovery_cases_matches_dashboard_shape(client):
     assert resp.status_code == 200
     data = resp.json()
     assert len(data) == 5
+    invoices = {invoice["id"]: invoice for invoice in client.get("/invoices").json()}
+    for case in data:
+        invoice = invoices[case["invoice_id"]]
+        assert case["invoice_number"] == invoice["invoice_number"]
+        assert Decimal(case["outstanding_amount"]) == max(Decimal(invoice["amount_total"]) - Decimal(invoice["amount_paid"]), 0)
+        detail = client.get(f"/recovery-cases/{case['id']}").json()
+        assert case["pending_approval"] == any(action["status"] == "PENDING_APPROVAL" for action in detail["actions"])
 
     by_invoice = {c["invoice_number"]: c for c in data}
     assert by_invoice["INV-VERTEX-3010"]["status"] == "ESCALATED"
@@ -252,25 +262,33 @@ def test_risk_explanation_endpoint(client):
 
     body = resp.json()
 
-    assert 0 <= body["recovery_probability"] <= 1
-    assert 0 <= body["risk_score"] <= 100
-    assert body["risk_level"] in {"LOW", "MEDIUM", "HIGH"}
+    assert body["prediction_target"] == "late_payment_weekend_adjusted"
+    assert isinstance(body["experimental"], bool)
+
+    probability = body["late_payment_probability"]
+    assert probability is None or 0 <= probability <= 1
+
+    risk_score = body["risk_score"]
+    assert risk_score is None or 0 <= risk_score <= 100
+
+    assert body["risk_level"] in {None, "LOW", "MEDIUM", "HIGH"}
 
     contributions = body["contributions"]
+    assert isinstance(contributions, list)
 
-    assert len(contributions) == 9
-    assert all(item["label"] for item in contributions)
-    assert all("_" not in item["label"] for item in contributions)
+    for item in contributions:
+        assert item["label"]
+        assert item["feature"]
+        assert item["direction"] in {
+            "increases_late_payment_probability",
+            "decreases_late_payment_probability",
+        }
 
     magnitudes = [
         abs(item["shap_value"])
         for item in contributions
     ]
-
-    assert magnitudes == sorted(
-        magnitudes,
-        reverse=True,
-    )
+    assert magnitudes == sorted(magnitudes, reverse=True)
 
 
 def test_risk_explanation_404_for_missing_case(client):
@@ -279,3 +297,113 @@ def test_risk_explanation_404_for_missing_case(client):
     )
 
     assert resp.status_code == 404
+
+
+def test_create_invoice_accepts_correct_payment_term(
+    client,
+):
+    company_id = client.get(
+        "/companies"
+    ).json()[0]["id"]
+
+    response = client.post(
+        "/invoices",
+        json={
+            "company_id": company_id,
+            "invoice_number": "INV-TERM-GOOD-001",
+            "amount_total": "15000.00",
+            "currency": "INR",
+            "issue_date": "2026-01-01",
+            "posting_date": "2026-01-02",
+            "due_date": "2026-02-01",
+            "payment_term": 30,
+            "payment_method_description": "BANK_TRANSFER",
+        },
+    )
+
+    assert response.status_code == 201
+
+    body = response.json()
+
+    assert body["payment_term"] == 30
+    assert "payment_risk_model_version" in body
+
+
+
+def test_create_invoice_rejects_wrong_payment_term(
+    client,
+):
+    company_id = client.get(
+        "/companies"
+    ).json()[0]["id"]
+
+    response = client.post(
+        "/invoices",
+        json={
+            "company_id": company_id,
+            "invoice_number": "INV-TERM-BAD-001",
+            "amount_total": "15000.00",
+            "currency": "INR",
+            "issue_date": "2026-01-01",
+            "posting_date": "2026-01-02",
+            "due_date": "2026-02-01",
+            "payment_term": 29,
+            "payment_method_description": "BANK_TRANSFER",
+        },
+    )
+
+    assert response.status_code == 400
+    assert (
+        "payment_term must equal"
+        in response.json()["detail"]
+    )
+
+
+
+def test_invoice_creation_survives_scoring_exception(
+    client,
+    monkeypatch,
+):
+    import app.api.invoices as invoice_api
+
+    company_id = client.get(
+        "/companies"
+    ).json()[0]["id"]
+
+    async def explode(*args, **kwargs):
+        raise RuntimeError(
+            "simulated optional ML outage"
+        )
+
+    monkeypatch.setattr(
+        invoice_api,
+        "ensure_payment_risk_score",
+        explode,
+    )
+
+    response = client.post(
+        "/invoices",
+        json={
+            "company_id": company_id,
+            "invoice_number": "INV-ML-FAILSAFE-001",
+            "amount_total": "22000.00",
+            "currency": "INR",
+            "issue_date": "2026-02-01",
+            "posting_date": "2026-02-02",
+            "due_date": "2026-03-04",
+            "payment_term": 30,
+            "payment_method_description": "BANK_TRANSFER",
+        },
+    )
+
+    assert response.status_code == 201
+
+    body = response.json()
+
+    assert (
+        body["invoice_number"]
+        == "INV-ML-FAILSAFE-001"
+    )
+    assert body["late_payment_probability"] is None
+    assert body["payment_risk_model"] is None
+    assert body["payment_risk_model_version"] is None

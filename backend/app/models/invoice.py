@@ -39,6 +39,9 @@ class Invoice(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     payment_risk_model: Mapped[str | None] = mapped_column(
         String(100), nullable=True
     )
+    payment_risk_model_version: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )
     payment_risk_scored_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
@@ -48,6 +51,8 @@ class Invoice(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     payment_risk_features: Mapped[dict | None] = mapped_column(
         JSONB, nullable=True
     )
+    payment_risk_artifact_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    payment_risk_explanation_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     status: Mapped[InvoiceStatus] = mapped_column(
         SAEnum(InvoiceStatus, name="invoice_status"), nullable=False, default=InvoiceStatus.SENT

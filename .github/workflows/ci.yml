@@ -1,8 +1,15 @@
 name: CI
 
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
-    branches: [main]
+    branches: [main, invoiceiq-integration]
   pull_request:
 
 jobs:
@@ -11,27 +18,25 @@ jobs:
     defaults:
       run:
         working-directory: backend
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: recovery_user
-          POSTGRES_PASSWORD: recovery_pass
-          POSTGRES_DB: recovery_db
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U recovery_user -d recovery_db"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
     env:
       # Kafka/Redis/OpenAI are intentionally left unconfigured — that's the
       # path the test suite actually exercises (see the auto-fallback
       # pattern in app/agents/llm_client.py, app/events/, app/core/locks.py).
-      DATABASE_URL: postgresql+asyncpg://recovery_user:recovery_pass@localhost:5432/recovery_db
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      NUMEXPR_NUM_THREADS: "1"
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Read-only repository token permits Git LFS checkout for private repos.
+          persist-credentials: true
+          lfs: false
+
+      - name: Fetch runtime model artifacts (exclude raw datasets)
+        run: |
+          git lfs install --local
+          git lfs pull --include="backend/app/ml/artifacts/**" --exclude="data/**"
 
       - uses: actions/setup-python@v5
         with:
@@ -40,6 +45,61 @@ jobs:
           cache-dependency-path: backend/requirements-dev.txt
 
       - run: pip install -r requirements-dev.txt
+
+      - name: Fetch and verify public B2B test corpus
+        run: |
+          mkdir -p ../data/raw/b2b_primary
+          curl --fail --silent --show-error --location --retry 3 \
+            'https://raw.githubusercontent.com/suryakiransk302-ops/b2b-invoice-payment-predictor/27bcd4292db856ecef935e267a2685228f983ecd/data/Dataset%20b2b_invoice_payment.csv' \
+            --output ../data/raw/b2b_primary/b2b_invoice_payment_45839.csv
+          echo '2a7f1dfc4e52231d4a4cb60ee019d6cef3730708afffb1c12786b4d3061bb32d  ../data/raw/b2b_primary/b2b_invoice_payment_45839.csv' | sha256sum --check
+
+      - name: Create disposable PostgreSQL for guarded integration tests
+        run: |
+          password="$(openssl rand -hex 24)"
+          docker run -d --name invoiceiq-ci-disposable-db \
+            --label com.invoiceiq.disposable=true \
+            --publish 127.0.0.1:55436:5432 \
+            --tmpfs /var/lib/postgresql/data:rw,noexec,nosuid,size=2147483648 \
+            --env POSTGRES_USER=invoiceiq_ci \
+            --env POSTGRES_PASSWORD="$password" \
+            --env POSTGRES_DB=invoiceiq_test \
+            postgres:16-alpine
+          export TEST_DATABASE_URL="postgresql+asyncpg://invoiceiq_ci:${password}@127.0.0.1:55436/invoiceiq_test"
+          echo "TEST_DATABASE_URL=$TEST_DATABASE_URL" >> "$GITHUB_ENV"
+          echo "DATABASE_URL=$TEST_DATABASE_URL" >> "$GITHUB_ENV"
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from sqlalchemy.engine import make_url
+          base = make_url(os.environ['TEST_DATABASE_URL'])
+          targets = {'TEST_DATABASE_URL': 'invoiceiq_test',
+                     'PHASE1_TEST_DATABASE_URL': 'invoiceiq_phase1_corpus_test',
+                     'PHASE1_REPLAY_DATABASE_URL': 'invoiceiq_phase1_replay_test',
+                     'INVOICEIQ_PHASE7_DB_URL': 'invoiceiq_test'}
+          path = Path('.env.test')
+          path.write_text(''.join(f"{key}='{base.set(database=name).render_as_string(hide_password=False)}'\n"
+                                  for key, name in targets.items()))
+          path.chmod(0o600)
+          PY
+          unset password
+          until docker exec invoiceiq-ci-disposable-db pg_isready -U invoiceiq_ci -d invoiceiq_test; do sleep 1; done
+          for database in invoiceiq_phase1_regression_test invoiceiq_phase1_corpus_test invoiceiq_phase1_replay_test; do
+            docker exec invoiceiq-ci-disposable-db createdb -U invoiceiq_ci "$database"
+          done
+
+      - name: Verify Docker and PostgreSQL identities before migrations
+        run: |
+          python - <<'PY'
+          import os
+          from sqlalchemy.engine import make_url
+          from scripts.test_database_safety import verify
+          base = make_url(os.environ['TEST_DATABASE_URL'])
+          for database in ('invoiceiq_test', 'invoiceiq_phase1_regression_test',
+                           'invoiceiq_phase1_corpus_test', 'invoiceiq_phase1_replay_test'):
+              verify(base.set(database=database).render_as_string(hide_password=False))
+              print('Verified disposable', database)
+          PY
 
       # ruff is in requirements-dev.txt but was never invoked, so backend
       # lint was unenforced while the frontend job gated properly.
@@ -56,11 +116,35 @@ jobs:
       - run: alembic upgrade head
       - run: alembic downgrade base
       - run: alembic upgrade head
+      - name: Migrate dedicated integration databases
+        run: |
+          set -a
+          source .env.test
+          set +a
+          DATABASE_URL="${TEST_DATABASE_URL%/*}/invoiceiq_phase1_regression_test" alembic upgrade head
+          DATABASE_URL="$PHASE1_TEST_DATABASE_URL" alembic upgrade head
+          DATABASE_URL="$PHASE1_REPLAY_DATABASE_URL" alembic upgrade head
+
+      - name: Prepare corpus and historical replay fixtures
+        run: |
+          set -a
+          source .env.test
+          set +a
+          REAL_DATASET_DATABASE_URL="$PHASE1_TEST_DATABASE_URL" python -m app.seed.load_real_dataset
+          python -m scripts.prepare_phase1_replay
 
       # --cov-fail-under turns coverage from a number nobody reads into a
       # gate. Set at the current level rather than an aspirational one, so
       # it fails on regression instead of being permanently red.
-      - run: pytest --cov --cov-report=term-missing --cov-fail-under=80
+      - run: ./scripts/run_full_tests.sh --coverage
+
+      - name: Provision and verify isolated synthetic sample
+        run: |
+          set -a
+          source .env.test
+          set +a
+          python -m scripts.provision_synthetic_sample
+          python -m scripts.verify_synthetic_sample
 
   frontend:
     runs-on: ubuntu-latest
@@ -80,7 +164,28 @@ jobs:
       - run: npx next typegen
       - run: npx tsc --noEmit
       - run: npm run lint
+      - run: npm test
       - run: npm run build
+      - name: Install Chromium for browser journeys
+        run: npx playwright install --with-deps chromium
+      - name: Exercise the production frontend in Chromium
+        run: |
+          HOSTNAME=127.0.0.1 npm run start -- -H 127.0.0.1 -p 3047 &
+          server_pid=$!
+          trap 'if kill -0 "$server_pid" 2>/dev/null; then kill "$server_pid"; fi' EXIT
+          ready=0
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --output /dev/null http://127.0.0.1:3047/; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo 'Production frontend did not become ready' >&2
+            exit 1
+          fi
+          npm run test:loading
 
   # Neither image was ever built in CI, so a Dockerfile that no longer
   # builds would have shipped undetected -- and the Dockerfiles are the
@@ -90,9 +195,43 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          lfs: false
+
+      - name: Fetch runtime model artifacts (exclude raw datasets)
+        run: |
+          git lfs install --local
+          git lfs pull --include="backend/app/ml/artifacts/**" --exclude="data/**"
 
       - name: Build backend image
-        run: docker build -f backend/Dockerfile backend
+        run: docker build -f backend/Dockerfile .
 
       - name: Build frontend image
         run: docker build -f frontend/Dockerfile frontend
+
+  staging-compose-config:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate staging Compose syntax (disposable CI-only values)
+        env:
+          POSTGRES_PASSWORD: local-ci-nonsecret-dummy-value
+          INVOICEIQ_OPERATOR_API_KEY: local-ci-nonsecret-operator-token-value
+          INVOICEIQ_METRICS_TOKEN: local-ci-nonsecret-collector-token-value
+          ANALYTICS_API_KEYS: '{"portfolio":{"token":"ci-analytics-token","company_ids":["00000000-0000-0000-0000-000000000000"]}}'
+          REVIEWER_API_KEYS: '{"reviewer":"ci-reviewer-token"}'
+          INVOICEIQ_REVIEWER_COMPANY_SCOPES: '{"reviewer":["00000000-0000-0000-0000-000000000000"]}'
+        run: docker compose -f infra/compose.deploy.yml config --quiet
+
+  deploy:
+    name: Deploy (needs approval)
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/invoiceiq-integration')
+    needs: [backend, frontend, images, staging-compose-config]
+    uses: ./.github/workflows/deploy.yml
+    secrets: inherit
+    permissions:
+      contents: read

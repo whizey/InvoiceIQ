@@ -1,0 +1,328 @@
+{
+  "classification_calibration": {
+    "late_payment": {
+      "head": "late_payment",
+      "calibrator": "isotonic",
+      "development_rows": 17760,
+      "before": {
+        "rows": 17760,
+        "prevalence": 0.34769144144144143,
+        "roc_auc": 0.6844550488468442,
+        "pr_auc": 0.5243059501660757,
+        "pr_lift": 1.5079633481699604,
+        "brier": 0.22226336162989374,
+        "log_loss": 0.6878830714276264,
+        "ece_10": 0.1269181469466444
+      },
+      "after": {
+        "rows": 17760,
+        "prevalence": 0.34769144144144143,
+        "roc_auc": 0.7020259829215149,
+        "pr_auc": 0.5380890843574164,
+        "pr_lift": 1.5476052045648123,
+        "brier": 0.19638357553632793,
+        "log_loss": 0.579215301897362,
+        "ece_10": 1.4639640932820306e-10
+      },
+      "sequential_temporal_backtest": [
+        {
+          "fold": 1,
+          "calibrator": "isotonic",
+          "raw": {
+            "rows": 4534,
+            "prevalence": 0.2968681076312307,
+            "roc_auc": 0.6313465847970007,
+            "pr_auc": 0.38899775209312676,
+            "pr_lift": 1.3103386389229097,
+            "brier": 0.2545799390149231,
+            "log_loss": 0.8325168460969808,
+            "ece_10": 0.22972046834008775
+          },
+          "calibrated": {
+            "rows": 4534,
+            "prevalence": 0.2968681076312307,
+            "roc_auc": 0.6338888541913303,
+            "pr_auc": 0.41418709201687953,
+            "pr_lift": 1.3951889117418512,
+            "brier": 0.21527341391285562,
+            "log_loss": 0.789292100737359,
+            "ece_10": 0.1350862006246227
+          }
+        },
+        {
+          "fold": 2,
+          "calibrator": "isotonic",
+          "raw": {
+            "rows": 4408,
+            "prevalence": 0.5773593466424682,
+            "roc_auc": 0.6063210045272059,
+            "pr_auc": 0.6651039201401796,
+            "pr_lift": 1.1519756699323818,
+            "brier": 0.2770752421797909,
+            "log_loss": 0.8091112019578115,
+            "ece_10": 0.20759510461876082
+          },
+          "calibrated": {
+            "rows": 4408,
+            "prevalence": 0.5773593466424682,
+            "roc_auc": 0.6108788980318836,
+            "pr_auc": 0.6500645590346315,
+            "pr_lift": 1.1259271419350316,
+            "brier": 0.3109504281317819,
+            "log_loss": 0.8527934217543423,
+            "ece_10": 0.25546168177313944
+          }
+        },
+        {
+          "fold": 3,
+          "calibrator": "isotonic",
+          "raw": {
+            "rows": 4413,
+            "prevalence": 0.33537276229322455,
+            "roc_auc": 0.7569032721777351,
+            "pr_auc": 0.6266218632967787,
+            "pr_lift": 1.8684339748166787,
+            "brier": 0.18762792423633853,
+            "log_loss": 0.5704400028091856,
+            "ece_10": 0.11128574544839304
+          },
+          "calibrated": {
+            "rows": 4413,
+            "prevalence": 0.33537276229322455,
+            "roc_auc": 0.7396772283705458,
+            "pr_auc": 0.5584419126055514,
+            "pr_lift": 1.6651379461677693,
+            "brier": 0.19444997019789687,
+            "log_loss": 0.5783840986918501,
+            "ece_10": 0.09668789090241746
+          }
+        }
+      ],
+      "test_used": false
+    },
+    "delay_over_7d": {
+      "head": "delay_over_7d",
+      "calibrator": "isotonic",
+      "development_rows": 17760,
+      "before": {
+        "rows": 17760,
+        "prevalence": 0.02528153153153153,
+        "roc_auc": 0.7230809252816193,
+        "pr_auc": 0.05745537922705189,
+        "pr_lift": 2.2726225725444134,
+        "brier": 0.052291759551376854,
+        "log_loss": 0.23237738255229687,
+        "ece_10": 0.07302427618075996
+      },
+      "after": {
+        "rows": 17760,
+        "prevalence": 0.02528153153153153,
+        "roc_auc": 0.767933773844379,
+        "pr_auc": 0.06763470570781706,
+        "pr_lift": 2.675261410625459,
+        "brier": 0.02379948063362935,
+        "log_loss": 0.10369649858081417,
+        "ece_10": 1.6034471048218055e-18
+      },
+      "sequential_temporal_backtest": [
+        {
+          "fold": 1,
+          "calibrator": "isotonic",
+          "raw": {
+            "rows": 4534,
+            "prevalence": 0.004852227613586237,
+            "roc_auc": 0.8499657479045777,
+            "pr_auc": 0.01964308983756303,
+            "pr_lift": 4.0482622419777625,
+            "brier": 0.03918338600722023,
+            "log_loss": 0.11802227229147633,
+            "ece_10": 0.07381172461215825
+          },
+          "calibrated": {
+            "rows": 4534,
+            "prevalence": 0.004852227613586237,
+            "roc_auc": 0.8511192375886525,
+            "pr_auc": 0.018870183384475207,
+            "pr_lift": 3.8889732484186634,
+            "brier": 0.012780104765007936,
+            "log_loss": 0.055388574933413384,
+            "ece_10": 0.03343992504450494
+          }
+        },
+        {
+          "fold": 2,
+          "calibrator": "isotonic",
+          "raw": {
+            "rows": 4408,
+            "prevalence": 0.05421960072595281,
+            "roc_auc": 0.6243266950424082,
+            "pr_auc": 0.07085621319008259,
+            "pr_lift": 1.3068376056145776,
+            "brier": 0.07344743099388368,
+            "log_loss": 0.49993362606325736,
+            "ece_10": 0.08675796441038404
+          },
+          "calibrated": {
+            "rows": 4408,
+            "prevalence": 0.05421960072595281,
+            "roc_auc": 0.5911675235926458,
+            "pr_auc": 0.07109863585864754,
+            "pr_lift": 1.311308731652378,
+            "brier": 0.05301538644907578,
+            "log_loss": 0.5779856411024525,
+            "ece_10": 0.04400013730311528
+          }
+        },
+        {
+          "fold": 3,
+          "calibrator": "isotonic",
+          "raw": {
+            "rows": 4413,
+            "prevalence": 0.0006798096532970768,
+            "roc_auc": 0.701965230536659,
+            "pr_auc": 0.0015020903676461281,
+            "pr_lift": 2.2095749308074546,
+            "brier": 0.04255976821060316,
+            "log_loss": 0.13679977124584128,
+            "ece_10": 0.08344082498143249
+          },
+          "calibrated": {
+            "rows": 4413,
+            "prevalence": 0.0006798096532970768,
+            "roc_auc": 0.3581632653061224,
+            "pr_auc": 0.0006798096532970768,
+            "pr_lift": 1.0,
+            "brier": 0.0027246118386255068,
+            "log_loss": 0.03362197824189365,
+            "ece_10": 0.028666652624029676
+          }
+        }
+      ],
+      "test_used": false
+    },
+    "delay_over_15d": {
+      "head": "delay_over_15d",
+      "calibrator": "isotonic",
+      "development_rows": 13347,
+      "before": {
+        "rows": 13347,
+        "prevalence": 0.012062635798306735,
+        "roc_auc": 0.4904632524802798,
+        "pr_auc": 0.015031672882920382,
+        "pr_lift": 1.246135018436884,
+        "brier": 0.02981913336787773,
+        "log_loss": 0.21756111900551,
+        "ece_10": 0.03863069837550758
+      },
+      "after": {
+        "rows": 13347,
+        "prevalence": 0.012062635798306735,
+        "roc_auc": 0.5536153533815745,
+        "pr_auc": 0.016580575626615243,
+        "pr_lift": 1.3745400179405816,
+        "brier": 0.01188492448178101,
+        "log_loss": 0.06442012609154187,
+        "ece_10": 1.734723475976807e-18
+      },
+      "sequential_temporal_backtest": [],
+      "test_used": false
+    }
+  },
+  "ranking": {
+    "p_late": {
+      "50": {
+        "k": 50,
+        "precision": 0.72,
+        "recall": 0.0076677316293929714,
+        "lift": 2.0468242811501596,
+        "risky_cash_capture": 0.016540271910460987,
+        "actual_risky_cash_captured": 1176504.0,
+        "selected_invoice_value": 1349981.0
+      },
+      "100": {
+        "k": 100,
+        "precision": 0.59,
+        "recall": 0.012566560170394037,
+        "lift": 1.677258785942492,
+        "risky_cash_capture": 0.027313906230262718,
+        "actual_risky_cash_captured": 1942829.0,
+        "selected_invoice_value": 2166830.0
+      },
+      "250": {
+        "k": 250,
+        "precision": 0.572,
+        "recall": 0.030457933972310967,
+        "lift": 1.626088178913738,
+        "risky_cash_capture": 0.07177558055418931,
+        "actual_risky_cash_captured": 5105373.0,
+        "selected_invoice_value": 6617428.0
+      },
+      "500": {
+        "k": 500,
+        "precision": 0.558,
+        "recall": 0.05942492012779553,
+        "lift": 1.586288817891374,
+        "risky_cash_capture": 0.09357676575589102,
+        "actual_risky_cash_captured": 6656084.0,
+        "selected_invoice_value": 9783019.0
+      },
+      "1000": {
+        "k": 1000,
+        "precision": 0.595,
+        "recall": 0.12673056443024494,
+        "lift": 1.691472843450479,
+        "risky_cash_capture": 0.15911927885503185,
+        "actual_risky_cash_captured": 11318101.0,
+        "selected_invoice_value": 18199170.0
+      }
+    },
+    "expected_overdue_exposure": {
+      "50": {
+        "k": 50,
+        "precision": 0.36,
+        "recall": 0.0038338658146964857,
+        "lift": 1.0234121405750798,
+        "risky_cash_capture": 0.084376075720306,
+        "actual_risky_cash_captured": 6001642.0,
+        "selected_invoice_value": 22835575.0
+      },
+      "100": {
+        "k": 100,
+        "precision": 0.44,
+        "recall": 0.009371671991480299,
+        "lift": 1.2508370607028754,
+        "risky_cash_capture": 0.14436356476583997,
+        "actual_risky_cash_captured": 10268532.0,
+        "selected_invoice_value": 33341683.0
+      },
+      "250": {
+        "k": 250,
+        "precision": 0.396,
+        "recall": 0.021086261980830672,
+        "lift": 1.125753354632588,
+        "risky_cash_capture": 0.23716647618121076,
+        "actual_risky_cash_captured": 16869572.0,
+        "selected_invoice_value": 56844501.0
+      },
+      "500": {
+        "k": 500,
+        "precision": 0.372,
+        "recall": 0.03961661341853035,
+        "lift": 1.0575258785942492,
+        "risky_cash_capture": 0.3420196060251373,
+        "actual_risky_cash_captured": 24327740.0,
+        "selected_invoice_value": 85173362.0
+      },
+      "1000": {
+        "k": 1000,
+        "precision": 0.412,
+        "recall": 0.08775292864749734,
+        "lift": 1.1712383386581469,
+        "risky_cash_capture": 0.526699022130921,
+        "actual_risky_cash_captured": 37463925.0,
+        "selected_invoice_value": 122881841.0
+      }
+    }
+  },
+  "test_used": false
+}

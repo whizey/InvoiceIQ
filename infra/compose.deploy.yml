@@ -1,0 +1,66 @@
+# LOCALHOST-ONLY staging rehearsal. Not a publicly accessible production stack.
+# Run: docker compose --env-file infra/.env.deploy -f infra/compose.deploy.yml up -d --build
+name: invoiceiq-staging
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: invoiceiq
+      POSTGRES_USER: invoiceiq
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in infra/.env.deploy}
+    volumes:
+      - staging_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U invoiceiq -d invoiceiq"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+  api:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    environment:
+      ENV: staging
+      RUN_MIGRATIONS: "true"
+      DATABASE_URL: postgresql+asyncpg://invoiceiq:${POSTGRES_PASSWORD:?}@db:5432/invoiceiq
+      REDIS_URL: redis://redis:6379/0
+      INVOICEIQ_OPERATOR_API_KEY: ${INVOICEIQ_OPERATOR_API_KEY:?}
+      ANALYTICS_API_KEYS: ${ANALYTICS_API_KEYS:?Set scoped analytics credentials in infra/.env.deploy}
+      REVIEWER_API_KEYS: ${REVIEWER_API_KEYS:?Set reviewer credentials in infra/.env.deploy}
+      INVOICEIQ_REVIEWER_COMPANY_SCOPES: ${INVOICEIQ_REVIEWER_COMPANY_SCOPES:?Set reviewer company scopes in infra/.env.deploy}
+      METRICS_ENABLED: "true"
+      METRICS_TOKEN: ${INVOICEIQ_METRICS_TOKEN:?}
+      SCHEDULER_ENABLED: ${SCHEDULER_ENABLED:-false}
+      OUTBOX_DISPATCH_ENABLED: "true"
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+  web:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    environment:
+      API_BASE_URL: http://api:8000
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - api
+    restart: unless-stopped
+volumes:
+  staging_db_data:

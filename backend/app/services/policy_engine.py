@@ -21,7 +21,7 @@ ESCALATION_DAYS_THRESHOLD = 45
 _REMINDER_ACTIONS = (RecoveryActionType.SEND_EMAIL, RecoveryActionType.SEND_PAYMENT_LINK)
 
 # Machine-readable tags for each branch below, persisted on PolicyDecision.rule
-# so live cycles and hand-seeded demo data (app/seed/run.py) can be aggregated
+# so live cycles and hand-seeded sample data (app/seed/run.py) can be aggregated
 # together for the AI-oversight dashboard (app/services/metrics.py). Keep
 # these in sync with seed/run.py's hand-authored rows — both must use the
 # exact same strings for the rollup to be meaningful.
@@ -120,26 +120,16 @@ def evaluate_policy(
                 rule=RULE_COOLDOWN_NOT_ELAPSED,
             )
         if revenue_at_risk >= HIGH_VALUE_THRESHOLD:
-            # ADVISORY, NOT A GATE -- and worth being explicit, because the
-            # enum name reads like a gate and nothing in the backend
-            # branches on this value (only a frontend badge does). The
-            # action below still executes immediately. That is the intended
-            # design: the seeded narrative in app/seed/run.py describes it
-            # as "action logged, human review flagged in parallel", and a
-            # reminder email is reversible enough not to warrant blocking.
-            #
-            # If this ever needs to actually block, execute_action_node in
-            # app/agents/graph.py is the place to branch, and
-            # tests/test_policy_engine.py asserts the current contract.
-            # Do not change the name alone and leave the behaviour: a
-            # decision called REQUIRES_HUMAN_REVIEW that silently proceeds
-            # is the kind of thing a reviewer is right to distrust.
+            # A high-value customer-contact action requires actual approval.
+            # policy_check_node and evaluate_and_record_action persist it as
+            # PENDING_APPROVAL; the tool executor cannot run it beforehand.
+            # The enum is a real gate, not an informational dashboard badge.
             return PolicyOutcome(
                 final_action=recommended_action,
                 decision=PolicyDecisionResult.REQUIRES_HUMAN_REVIEW,
                 reason=(
                     f"Amount (₹{revenue_at_risk:,.2f}) exceeds HIGH_VALUE_THRESHOLD; "
-                    f"action approved but flagged for human review."
+                    f"human approval is required before this contact action."
                 ),
                 rule=RULE_HIGH_VALUE_REVIEW,
             )
