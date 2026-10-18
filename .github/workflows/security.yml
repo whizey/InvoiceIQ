@@ -22,9 +22,18 @@ jobs:
           lfs: false
       - name: Block private and coding-assistant state files
         run: python3 scripts/verification/check_repo_privacy.py
-      - uses: gitleaks/gitleaks-action@v2
+      # The CLI scans every commit reachable from any ref. The packaged action derives its range from the pull
+      # request base, which fails when histories are unrelated.
+      - name: Scan the full history for secrets
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_VERSION: 8.24.3
+        run: |
+          base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
+          curl -fsSL -o "$RUNNER_TEMP/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" "${base}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -fsSL -o "$RUNNER_TEMP/checksums.txt" "${base}/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          (cd "$RUNNER_TEMP" && grep " gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz\$" checksums.txt | sha256sum -c -)
+          tar -xzf "$RUNNER_TEMP/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" -C "$RUNNER_TEMP" gitleaks
+          "$RUNNER_TEMP/gitleaks" detect --source . --log-opts="--all" --redact --no-banner --exit-code 2
 
   dependencies:
     name: Python and npm vulnerabilities
