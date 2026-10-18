@@ -31,10 +31,12 @@ from app.ml.champion_serving import verified_contract
 from app.ml.payment_risk_model import PaymentRiskArtifactError
 from app.services.portal_risk import explain_invoice, provenance, score_workspace
 from app.events import topics as event_topics
-from app.events.inline import deliver_inline, uses_broker
+from app.events import get_publisher
+from app.events.inline import deliver_event
 from app.events.outbox import TransactionalEventPublisher
 from app.core.db import async_session_factory
 from app.models.event_effects import ApprovalAlert
+from app.models.outbox import OutboxEvent
 from app.services.portal_recovery import SHOWCASE_BASELINE_SCOPE, recovery_summary
 
 router = APIRouter(prefix="/portal", tags=["customer portal"])
@@ -622,11 +624,10 @@ async def decision(payload: DecisionInput, subject=Depends(identity), db: AsyncS
     envelope = await TransactionalEventPublisher(db).publish(topic, str(payload.invoice_id), data)
     await db.commit()
     _bump(workspace.id)
-    if not uses_broker():  # with a broker the outbox dispatcher and consumer apply it instead
-        try:
-            await deliver_inline(async_session_factory, topic, envelope)
-        except Exception:  # noqa: BLE001 - the decision is already saved; the outbox row stays pending
-            pass
+    try:  # broker when reachable (the consumer applies it), otherwise in-process
+        await deliver_event(async_session_factory, get_publisher(), topic, envelope)
+    except Exception:  # noqa: BLE001 - the decision is already saved; the outbox row stays pending
+        pass
     return {"ok": True, "mode": "isolated_showcase" if workspace.kind == "showcase" else "customer_portal",
             "external_effects": False}
 
@@ -636,13 +637,15 @@ async def approval_alerts(subject=Depends(identity), db: AsyncSession = Depends(
     """Alerts raised by escalations; open ones first. Showcase visitors see only their own."""
     session, workspace = subject
     scope = session.token_digest if workspace.kind == "showcase" else "workspace"
-    rows = (await db.scalars(select(ApprovalAlert).where(
+    rows = (await db.execute(select(ApprovalAlert, OutboxEvent.delivery_mode).join(
+        OutboxEvent, OutboxEvent.id == ApprovalAlert.event_id, isouter=True).where(
         ApprovalAlert.workspace_id == workspace.id, ApprovalAlert.visibility_scope == scope)
         .order_by(ApprovalAlert.status.asc(), ApprovalAlert.created_at.desc()).limit(50))).all()
-    return {"open": sum(r.status == "OPEN" for r in rows),
+    return {"open": sum(r.status == "OPEN" for r, _ in rows),
             "alerts": [{"id": str(r.event_id), "invoice_id": str(r.case_id), "subject": r.subject,
                         "reason": r.reason, "status": r.status, "resolved_decision": r.resolved_decision,
-                        "created_at": r.created_at.isoformat() if r.created_at else None} for r in rows]}
+                        "delivered_via": mode,  # kafka when the event travelled through a broker
+                        "created_at": r.created_at.isoformat() if r.created_at else None} for r, mode in rows]}
 
 
 class ImportItem(BaseModel):

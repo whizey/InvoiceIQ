@@ -12,6 +12,7 @@ from sqlalchemy import update
 
 from app.core.config import settings
 from app.events.handlers import handle_message
+from app.events.outbox import dispatch_batch
 from app.models.outbox import OutboxEvent
 
 logger = logging.getLogger("app.events.inline")
@@ -29,3 +30,18 @@ async def deliver_inline(session_factory, topic: str, envelope: dict) -> str:
                 await session.execute(update(OutboxEvent).where(OutboxEvent.id == uuid.UUID(envelope["event_id"]))
                                       .values(published_at=datetime.now(timezone.utc), delivery_mode="inline"))
     return outcome
+
+
+async def deliver_event(session_factory, publisher, topic: str, envelope: dict) -> str:
+    """Publish to the broker right after commit, or apply in-process if no broker answers.
+
+    With a broker the consumer applies the event a moment later. If the broker is unreachable, the same
+    idempotent handlers run here instead, so the product never waits on infrastructure it cannot reach.
+    """
+    if not uses_broker():
+        return await deliver_inline(session_factory, topic, envelope)
+    summary = await dispatch_batch(session_factory, publisher, limit=1, event_ids={uuid.UUID(envelope["event_id"])})
+    if summary["delivered"]:
+        return "kafka"
+    logger.warning("Broker unavailable; applying event in-process", extra={"topic": topic})
+    return await deliver_inline(session_factory, topic, envelope)

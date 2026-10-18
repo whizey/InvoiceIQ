@@ -15,7 +15,8 @@ if [ "$MODE" = docker ]; then
   cp "$ROOT/.dockerignore" "$OUT/"
   printf '!start.sh\n' >> "$OUT/.dockerignore"   # the repo whitelist predates the Space start script
 else
-  cp "$ROOT/deploy/huggingface-gradio/README.md" "$ROOT/deploy/huggingface-gradio/app.py" "$OUT/"
+  cp "$ROOT/deploy/huggingface-gradio/README.md" "$ROOT/deploy/huggingface-gradio/app.py" \
+     "$ROOT/deploy/huggingface-gradio/packages.txt" "$ROOT/deploy/huggingface-gradio/start_kafka.sh" "$OUT/"
   # CPU-only XGBoost keeps the install small, matching the container image.
   # Gradio's `mcp` extra (installed by Spaces) needs pydantic<=2.12.5, one patch below the repo pin.
   sed -e 's/^xgboost==3.4.1$/xgboost-cpu==3.4.1/' -e 's/^pydantic==2.13.5$/pydantic==2.12.5/' "$ROOT/backend/requirements.txt" > "$OUT/requirements.txt"

@@ -44,8 +44,18 @@ subprocess.run([sys.executable, "-m", "alembic", "upgrade", "head"], check=True)
 # Idempotent: seeds the illustrative showcase once; later starts add nothing.
 subprocess.run([sys.executable, "-m", "scripts.provision_portal_showcase"], check=True)
 
-# A free Space runs one container, so the event consumer runs beside the API. It starts only when a
-# Kafka broker is configured; without KAFKA_BOOTSTRAP_SERVERS the app just logs its events.
+# A free Space runs one container and cannot host a managed broker, so a single-node Kafka (KRaft) can
+# start beside the API. If it cannot start, the app falls back to applying events in-process, so the
+# product never depends on it. Set EMBEDDED_KAFKA=false to turn this off, or set KAFKA_BOOTSTRAP_SERVERS
+# (and the SASL variables) to use a hosted broker instead.
+if os.environ.get("EMBEDDED_KAFKA", "true").lower() == "true" and not os.environ.get("KAFKA_BOOTSTRAP_SERVERS"):
+    try:
+        subprocess.run(["bash", str(ROOT / "start_kafka.sh")], check=True, timeout=240)
+        os.environ["KAFKA_BOOTSTRAP_SERVERS"] = "127.0.0.1:9092"
+        os.environ["OUTBOX_DISPATCH_ENABLED"] = "true"
+    except Exception as exc:  # noqa: BLE001 - Java missing, download blocked, timeout...
+        print(f"Embedded Kafka unavailable, events will be applied in-process: {exc}", flush=True)
+# The consumer runs beside the API whenever a broker is configured.
 if os.environ.get("KAFKA_BOOTSTRAP_SERVERS"):
     subprocess.Popen([sys.executable, "-m", "app.events.consumer"])
 
