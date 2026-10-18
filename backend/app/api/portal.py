@@ -44,8 +44,9 @@ router = APIRouter(prefix="/portal", tags=["customer portal"])
 SHOWCASE_ID = uuid.UUID("60c111be-dde9-4a54-9dcc-f881d0d0aaa1")
 SEED_VERSION = "showcase-v1"
 
-# Short-lived read cache; any write to a workspace bumps its version, so views never go stale.
-CACHE_TTL_SECONDS = 30
+# Read cache; any write to a workspace bumps its version, so views never go stale. The TTL only bounds memory and
+# the date rollover, so it can be generous.
+CACHE_TTL_SECONDS = 300
 _cache: dict[tuple, tuple[float, object]] = {}
 _versions: dict[uuid.UUID, int] = {}
 
