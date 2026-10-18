@@ -26,9 +26,6 @@ out/
 # OS
 .DS_Store
 
-# Claude Code local runtime state
-.claude/
-
 # IDE
 .vscode/
 .idea/
@@ -70,14 +67,12 @@ gomask.toml
 
 # AI coding-assistant instruction files
 AGENTS.md
-CLAUDE.md
 
 # Local staging credentials (the .example template is safe to track)
 /infra/.env.deploy
 
 # Generated coding-assistant instructions
 /frontend/AGENTS.md
-/frontend/CLAUDE.md
 /data/raw/
 /data/processed/
 /InvoiceIQ/
@@ -88,9 +83,6 @@ CLAUDE.md
 /backend/.env.test
 
 # Historical coding-assistant source snapshots and one-off patch material.
-*_for_claude.txt
-*claude*terminal*.txt
-*claude*verification*.txt
 recoveriq_final18_pretrain_audit.txt
 recoveriq_payment_risk_audit_bundle.txt
 gate_patch.py

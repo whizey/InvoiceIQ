@@ -10,6 +10,15 @@ from app.core.config import settings
 engine_options = {"echo": False, "pool_pre_ping": True}
 if os.environ.get("INVOICEIQ_TEST_NULL_POOL") == "1":
     engine_options["poolclass"] = NullPool
+else:
+    # Bounded on purpose: hosted poolers cap client connections (the free session pooler allows about 15 in total),
+    # and the API shares them with the event consumer. Waiting briefly for a connection beats failing the request.
+    engine_options.update(
+        pool_size=int(os.environ.get("DB_POOL_SIZE", "5")),
+        max_overflow=int(os.environ.get("DB_MAX_OVERFLOW", "3")),
+        pool_timeout=int(os.environ.get("DB_POOL_TIMEOUT", "20")),
+        pool_recycle=1800,
+    )
 engine = create_async_engine(settings.database_url, **engine_options)
 async_session_factory = async_sessionmaker(engine, expire_on_commit=False)
 

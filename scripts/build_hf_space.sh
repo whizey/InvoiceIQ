@@ -15,7 +15,15 @@ if [ "$MODE" = docker ]; then
   cp "$ROOT/.dockerignore" "$OUT/"
   printf '!start.sh\n' >> "$OUT/.dockerignore"   # the repo whitelist predates the Space start script
 else
-  cp "$ROOT/deploy/huggingface-gradio/README.md" "$ROOT/deploy/huggingface-gradio/app.py" "$OUT/"
+  cp "$ROOT/deploy/huggingface-gradio/README.md" "$ROOT/deploy/huggingface-gradio/app.py" \
+     "$ROOT/deploy/huggingface-gradio/packages.txt" "$ROOT/deploy/huggingface-gradio/start_kafka.sh" "$OUT/"
+  # Bundle the Kafka archive (Git LFS) so a restart never waits on the slow public archive server.
+  KAFKA_ARCHIVE="kafka_2.13-3.9.0.tgz"
+  KAFKA_SHA="$(sed -n 's/^EXPECTED_SHA512="\(.*\)"$/\1/p' "$ROOT/deploy/huggingface-gradio/start_kafka.sh")"
+  mkdir -p "$OUT/vendor"
+  curl -fsSL --retry 3 -o "$OUT/vendor/$KAFKA_ARCHIVE" "https://archive.apache.org/dist/kafka/3.9.0/$KAFKA_ARCHIVE"
+  if command -v sha512sum >/dev/null; then ACTUAL="$(sha512sum "$OUT/vendor/$KAFKA_ARCHIVE" | cut -d' ' -f1)"; else ACTUAL="$(shasum -a 512 "$OUT/vendor/$KAFKA_ARCHIVE" | cut -d' ' -f1)"; fi
+  [ "$ACTUAL" = "$KAFKA_SHA" ] || { echo "Kafka archive checksum mismatch" >&2; exit 1; }
   # CPU-only XGBoost keeps the install small, matching the container image.
   # Gradio's `mcp` extra (installed by Spaces) needs pydantic<=2.12.5, one patch below the repo pin.
   sed -e 's/^xgboost==3.4.1$/xgboost-cpu==3.4.1/' -e 's/^pydantic==2.13.5$/pydantic==2.12.5/' "$ROOT/backend/requirements.txt" > "$OUT/requirements.txt"
@@ -31,7 +39,7 @@ if grep -rIl --include='*.joblib' 'git-lfs.github.com/spec' "$OUT/backend/app/ml
   echo "Model artifacts are LFS pointers; run 'git lfs pull' in the repo first." >&2; exit 1
 fi
 # Hugging Face rejects binary files that are not stored through Git LFS/Xet.
-for pattern in '*.png' '*.jpg' '*.jpeg' '*.gif' '*.ico' '*.pdf' '*.gz' '*.zip' '*.bin' '*.npy' '*.npz' '*.onnx' '*.pt' '*.h5' '*.woff' '*.woff2'; do
+for pattern in '*.png' '*.jpg' '*.jpeg' '*.gif' '*.ico' '*.pdf' '*.gz' '*.tgz' '*.zip' '*.bin' '*.npy' '*.npz' '*.onnx' '*.pt' '*.h5' '*.woff' '*.woff2'; do
   grep -qxF "$pattern filter=lfs diff=lfs merge=lfs -text" "$OUT/.gitattributes" \
     || printf '%s filter=lfs diff=lfs merge=lfs -text\n' "$pattern" >> "$OUT/.gitattributes"
 done

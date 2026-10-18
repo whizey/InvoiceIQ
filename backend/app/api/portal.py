@@ -23,6 +23,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app.core.config import settings
 from app.core.db import get_db
+from app.core.login_throttle import login_throttle, registration_limit
 from app.models.portal import (
     PortalWorkspace, PortalUser, PortalMembership, PortalSession, PortalInvoice, PortalCaseEvent,
     PortalPayment,
@@ -31,18 +32,21 @@ from app.ml.champion_serving import verified_contract
 from app.ml.payment_risk_model import PaymentRiskArtifactError
 from app.services.portal_risk import explain_invoice, provenance, score_workspace
 from app.events import topics as event_topics
-from app.events.inline import deliver_inline, uses_broker
+from app.events import get_publisher
+from app.events.inline import deliver_event
 from app.events.outbox import TransactionalEventPublisher
 from app.core.db import async_session_factory
 from app.models.event_effects import ApprovalAlert
+from app.models.outbox import OutboxEvent
 from app.services.portal_recovery import SHOWCASE_BASELINE_SCOPE, recovery_summary
 
 router = APIRouter(prefix="/portal", tags=["customer portal"])
 SHOWCASE_ID = uuid.UUID("60c111be-dde9-4a54-9dcc-f881d0d0aaa1")
 SEED_VERSION = "showcase-v1"
 
-# Short-lived read cache; any write to a workspace bumps its version, so views never go stale.
-CACHE_TTL_SECONDS = 30
+# Read cache; any write to a workspace bumps its version, so views never go stale. The TTL only bounds memory and
+# the date rollover, so it can be generous.
+CACHE_TTL_SECONDS = 300
 _cache: dict[tuple, tuple[float, object]] = {}
 _versions: dict[uuid.UUID, int] = {}
 
@@ -132,12 +136,24 @@ async def issue(db: AsyncSession, workspace: uuid.UUID, user: uuid.UUID | None):
     return {"token": token, "expires_in": 28800}
 
 
+# Resolving a session costs two or three database round trips, which dominate read latency when the database is
+# far from the API. Reads reuse the result briefly; writes always re-check, and sign-out and settings changes
+# evict it, so a revoked session stops working immediately in this process and within the TTL elsewhere.
+IDENTITY_CACHE_SECONDS = float(os.getenv("IDENTITY_CACHE_SECONDS", "15"))
+_identity_cache: dict[str, tuple[float, PortalSession, PortalWorkspace]] = {}
+
+
 async def identity(request: Request, db: AsyncSession = Depends(get_db)):
     authorization = request.headers.get("authorization", "")
     token = authorization[7:] if authorization.startswith("Bearer ") else ""
     if not token.startswith("iqp_"):
         raise HTTPException(401, "Sign in to continue")
-    record = await db.get(PortalSession, digest(token))
+    key = digest(token)
+    cacheable = request.method == "GET" and IDENTITY_CACHE_SECONDS > 0
+    hit = _identity_cache.get(key) if cacheable else None
+    if hit and time.monotonic() - hit[0] < IDENTITY_CACHE_SECONDS and hit[1].expires_at > datetime.now(timezone.utc):
+        return hit[1], hit[2]
+    record = await db.get(PortalSession, key)
     if record is None or record.revoked_at or record.expires_at <= datetime.now(timezone.utc):
         raise HTTPException(401, "Session expired")
     workspace = await db.get(PortalWorkspace, record.workspace_id)
@@ -155,11 +171,16 @@ async def identity(request: Request, db: AsyncSession = Depends(get_db)):
             raise HTTPException(403, "Invalid showcase scope")
     else:
         raise HTTPException(403, "Unknown workspace type")
+    if cacheable:
+        if len(_identity_cache) > 2000:
+            _identity_cache.clear()
+        _identity_cache[key] = (time.monotonic(), record, workspace)
     return record, workspace
 
 
 @router.post("/register", status_code=201)
 async def register(payload: RegisterInput, db: AsyncSession = Depends(get_db)):
+    registration_limit.check()
     if os.getenv("PUBLIC_READ_ONLY", "").lower() == "true":
         raise HTTPException(503, "Customer registration is disabled on the read-only dataset service")
     email = normalize_email(payload.email)
@@ -182,10 +203,13 @@ async def register(payload: RegisterInput, db: AsyncSession = Depends(get_db)):
 @router.post("/login")
 async def login(payload: LoginInput, db: AsyncSession = Depends(get_db)):
     email = normalize_email(payload.email)
+    login_throttle.check(email)   # locked accounts are refused before any password work is done
     user = await db.scalar(select(PortalUser).where(PortalUser.email == email))
     if user is None or not verify_password(payload.password, user.password_hash):
-        # Do not distinguish missing accounts from invalid passwords.
+        # Do not distinguish missing accounts from invalid passwords; both count toward the lockout.
+        login_throttle.record_failure(email)
         raise HTTPException(401, "Invalid email or password")
+    login_throttle.record_success(email)
     membership = await db.scalar(select(PortalMembership).where(
         PortalMembership.user_id == user.id).order_by(PortalMembership.created_at))
     if membership is None:
@@ -254,6 +278,7 @@ async def update_settings(payload: SettingsUpdate, subject=Depends(identity),
             PortalSession.revoked_at.is_(None),
         ).values(revoked_at=datetime.now(timezone.utc)))
     await db.commit()
+    _identity_cache.clear()
     return {"ok": True}
 
 
@@ -262,6 +287,7 @@ async def logout(subject=Depends(identity), db: AsyncSession = Depends(get_db)):
     session, _ = subject
     session.revoked_at = datetime.now(timezone.utc)
     await db.commit()
+    _identity_cache.clear()
     return {"ok": True}
 
 
@@ -622,11 +648,10 @@ async def decision(payload: DecisionInput, subject=Depends(identity), db: AsyncS
     envelope = await TransactionalEventPublisher(db).publish(topic, str(payload.invoice_id), data)
     await db.commit()
     _bump(workspace.id)
-    if not uses_broker():  # with a broker the outbox dispatcher and consumer apply it instead
-        try:
-            await deliver_inline(async_session_factory, topic, envelope)
-        except Exception:  # noqa: BLE001 - the decision is already saved; the outbox row stays pending
-            pass
+    try:  # broker when reachable (the consumer applies it), otherwise in-process
+        await deliver_event(async_session_factory, get_publisher(), topic, envelope)
+    except Exception:  # noqa: BLE001 - the decision is already saved; the outbox row stays pending
+        pass
     return {"ok": True, "mode": "isolated_showcase" if workspace.kind == "showcase" else "customer_portal",
             "external_effects": False}
 
@@ -636,13 +661,15 @@ async def approval_alerts(subject=Depends(identity), db: AsyncSession = Depends(
     """Alerts raised by escalations; open ones first. Showcase visitors see only their own."""
     session, workspace = subject
     scope = session.token_digest if workspace.kind == "showcase" else "workspace"
-    rows = (await db.scalars(select(ApprovalAlert).where(
+    rows = (await db.execute(select(ApprovalAlert, OutboxEvent.delivery_mode).join(
+        OutboxEvent, OutboxEvent.id == ApprovalAlert.event_id, isouter=True).where(
         ApprovalAlert.workspace_id == workspace.id, ApprovalAlert.visibility_scope == scope)
         .order_by(ApprovalAlert.status.asc(), ApprovalAlert.created_at.desc()).limit(50))).all()
-    return {"open": sum(r.status == "OPEN" for r in rows),
+    return {"open": sum(r.status == "OPEN" for r, _ in rows),
             "alerts": [{"id": str(r.event_id), "invoice_id": str(r.case_id), "subject": r.subject,
                         "reason": r.reason, "status": r.status, "resolved_decision": r.resolved_decision,
-                        "created_at": r.created_at.isoformat() if r.created_at else None} for r in rows]}
+                        "delivered_via": mode,  # kafka when the event travelled through a broker
+                        "created_at": r.created_at.isoformat() if r.created_at else None} for r, mode in rows]}
 
 
 class ImportItem(BaseModel):

@@ -1,6 +1,7 @@
 """Portal decisions flow through domain events into approval alerts, scoped per workspace."""
 import uuid
 from datetime import date, timedelta
+from unittest.mock import AsyncMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -80,38 +81,78 @@ async def test_escalation_raises_an_alert_and_a_decision_resolves_it(monkeypatch
         await engine.dispose()
 
 
-@pytest.mark.asyncio
-async def test_with_a_broker_configured_the_decision_waits_for_the_consumer(monkeypatch):
+async def escalate_one(client, tag, name, number, publisher, monkeypatch):
     monkeypatch.setenv("PUBLIC_READ_ONLY", "false")
     monkeypatch.setenv("INVOICEIQ_PORTAL_ENABLED", "true")
     monkeypatch.setenv("INVOICEIQ_PORTAL_SHOWCASE", "false")
     monkeypatch.setattr(settings, "kafka_bootstrap_servers", "broker.invalid:9092")
+    monkeypatch.setattr("app.api.portal.get_publisher", lambda: publisher)
+    today = date.today()
+    headers, workspace_id, user_id = await register(client, tag, name)
+    await client.post("/portal/import", headers=headers, json={"invoices": [{
+        "invoice_number": number, "counterparty": "Broker Co", "issue_date": str(today - timedelta(days=60)),
+        "posting_date": str(today - timedelta(days=60)), "due_date": str(today - timedelta(days=20)),
+        "amount_total": "500.00", "amount_paid": "0.00"}]})
+    invoice_id = (await client.get("/portal/invoices", headers=headers)).json()["invoices"][0]["id"]
+    response = await client.post("/portal/decisions", headers=headers, json={
+        "invoice_id": invoice_id, "decision": "ESCALATE", "note": "Broker path check"})
+    assert response.status_code == 201, response.text
+    return headers, workspace_id, user_id
+
+
+async def cleanup(workspace_ids, user_ids):
+    async with async_session_factory() as db:
+        await db.execute(delete(ApprovalAlert).where(ApprovalAlert.workspace_id.in_(workspace_ids)))
+        await db.execute(delete(OutboxEvent).where(
+            OutboxEvent.payload["data"]["workspace_id"].astext.in_([str(w) for w in workspace_ids])))
+        await db.execute(delete(PortalWorkspace).where(PortalWorkspace.id.in_(workspace_ids)))
+        await db.execute(delete(PortalUser).where(PortalUser.id.in_(user_ids)))
+        await db.commit()
     await engine.dispose()
-    tag, today = uuid.uuid4().hex, date.today()
-    workspace_ids, user_ids = [], []
-    invoice = {"invoices": [{"invoice_number": "INV-Z", "counterparty": "Slow Co",
-                             "issue_date": str(today - timedelta(days=60)), "posting_date": str(today - timedelta(days=60)),
-                             "due_date": str(today - timedelta(days=20)), "amount_total": "500.00", "amount_paid": "0.00"}]}
+
+
+@pytest.mark.asyncio
+async def test_with_a_reachable_broker_the_event_travels_through_it_and_the_consumer_applies_it(monkeypatch):
+    from app.events.handlers import handle_message
+    await engine.dispose()
+    publisher = AsyncMock()
+    publisher.delivery_mode = "kafka"
+    ids = ([], [])
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
-            a, workspace_a, user_a = await register(client, tag, "Broker A")
-            workspace_ids.append(workspace_a)
-            user_ids.append(user_a)
-            await client.post("/portal/import", json=invoice, headers=a)
-            invoice_id = (await client.get("/portal/invoices", headers=a)).json()["invoices"][0]["id"]
-            assert (await client.post("/portal/decisions", headers=a, json={
-                "invoice_id": invoice_id, "decision": "ESCALATE", "note": "Waiting for broker"})).status_code == 201
-            assert (await client.get("/portal/alerts", headers=a)).json()["alerts"] == []   # the consumer has not run
+            headers, workspace_id, user_id = await escalate_one(client, uuid.uuid4().hex, "Broker A", "INV-K", publisher, monkeypatch)
+            ids[0].append(workspace_id)
+            ids[1].append(user_id)
+            publisher.publish_reliably.assert_awaited_once()
+            assert publisher.publish_reliably.await_args.args[0] == "review.requested"
+            assert (await client.get("/portal/alerts", headers=headers)).json()["alerts"] == []   # consumer has not run yet
             async with async_session_factory() as db:
-                pending = (await db.scalars(select(OutboxEvent).where(
-                    OutboxEvent.payload["data"]["workspace_id"].astext == str(workspace_a)))).all()
-                assert len(pending) == 1 and pending[0].published_at is None
+                row = (await db.scalars(select(OutboxEvent).where(
+                    OutboxEvent.payload["data"]["workspace_id"].astext == str(workspace_id)))).one()
+                assert row.published_at is not None and row.delivery_mode == "kafka"
+                envelope = row.payload
+            # What the consumer does when the broker hands it the message, including a redelivery.
+            assert await handle_message(async_session_factory, "review.requested", envelope) == "processed"
+            assert await handle_message(async_session_factory, "review.requested", envelope) == "duplicate"
+            alerts = (await client.get("/portal/alerts", headers=headers)).json()
+            assert alerts["open"] == 1 and alerts["alerts"][0]["delivered_via"] == "kafka"
     finally:
-        async with async_session_factory() as db:
-            await db.execute(delete(OutboxEvent).where(OutboxEvent.payload["data"]["workspace_id"].astext.in_([str(w) for w in workspace_ids])))
-            if workspace_ids:
-                await db.execute(delete(PortalWorkspace).where(PortalWorkspace.id.in_(workspace_ids)))
-            if user_ids:
-                await db.execute(delete(PortalUser).where(PortalUser.id.in_(user_ids)))
-            await db.commit()
-        await engine.dispose()
+        await cleanup(ids[0], ids[1])
+
+
+@pytest.mark.asyncio
+async def test_with_an_unreachable_broker_the_event_is_applied_in_process(monkeypatch):
+    await engine.dispose()
+    publisher = AsyncMock()
+    publisher.delivery_mode = "kafka"
+    publisher.publish_reliably.side_effect = ConnectionError("broker unavailable")
+    ids = ([], [])
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
+            headers, workspace_id, user_id = await escalate_one(client, uuid.uuid4().hex, "Broker B", "INV-F", publisher, monkeypatch)
+            ids[0].append(workspace_id)
+            ids[1].append(user_id)
+            alerts = (await client.get("/portal/alerts", headers=headers)).json()
+            assert alerts["open"] == 1 and alerts["alerts"][0]["delivered_via"] == "inline"
+    finally:
+        await cleanup(ids[0], ids[1])

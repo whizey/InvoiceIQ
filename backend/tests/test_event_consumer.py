@@ -1,7 +1,7 @@
 """Replays, ordering and failure handling of the event consumer (needs the migrated test database)."""
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 import pytest_asyncio
@@ -99,3 +99,40 @@ async def test_topics_without_a_handler_are_ignored():
     event = envelope({"case_id": str(uuid4())})
     assert await handle_message(async_session_factory, topics.INVOICE_OVERDUE, event) == "ignored"
     assert await count(ProcessedEvent, ProcessedEvent.event_id == event["event_id"]) == 0
+
+
+@pytest.mark.asyncio
+async def test_reconciler_applies_events_a_broker_lost_and_leaves_the_rest_alone():
+    """Published to Kafka, never consumed (broker restarted): the outbox row is the durable record."""
+    from datetime import datetime, timedelta, timezone
+
+    from sqlalchemy import delete
+
+    from app.events.reconcile import reconcile_outbox
+    from app.models import OutboxEvent
+
+    case_id, other_case = uuid4(), uuid4()
+    old = datetime.now(timezone.utc) - timedelta(minutes=5)
+    lost = envelope({"case_id": str(case_id), "action_type": "ESCALATION", "reason": "Lost with the broker"})
+    fresh = envelope({"case_id": str(other_case), "reason": "Published a moment ago"})
+    async with async_session_factory() as session:
+        session.add_all([
+            OutboxEvent(id=UUID(lost["event_id"]), topic=topics.REVIEW_REQUESTED, key=str(case_id),
+                        payload=lost, published_at=old, delivery_mode="kafka"),
+            OutboxEvent(id=UUID(fresh["event_id"]), topic=topics.REVIEW_REQUESTED, key=str(other_case),
+                        payload=fresh, published_at=datetime.now(timezone.utc), delivery_mode="kafka"),
+        ])
+        await session.commit()
+    try:
+        assert await reconcile_outbox(async_session_factory, older_than_seconds=45) >= 1
+        assert await count(ApprovalAlert, ApprovalAlert.case_id == case_id) == 1
+        assert await count(ApprovalAlert, ApprovalAlert.case_id == other_case) == 0   # too recent: the consumer may still get it
+        # A second sweep, or the consumer finally receiving the message, changes nothing.
+        await reconcile_outbox(async_session_factory, older_than_seconds=45)
+        assert await handle_message(async_session_factory, topics.REVIEW_REQUESTED, lost) == "duplicate"
+        assert await count(ApprovalAlert, ApprovalAlert.case_id == case_id) == 1
+    finally:
+        async with async_session_factory() as session:
+            await session.execute(delete(ApprovalAlert).where(ApprovalAlert.case_id.in_([case_id, other_case])))
+            await session.execute(delete(OutboxEvent).where(OutboxEvent.key.in_([str(case_id), str(other_case)])))
+            await session.commit()
