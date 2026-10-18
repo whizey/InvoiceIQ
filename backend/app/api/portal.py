@@ -23,6 +23,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app.core.config import settings
 from app.core.db import get_db
+from app.core.login_throttle import login_throttle
 from app.models.portal import (
     PortalWorkspace, PortalUser, PortalMembership, PortalSession, PortalInvoice, PortalCaseEvent,
     PortalPayment,
@@ -184,10 +185,13 @@ async def register(payload: RegisterInput, db: AsyncSession = Depends(get_db)):
 @router.post("/login")
 async def login(payload: LoginInput, db: AsyncSession = Depends(get_db)):
     email = normalize_email(payload.email)
+    login_throttle.check(email)   # locked accounts are refused before any password work is done
     user = await db.scalar(select(PortalUser).where(PortalUser.email == email))
     if user is None or not verify_password(payload.password, user.password_hash):
-        # Do not distinguish missing accounts from invalid passwords.
+        # Do not distinguish missing accounts from invalid passwords; both count toward the lockout.
+        login_throttle.record_failure(email)
         raise HTTPException(401, "Invalid email or password")
+    login_throttle.record_success(email)
     membership = await db.scalar(select(PortalMembership).where(
         PortalMembership.user_id == user.id).order_by(PortalMembership.created_at))
     if membership is None:
