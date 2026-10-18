@@ -49,7 +49,8 @@ times are stored in `dead_letter_events` and published to `<topic>.dlq`.
 
 **On the Hugging Face Space this is already handled:** `app.py` starts a single-node Apache Kafka (KRaft)
 beside the API through `start_kafka.sh` (Java comes from `packages.txt`). Storage is ephemeral, and if the broker
-cannot start the app falls back to in-process delivery. Set `EMBEDDED_KAFKA=false` to turn it off.
+cannot start the app falls back to in-process delivery. The broker's storage is ephemeral; an outbox reconciler re-applies any
+event a restart lost. Set `EMBEDDED_KAFKA=false` to turn it off.
 
 To use a managed broker instead (for example one with a free tier), configure it as follows:
 
