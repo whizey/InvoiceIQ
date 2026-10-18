@@ -22,7 +22,7 @@ jobs:
           lfs: false
       - name: Block private and coding-assistant state files
         run: python3 scripts/verification/check_repo_privacy.py
-      - uses: gitleaks/gitleaks-action@v2
+      - uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
