@@ -135,12 +135,24 @@ async def issue(db: AsyncSession, workspace: uuid.UUID, user: uuid.UUID | None):
     return {"token": token, "expires_in": 28800}
 
 
+# Resolving a session costs two or three database round trips, which dominate read latency when the database is
+# far from the API. Reads reuse the result briefly; writes always re-check, and sign-out and settings changes
+# evict it, so a revoked session stops working immediately in this process and within the TTL elsewhere.
+IDENTITY_CACHE_SECONDS = float(os.getenv("IDENTITY_CACHE_SECONDS", "15"))
+_identity_cache: dict[str, tuple[float, PortalSession, PortalWorkspace]] = {}
+
+
 async def identity(request: Request, db: AsyncSession = Depends(get_db)):
     authorization = request.headers.get("authorization", "")
     token = authorization[7:] if authorization.startswith("Bearer ") else ""
     if not token.startswith("iqp_"):
         raise HTTPException(401, "Sign in to continue")
-    record = await db.get(PortalSession, digest(token))
+    key = digest(token)
+    cacheable = request.method == "GET" and IDENTITY_CACHE_SECONDS > 0
+    hit = _identity_cache.get(key) if cacheable else None
+    if hit and time.monotonic() - hit[0] < IDENTITY_CACHE_SECONDS and hit[1].expires_at > datetime.now(timezone.utc):
+        return hit[1], hit[2]
+    record = await db.get(PortalSession, key)
     if record is None or record.revoked_at or record.expires_at <= datetime.now(timezone.utc):
         raise HTTPException(401, "Session expired")
     workspace = await db.get(PortalWorkspace, record.workspace_id)
@@ -158,6 +170,10 @@ async def identity(request: Request, db: AsyncSession = Depends(get_db)):
             raise HTTPException(403, "Invalid showcase scope")
     else:
         raise HTTPException(403, "Unknown workspace type")
+    if cacheable:
+        if len(_identity_cache) > 2000:
+            _identity_cache.clear()
+        _identity_cache[key] = (time.monotonic(), record, workspace)
     return record, workspace
 
 
@@ -261,6 +277,7 @@ async def update_settings(payload: SettingsUpdate, subject=Depends(identity),
             PortalSession.revoked_at.is_(None),
         ).values(revoked_at=datetime.now(timezone.utc)))
     await db.commit()
+    _identity_cache.clear()
     return {"ok": True}
 
 
@@ -269,6 +286,7 @@ async def logout(subject=Depends(identity), db: AsyncSession = Depends(get_db)):
     session, _ = subject
     session.revoked_at = datetime.now(timezone.utc)
     await db.commit()
+    _identity_cache.clear()
     return {"ok": True}
 
 

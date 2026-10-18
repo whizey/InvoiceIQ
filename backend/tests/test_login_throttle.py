@@ -138,3 +138,32 @@ def test_registration_limit_is_a_sliding_window():
     assert int(blocked.value.headers["Retry-After"]) > 0
     clock.now += 61   # the window has passed
     limit.check()
+
+
+@pytest.mark.asyncio
+async def test_reads_reuse_the_session_lookup_but_sign_out_takes_effect_at_once(monkeypatch):
+    monkeypatch.setenv("PUBLIC_READ_ONLY", "false")
+    monkeypatch.setenv("INVOICEIQ_PORTAL_ENABLED", "true")
+    await engine.dispose()
+    tag = uuid.uuid4().hex
+    ids = {}
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
+            reg = await client.post("/portal/register", json={
+                "email": f"cache-{tag}@example.invalid", "full_name": "Cache Owner", "company": "Cache Co",
+                "password": "A-strong-unique-long-password-37"})
+            assert reg.status_code == 201, reg.text
+            auth = {"Authorization": f"Bearer {reg.json()['token']}"}
+            first = await client.get("/portal/me", headers=auth)
+            assert first.status_code == 200
+            ids = {"workspace": uuid.UUID(first.json()["workspace_id"]), "user": uuid.UUID(first.json()["user_id"])}
+            assert (await client.get("/portal/me", headers=auth)).status_code == 200   # served from the cache
+            assert (await client.delete("/portal/session", headers=auth)).status_code == 200
+            assert (await client.get("/portal/me", headers=auth)).status_code == 401   # revoked immediately
+    finally:
+        async with async_session_factory() as db:
+            if ids:
+                await db.execute(delete(PortalWorkspace).where(PortalWorkspace.id == ids["workspace"]))
+                await db.execute(delete(PortalUser).where(PortalUser.id == ids["user"]))
+                await db.commit()
+        await engine.dispose()
