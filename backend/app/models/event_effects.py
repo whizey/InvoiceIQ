@@ -64,3 +64,4 @@ class DeadLetterEvent(Base, UUIDPrimaryKeyMixin, CreatedAtMixin):
     payload: Mapped[dict | list | None] = mapped_column(JSONB)
     error: Mapped[str] = mapped_column(Text, nullable=False)
     attempts: Mapped[int] = mapped_column(Integer, nullable=False)
+    replayed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

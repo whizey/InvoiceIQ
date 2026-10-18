@@ -63,6 +63,10 @@ To use a managed broker instead (for example one with a free tier), configure it
 
 Without these variables the app logs events and the consumer exits, so nothing here is required.
 
+**Operating it.** With `METRICS_ENABLED=true` (and `METRICS_TOKEN` outside local environments), `/internal/metrics` reports
+events awaiting their consumer, unpublished outbox events and dead letters. After fixing the cause of a failure, run
+`python -m app.events.replay --dry-run`, then without `--dry-run`, to re-apply parked events.
+
 ## Recommended topology
 
 | Piece | Host | Notes |

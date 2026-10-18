@@ -21,7 +21,7 @@ from app.api.voice import router as voice_router  # noqa: E402
 from app.api.auth import router as auth_router  # noqa: E402
 from app.core.config import settings  # noqa: E402
 from app.core.observability import RequestContextMiddleware  # noqa: E402
-from app.core.metrics import MetricsMiddleware, metrics_response  # noqa: E402
+from app.core.metrics import MetricsMiddleware  # noqa: E402
 from app.core.mutation_auth import HostedMutationAuthMiddleware  # noqa: E402
 from app.core.request_limits import RequestBodyLimitMiddleware  # noqa: E402
 from app.events import get_publisher  # noqa: E402
@@ -99,7 +99,9 @@ app.include_router(dashboard_router)
 
 @app.get("/internal/metrics", include_in_schema=False)
 async def private_metrics(request: Request):
-    return metrics_response(request)
+    from app.core.db import async_session_factory
+    from app.core.metrics import metrics_response_with_pipeline
+    return await metrics_response_with_pipeline(request, async_session_factory)
 
 
 from app.api.preserved_dashboard import router as preserved_dashboard_router  # noqa: E402

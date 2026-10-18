@@ -106,3 +106,16 @@ def metrics_response(request: Request) -> Response:
     ):
         return Response(status_code=403)
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+async def metrics_response_with_pipeline(request: Request, session_factory) -> Response:
+    """The standard metrics plus event-pipeline health computed from the database at scrape time."""
+    response = metrics_response(request)
+    if response.status_code != 200:
+        return response
+    from app.events.pipeline_stats import pipeline_stats, render_prometheus
+    try:
+        extra = render_prometheus(await pipeline_stats(session_factory)).encode()
+    except Exception:  # noqa: BLE001 - a database hiccup must not break the rest of the metrics
+        extra = b"# invoiceiq pipeline metrics unavailable\n"
+    return Response(response.body + extra, media_type=CONTENT_TYPE_LATEST)
