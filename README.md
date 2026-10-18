@@ -1,11 +1,27 @@
 # InvoiceIQ
 
-InvoiceIQ is a B2B invoice monitoring and recovery application. It combines
-invoice and payment records, evaluated payment risk models, a policy-gated
-LangGraph recovery workflow, company-scoped review, and a live financial
-workspace. It is in **release verification**, not publicly deployed. Do not
-interpret the demonstration payment route or model forecasts as actual payment
-processing or guarantees of collection.
+[![CI](https://github.com/whizey/InvoiceIQ/actions/workflows/ci.yml/badge.svg)](https://github.com/whizey/InvoiceIQ/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+InvoiceIQ is a multi-tenant SaaS for B2B invoice monitoring and recovery. It
+combines invoice and payment records, a late-payment risk model with
+per-invoice explanations, a policy-gated LangGraph recovery workflow with a
+human review gate, an event pipeline on Apache Kafka, and a live financial
+dashboard with a grounded AI assistant.
+
+**Live:** https://invoiceiq-ai.vercel.app (open the sample workspace, no sign-up needed).
+
+| | |
+|---|---|
+| Web | Next.js 16 on Vercel |
+| API | FastAPI on a Hugging Face Space |
+| Data | PostgreSQL 16 on Supabase |
+| Events | Transactional outbox, Kafka, idempotent consumer, dead letters |
+| Delivery | GitHub Actions CI, gated deploy with a smoke test |
+
+Decisions are in [docs/adr](docs/adr), changes in [CHANGELOG.md](CHANGELOG.md), and
+how to contribute in [CONTRIBUTING.md](CONTRIBUTING.md). InvoiceIQ does not
+process bank payments, and model forecasts are predictions, not guarantees.
 
 ## Architecture
 
@@ -98,17 +114,15 @@ opened for arbitrary browser origins; the existing Next.js server proxies API
 requests.
 
 Release steps, current limits, recovery, and cost estimates are in
-[the operations guide](docs/OPERATIONS.md). No public frontend URL or backend
-health URL is available yet.
+[the operations guide](docs/OPERATIONS.md). The hosted setup is described in
+[the SaaS deployment guide](docs/DEPLOY_SAAS.md).
 
 ## Visual reference
 
-The retained page templates live in `frontend/public/reference/{overview,invoices,cases,approvals}`.
-Automated tests hash their CSS and check headings, KPI labels and table columns.
-Actual release screenshots have **not** been captured. The five local
-Playwright browser journeys passed on the host, but no deployed browser journey
-has been verified. Static
-HTML templates are visual references, not evidence of a deployed, connected app.
+The reference dashboard pages live in `frontend/public/reference/{overview,invoices,cases,approvals}`
+and are fed live data by the portal. Automated tests hash their CSS and check
+headings, KPI labels and table columns. A hosted smoke test runs after every
+deploy.
 
 ## Safety and limitations
 
