@@ -1,8 +1,8 @@
 # Deploying the InvoiceIQ SaaS product
 
-`render.yaml` deploys the **legacy read-only synthetic sample** only. It has no
-accounts, signup, assistant or recovery pages. This document describes what the
-current product needs. Nothing here has been deployed.
+The deployed sample uses Vercel for the frontend, a Hugging Face Space for the API,
+and Supabase PostgreSQL. `render.saas.yaml` remains an optional Render Blueprint;
+the legacy read-only `render.yaml` has been removed.
 
 ## Free path (Hugging Face Space + Supabase + Vercel; no card)
 

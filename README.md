@@ -1,134 +1,321 @@
+<div align="center">
+
 # InvoiceIQ
 
+**Receivables intelligence for B2B finance teams: see the cash behind every invoice, predict which ones will pay late, and review high-value recovery actions before execution.**
+
 [![CI](https://github.com/whizey/InvoiceIQ/actions/workflows/ci.yml/badge.svg)](https://github.com/whizey/InvoiceIQ/actions/workflows/ci.yml)
+[![Deploy](https://github.com/whizey/InvoiceIQ/actions/workflows/deploy.yml/badge.svg)](https://github.com/whizey/InvoiceIQ/actions/workflows/deploy.yml)
+[![Security](https://github.com/whizey/InvoiceIQ/actions/workflows/security.yml/badge.svg)](https://github.com/whizey/InvoiceIQ/actions/workflows/security.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-InvoiceIQ is a multi-tenant SaaS for B2B invoice monitoring and recovery. It
-combines invoice and payment records, a late-payment risk model with
-per-invoice explanations, a policy-gated LangGraph recovery workflow with a
-human review gate, an event pipeline on Apache Kafka, and a live financial
-dashboard with a grounded AI assistant.
+**Deployed sample: [open the live app →](https://invoiceiq-ai.vercel.app)** &nbsp;·&nbsp; [Watch the two-minute captioned demo](frontend/public/demo/invoiceiq-demo.webm) &nbsp;·&nbsp; [Read the docs](docs/PROJECT_OVERVIEW.md)
 
-**Live:** https://invoiceiq-ai.vercel.app (open the sample workspace, no sign-up needed).
+![InvoiceIQ dashboard showing the sample portfolio](docs/images/dashboard.png)
 
-| | |
-|---|---|
-| Web | Next.js 16 on Vercel |
-| API | FastAPI on a Hugging Face Space |
-| Data | PostgreSQL 16 on Supabase |
-| Events | Transactional outbox, Kafka, idempotent consumer, dead letters |
-| Delivery | GitHub Actions CI, gated deploy with a smoke test |
+</div>
 
-Decisions are in [docs/adr](docs/adr), changes in [CHANGELOG.md](CHANGELOG.md), and
-how to contribute in [CONTRIBUTING.md](CONTRIBUTING.md). InvoiceIQ does not
-process bank payments, and model forecasts are predictions, not guarantees.
+> The public workspace runs on **seeded, simulated invoices** (1,500 invoices across 97 companies), and the risk model was developed on a public B2B invoice-payment dataset. Open the sample workspace from the home page; no sign-up is needed. InvoiceIQ never moves money, and its forecasts are predictions, not guarantees.
+
+---
+
+## Contents
+
+- [Why InvoiceIQ](#why-invoiceiq)
+- [What it does](#what-it-does)
+- [Screens](#screens)
+- [Architecture](#architecture)
+- [One invoice, from flag to sign-off](#one-invoice-from-flag-to-sign-off)
+- [AI with a human in the loop](#ai-with-a-human-in-the-loop)
+- [The late-payment model](#the-late-payment-model)
+- [Event pipeline on Kafka](#event-pipeline-on-kafka)
+- [Security and tenancy](#security-and-tenancy)
+- [Performance](#performance)
+- [Technology](#technology)
+- [Repository layout](#repository-layout)
+- [Run it locally](#run-it-locally)
+- [Testing and quality](#testing-and-quality)
+- [CI/CD and hosting](#cicd-and-hosting)
+- [Documentation](#documentation)
+- [Limits and roadmap](#limits-and-roadmap)
+
+---
+
+## Why InvoiceIQ
+
+Companies that sell to other businesses on credit wait weeks or months to be paid. Finance teams usually track this in spreadsheets: they can't easily see how much money is at risk, which invoices are about to go late, or which customers need a nudge, and chasing everyone by hand is slow and inconsistent.
+
+InvoiceIQ turns invoices and payments into one trustworthy picture of receivables, scores every open invoice for late-payment risk with an explanation, and runs a recovery workflow where AI proposes the next step but fixed rules and a person decide what actually happens.
+
+## What it does
+
+| | Capability | Details |
+|---|---|---|
+| 📊 | **Receivables dashboard** | Six headline KPIs (invoiced, open receivables, overdue exposure, overdue share, collected, score coverage), invoiced vs collected over time, aging schedule, balance bridge, overdue by account, daily collections and upcoming dues. Date basis (posting, due, payment), grouping (day to year), ranges and a comparison cutoff. Totals reconcile and export to CSV. |
+| 🔮 | **Late-payment prediction** | A LightGBM model scores every open invoice at posting time and explains each score with its top SHAP drivers. |
+| 🤖 | **Policy-gated recovery agent** | A LangGraph workflow investigates a case and proposes an action; a deterministic policy engine allows, holds or blocks it; held actions wait in an approvals queue. |
+| ✅ | **Approvals and alerts** | Escalations raise approval alerts through the Kafka pipeline; reviewers approve or reject, and every decision is audited. |
+| 💬 | **Grounded assistant** | Ask "who owes us the most past 90 days?" by text or voice. Answers are built only from the workspace's own facts. |
+| 🏢 | **Multi-tenant workspaces** | Sign up, import invoices by CSV (validated), and work in an isolated workspace with roles (owner, admin, reviewer). |
+
+## Screens
+
+| Approvals | AI assistant | Approval alerts |
+|---|---|---|
+| ![Approvals queue](docs/images/approvals.png) | ![Assistant answering a receivables question](docs/images/assistant.png) | ![Approval alerts delivered through Kafka](docs/images/alerts.png) |
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  Browser[Browser] --> Web[Next.js web]
-  Web -->|server-side API calls| API[FastAPI]
-  API --> DB[(PostgreSQL)]
-  API --> Redis[(Redis locks)]
-  API --> Graph[LangGraph and policy]
-  Graph --> DB
-  API --> Models[Versioned ML artifacts]
-  API --> Outbox[Transactional outbox]
-  Outbox --> DB
+  Browser[Browser] --> Web["Next.js 16 on Vercel<br/>pages + allow-listed API proxy"]
+  Web -->|server-side, bearer token| API["FastAPI on a<br/>Hugging Face Space"]
+  API --> DB[(PostgreSQL 16<br/>Supabase)]
+  API --> Graph[LangGraph agent<br/>+ policy engine]
+  API --> Models[Versioned ML artifacts<br/>LightGBM, survival]
+  API --> LLM[Gemini]
+  API -->|same transaction| Outbox[Transactional outbox]
+  Outbox --> Kafka[Kafka topics]
+  Kafka --> Consumer[Idempotent consumer]
+  Consumer --> DB
+  Consumer --> DLQ[Dead-letter topics]
+  DLQ --> Replay[Replay command]
+  Replay --> Consumer
 ```
 
-The frontend serves four retained dashboard pages: overview, invoices, cases,
-and approvals. The Next.js server proxies allowlisted backend endpoints and
-keeps the workspace credential in an HTTP-only cookie. FastAPI enforces
-company scopes on financial reads and recovery writes; reviewers have separate
-credentials and company scopes. Hosted writes require an operator credential.
-The browser does not need cross-origin API access. PostgreSQL stores invoices,
-payments, cases, audits, inference records and outbox events. Redis coordinates
-concurrent recovery actions. In the single-process fallback, locks are
-in-process. The outbox can use its log publisher without Kafka.
+- **Two deployable units.** The web app serves pages and proxies a fixed allow-list of API routes; the browser never talks to the API or the database directly. The session token lives in an HTTP-only, `SameSite=Strict` cookie, and non-GET requests must come from the site's own origin.
+- **Every business rule lives in the API.** The `identity` dependency resolves the session, loads the workspace and checks membership, and every query is filtered by `workspace_id`.
+- **Events can be redelivered without duplicate effects.** A decision and its event commit in one transaction; Kafka carries the event; the consumer deduplicates on `event_id`.
 
-The stack is Python 3.12+, FastAPI, SQLAlchemy/asyncpg, Alembic, PostgreSQL 16,
-LangGraph, LightGBM and the evaluated model artifacts; Next.js 16, React 19,
-TypeScript, and Playwright are used for the web application and browser checks.
-The model artifacts and their calibration policies are versioned and verified
-without retraining at startup.
+More in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and the decision records in [docs/adr](docs/adr).
 
-The B2B champion predicts late payment from an ordered feature schema and
-returns native TreeSHAP explanations. BPI survival estimates a separate
-purchase-to-pay process-clearance target; its probabilities are not customer
-payment or recovery estimates. Evaluation and calibration reports remain in
-`backend/app/ml/artifacts`, with methodology and limitations in
-`backend/EVALUATION_PROTOCOL.md` and [the architecture guide](docs/ARCHITECTURE.md).
+## One invoice, from flag to sign-off
 
-## Local setup
+The [end-to-end integration test](backend/tests/test_end_to_end_intelligence.py) follows a synthetic **₹12,00,000 invoice, five days overdue**:
 
-Requirements: Docker Desktop, Python 3.12+, Node.js 22 and npm. For ordinary
-local development, `./run.sh` starts the local Compose database, runs migrations,
-and launches the API and web server. It uses local development data and is **not
-an integration-test database**. See [backend details](backend/README.md) for
-manual startup and endpoint documentation. Never run the seed or test fixtures
-against a database containing valuable data.
+1. **Ingest and score.** The invoice is stored with a late-payment score and its top five model drivers; overdue detection opens a recovery case.
+2. **Investigate and propose.** The agent reviews invoice and customer evidence and proposes contacting the customer, recording its reasons and evidence references.
+3. **Policy holds it.** The `high_value_review` rule fires at ₹10,00,000, so the action is held as `PENDING_APPROVAL`. No message is sent.
+4. **A person signs off.** A scoped reviewer approves; the audit records `REVIEW_APPROVED`, the action becomes `EXECUTED` and a simulated message is recorded. Approving again returns `409 Conflict`, so it can never run twice.
 
-For guarded integration tests, provision the separate disposable instance in
-[the backend test guide](backend/docs/BACKEND_TEST_RUNNER.md). It uses tmpfs and
-its own host port. Run `backend/scripts/run_backend_tests.py` only after its
-Docker/PostgreSQL identity checks pass. The Phase 5 regression tests and the
-remaining tests run in separate Python processes and databases.
+## AI with a human in the loop
 
-Frontend checks from `frontend/`:
+```mermaid
+flowchart LR
+  A[check_terminal] -->|open| B[load_customer_context]
+  B --> C[calculate_recovery_risk]
+  C --> D[diagnose_case]
+  D --> E[recommend_intervention]
+  E --> F{policy_check}
+  F -->|approved| G[execute_action]
+  F -->|held or blocked| Z((stop))
+  G --> H[record_outcome]
+```
+
+The language model **proposes**; plain, tested Python **decides**. The policy engine applies these rules in order, and each outcome is tagged so overrides can be audited:
+
+| # | Rule | Outcome |
+|---|---|---|
+| 1 | Customer broke a promise to pay | Escalate to a person |
+| 2 | ₹10,00,000 or more and 45+ days overdue | Escalate to a person |
+| 3 | Case already escalated | No automated reminders or calls |
+| 4 | Three reminders already sent | Escalate instead |
+| 5 | Last reminder under 7 days ago | Wait |
+| 6 | High-value reminder | Hold for human review |
+| 7 | Otherwise | Allow the reminder |
+
+Inputs are screened for prompt injection and model output is validated against a schema, as defence in depth; the policy engine is the actual safety boundary. Without an LLM key, a rule-based fallback keeps the workflow running. Details in [docs/BACKEND.md](docs/BACKEND.md).
+
+## The late-payment model
+
+| Metric | Validation (13,355 rows) | Chronological test (6,181 rows) |
+|---|---|---|
+| ROC-AUC | **0.714** | **0.706** |
+| PR-AUC | 0.610 | 0.636 |
+| Brier score (lower is better) | 0.241 | 0.281 |
+
+- **Model:** LightGBM champion `b2b_v2:5a8417263da99809`, 14 behaviour-heavy features, trained on 34,437 invoices.
+- **Stability:** a four-fold temporal backtest has a median ROC-AUC of 0.666 and no fold below random.
+- **Calibration:** Platt scaling was tested and rejected because it lowered ranking quality, so raw scores are served.
+- **Explanations:** every score comes with TreeSHAP contributions in log-odds.
+- **Integrity:** artifacts are fingerprinted and verified at startup, so a changed model can't be served silently.
+- **Provenance:** the frozen model was scored once on the test split for this report, with no refit or threshold tuning. That split had been examined during earlier development, so it is retrospective held-out evidence rather than a blind test.
+
+The full record, with the split fingerprint and limitations, is in [docs/evaluations/model-risk-v1.json](docs/evaluations/model-risk-v1.json) and [docs/ML_MODELS.md](docs/ML_MODELS.md).
+
+## Event pipeline on Kafka
+
+```mermaid
+sequenceDiagram
+  participant R as Reviewer
+  participant API as FastAPI
+  participant DB as PostgreSQL
+  participant K as Kafka
+  participant C as Consumer
+  R->>API: Escalate invoice
+  API->>DB: decision + outbox row (one transaction)
+  API->>K: publish review.requested
+  K->>C: deliver (at least once)
+  C->>DB: processed_events marker + alert (one transaction)
+  Note over C,DB: duplicate event_id → no-op
+  C-->>K: after 3 failures → review.requested.dlq
+```
+
+| Guarantee | How |
+|---|---|
+| Nothing announced that didn't happen | Transactional outbox: the event row commits with the decision |
+| No duplicate effects | `(consumer, event_id)` marker and the effect commit together; replays are no-ops |
+| Late events can't overwrite newer state | Risk updates are latest-wins by `occurred_at` |
+| Failures don't block the stream | 3 retries with backoff, then a dead-letter row and a `<topic>.dlq` message |
+| Recoverable | `python -m app.events.replay` re-applies parked events after a fix |
+| Survives broker data loss | An outbox reconciler re-applies published-but-unapplied events every 60 s |
+| Never blocks the product | If no broker is reachable, the same handlers run in-process |
+
+The hosted API starts a single-node Kafka 3.9 (KRaft) beside itself when available; event effects use the in-process fallback if the broker is unavailable. To try it locally with Redpanda and a web console, see [deploy/local-kafka](deploy/local-kafka/README.md). More in [docs/EVENT_PIPELINE.md](docs/EVENT_PIPELINE.md).
+
+The short [deduplication demo](deploy/local-kafka/README.md) prints `first delivery: processed`, `second delivery: duplicate`, `approval alerts: 1`, and `dedupe markers: 1`. A poison event is parked in the database and published to `<topic>.dlq`; `python -m app.events.replay --dry-run` previews it before replay.
+
+## Security and tenancy
+
+- **Isolation:** every portal query is scoped to the caller's workspace; tests attempt cross-tenant reads and writes and expect them to fail. Visitors to the shared sample only ever see their own decisions.
+- **Credentials:** scrypt password hashing with per-user salts and constant-time comparison; opaque `iqp_` session tokens stored only as SHA-256 digests, expiring after 8 hours and revocable.
+- **Abuse limits:** account lockout after 5 failed sign-ins (30 s, doubling to 15 minutes, identical for unknown emails so accounts can't be enumerated); throttled sign-ups; assistant capped at 8 requests a minute; request-size limits.
+- **Browser hardening:** HSTS, a content security policy that blocks framing by other sites, plugins and form hijacking, `nosniff`, a strict referrer policy and a microphone-only permissions policy.
+- **Supply chain:** gitleaks over the full history, `pip-audit`, `npm audit`, Dependabot, and a privacy check that blocks private files from the repository.
+
+Details in [docs/SECURITY_AND_PRIVACY.md](docs/SECURITY_AND_PRIVACY.md).
+
+## Performance
+
+Measured against the live site after the latest release:
+
+| Request | Before | After |
+|---|---|---|
+| Authenticated read, repeated | 1.7–2.3 s | **~0.4 s** |
+| Dashboard, same filters again | 1.6–2.0 s | **~0.4–0.5 s** |
+| 20 concurrent clients | 7% errors | **0 errors** |
+
+Reads reuse a short-lived session lookup and a versioned per-workspace cache that every write invalidates, so numbers are never stale. The connection pool is bounded to fit the hosted database pooler. A reusable load test lives in [scripts/loadtest](scripts/loadtest/run.py).
+
+## Technology
+
+| Area | Tools |
+|---|---|
+| Frontend | Next.js 16 (App Router), React 19, TypeScript, ESLint |
+| Backend | Python 3.12, FastAPI, Uvicorn, SQLAlchemy 2 (async), asyncpg, Pydantic, Alembic (20 migrations) |
+| Data | PostgreSQL 16 (Supabase), Redis (optional distributed lock), Git LFS for model artifacts |
+| ML | LightGBM, XGBoost, scikit-learn, scikit-survival, SHAP, pandas, NumPy |
+| AI | LangGraph, LangChain, Google Gemini, Sarvam (Hinglish speech), browser Web Speech API |
+| Events | Apache Kafka 3.9 (KRaft), aiokafka, Redpanda (local), transactional outbox |
+| Quality | pytest, coverage gate (80%), Playwright, Node test runner, Ruff, gitleaks, pip-audit, npm audit, Dependabot |
+| Delivery | Docker, Docker Compose, GitHub Actions, Vercel, Hugging Face Spaces |
+
+The full inventory with versions and reasons is in [docs/TECH_STACK.md](docs/TECH_STACK.md).
+
+## Repository layout
+
+```text
+InvoiceIQ/
+├── backend/                 FastAPI app, ML, agents, events, migrations, tests
+│   ├── app/api/             HTTP routes (portal, recovery, ML, health)
+│   ├── app/agents/          LangGraph workflow, prompts, guardrails
+│   ├── app/services/        policy engine, review gate, dashboards, risk engine
+│   ├── app/events/          outbox, Kafka publisher, consumer, reconciler, replay
+│   ├── app/ml/              training, evaluation, calibration, serving, artifacts
+│   ├── alembic/             database migrations
+│   └── tests/               760+ tests against a disposable PostgreSQL
+├── frontend/                Next.js app, API proxies, reference dashboard, tests
+├── deploy/                  Hugging Face Space packaging, local Kafka stack
+├── infra/                   loopback-only staging Compose rehearsal
+├── docs/                    guides, decision records, evaluation reports, images
+├── scripts/                 build, verification and load-test scripts
+└── .github/workflows/       CI, security, deploy
+```
+
+## Run it locally
+
+**Requirements:** Docker Desktop, Python 3.12+, Node.js 22 and npm.
 
 ```sh
-npm ci
-npm run lint
-npm run typecheck
-npm run build
-npm test
+git clone https://github.com/whizey/InvoiceIQ.git
+cd InvoiceIQ
+git lfs pull          # model artifacts
+./run.sh              # local database, migrations, API and web app
 ```
 
-The Playwright browser suite needs a running production build at
-`127.0.0.1:3047`; the exact host commands are in the backend test guide.
+`./run.sh` uses a local development database. It is **not** the integration-test database: never point seeds or test fixtures at a database holding data you care about. Manual startup and every environment variable are described in [backend/README.md](backend/README.md) and [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
-## Release configuration
+Gemini, email and voice keys are optional. Without them, rule-based reasoning and simulated communication keep every flow working.
 
-`infra/compose.deploy.yml` is a **loopback-only staging rehearsal** with web,
-FastAPI, PostgreSQL and Redis. It is not a public deployment. Start from
-`infra/.env.deploy.example`, generate independent random credentials, and put
-the real values only in Git-ignored `infra/.env.deploy`. The deployed database
-must be migrated. The backend image defaults to no migration; the local and
-staging Compose files explicitly set `RUN_MIGRATIONS=true` to preserve their
-existing behavior. Run production migrations as a separate reviewed step.
-Configure `ANALYTICS_API_KEYS`, `REVIEWER_API_KEYS`, and
-`INVOICEIQ_REVIEWER_COMPANY_SCOPES` using actual company UUIDs. The example
-UUID is a placeholder and grants access to no real company. Never expose an
-operator or reviewer credential as a browser environment variable.
+To run the event pipeline against a real broker:
 
-For a public deployment, supply an HTTPS hostname, a persistent PostgreSQL
-backup plan, and an access-control boundary for the web application. Keep the
-API bound privately or behind an authenticated proxy. Set explicit analytics
-and reviewer scopes, confirm that the appropriate data has been reconciled,
-and enable scheduled recovery only after workflow checks. Gemini/OpenAI, email,
-and voice credentials are optional: without them, the deterministic reasoning
-and simulated communication paths remain available. CORS is intentionally not
-opened for arbitrary browser origins; the existing Next.js server proxies API
-requests.
+```sh
+docker compose -f deploy/local-kafka/docker-compose.yml up -d   # Redpanda + console on :8080
+cd backend && python -m scripts.send_sample_events && python -m app.events.consumer
+```
 
-Release steps, current limits, recovery, and cost estimates are in
-[the operations guide](docs/OPERATIONS.md). The hosted setup is described in
-[the SaaS deployment guide](docs/DEPLOY_SAAS.md).
+## Testing and quality
 
-## Visual reference
+```sh
+# backend: needs the disposable database from backend/docs/BACKEND_TEST_RUNNER.md
+cd backend && ruff check app tests && ./scripts/run_full_tests.sh --coverage
 
-The reference dashboard pages live in `frontend/public/reference/{overview,invoices,cases,approvals}`
-and are fed live data by the portal. Automated tests hash their CSS and check
-headings, KPI labels and table columns. A hosted smoke test runs after every
-deploy.
+# frontend
+cd frontend && npm ci && npm run lint && npm run typecheck && npm test && npm run build
+```
 
-## Safety and limitations
+- **Backend:** 760+ tests across about 110 files run against a real PostgreSQL. They cover tenant isolation, sessions and lockout, policy rules, the review gate, reconciliation of dashboard totals, the event pipeline (duplicates, late events, retries, dead letters, broker loss) and ML artifact integrity. CI enforces 80% coverage.
+- **Migrations:** CI applies them up, down to base, and up again.
+- **Frontend:** unit and contract tests for the dashboard, CSV import and financial consistency, plus Playwright journeys against a production build.
+- **Safety:** test connections are checked against the disposable database's identity before any fixture runs.
 
-InvoiceIQ does not process bank payments. The payment simulation endpoint is a
-sample operation. ML outputs are predictive associations and do not replace
-financial reconciliation. The `PUBLIC_READ_ONLY` mode has separate data and
-write restrictions. Existing repository history and the current working tree
-must pass the privacy checks before publication. Current blockers and exact
-results are recorded in [release status](docs/RELEASE_STATUS.md).
+See [docs/TESTING.md](docs/TESTING.md).
+
+## CI/CD and hosting
+
+| Stage | What runs |
+|---|---|
+| CI | Ruff, backend tests with coverage, migrations up/down/up, ESLint, TypeScript, frontend tests and build, Docker images, staging Compose validation |
+| Security | full-history gitleaks, privacy check, `pip-audit`, `npm audit` |
+| AI checks | offline agent-safety cases and model contract checks |
+| Deploy | API packaged to the Hugging Face Space, web app to Vercel, then a smoke test of the live site, a sample session and the main data endpoints |
+
+| Component | Host |
+|---|---|
+| Web app | Vercel |
+| API, consumer and Kafka | Hugging Face Space (one container) |
+| Database | Supabase PostgreSQL (session pooler) |
+
+See [docs/CICD_AND_DEPLOYMENT.md](docs/CICD_AND_DEPLOYMENT.md) and [docs/DEPLOY_SAAS.md](docs/DEPLOY_SAAS.md). `infra/compose.deploy.yml` is a loopback-only staging rehearsal, not a public deployment.
+
+## Documentation
+
+| Guide | Covers |
+|---|---|
+| [Project overview](docs/PROJECT_OVERVIEW.md) | The problem, the users and the product |
+| [Architecture](docs/ARCHITECTURE.md) | Components, request path, data model, trade-offs |
+| [Backend](docs/BACKEND.md) | Portal, agent workflow, policy engine, review gate |
+| [Frontend](docs/FRONTEND.md) | Pages, proxies, reference dashboard |
+| [Event pipeline](docs/EVENT_PIPELINE.md) | Outbox, Kafka, consumer, dead letters, replay |
+| [ML models](docs/ML_MODELS.md) | Features, evaluation, calibration, explanations |
+| [API reference](docs/API_REFERENCE.md) | Every endpoint |
+| [Security and privacy](docs/SECURITY_AND_PRIVACY.md) | Threat model and controls |
+| [Testing](docs/TESTING.md) | Suites and how to run them |
+| [Workflows](docs/WORKFLOWS.md) | End-to-end user journeys |
+| [Operations](docs/OPERATIONS.md) | Release steps, limits, recovery |
+| [Decision records](docs/adr) | Outbox, policy gate, embedded Kafka |
+
+## Limits and roadmap
+
+| Today | Next |
+|---|---|
+| Free hosting serves a handful of simultaneous users comfortably | Larger instance or horizontal scaling |
+| Caches and rate limits are per process | Shared Redis cache and limiter |
+| Single-node Kafka with ephemeral storage (covered by the outbox and reconciler) | Managed, replicated cluster; the configuration already supports it |
+| Policy thresholds are global constants | Per-workspace policy settings |
+| No email verification or password reset | Both, once an email sender is configured |
+| Reminder email is simulated on the hosted site | Real delivery through the existing email integration |
+
+## License
+
+[MIT](LICENSE). Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md) and [CHANGELOG.md](CHANGELOG.md).

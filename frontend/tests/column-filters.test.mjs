@@ -51,7 +51,6 @@ test('amount paid balance and risk ranges maintain full data accounting',()=>{
   assert.equal(full.total,full.metrics.invoice_count);
   assert.equal(full.page_size,100);
   assert.ok(full.invoices.length<=100);
-  const sum=r=>full.invoices.reduce((a,inv)=>a+Number(inv[r]),0);
   // Check each returned page row meets its own requested constraints.
   for(const row of full.invoices){
    for(const [prefix,field] of [['amount','amount_total'],['paid','amount_paid'],['balance','balance']]){

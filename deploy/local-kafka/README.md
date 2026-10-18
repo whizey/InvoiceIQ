@@ -20,6 +20,27 @@ Expected result: 3 rows in `processed_events`, 2 in `case_risk_latest` (one HIGH
 1 in `approval_alerts` and 1 in `dead_letter_events`. The duplicates change nothing. In the
 console, the topics `risk.scored`, `review.requested` and their `.dlq` topics show the messages.
 
+For a short, repeatable deduplication check against the disposable test database, run:
+
+```bash
+cd backend
+set -a; source .env.test; set +a
+.venv/bin/python -m scripts.demo_event_dedupe
+```
+
+It prints:
+
+```text
+first delivery: processed
+second delivery: duplicate
+approval alerts: 1
+dedupe markers: 1
+```
+
+The script verifies the disposable PostgreSQL container before writes and removes its demo rows.
+To inspect and replay failures from the Kafka run, use `python -m app.events.replay --dry-run`
+then `python -m app.events.replay --topic risk.scored` after fixing the cause.
+
 Stop it with `docker compose -f deploy/local-kafka/docker-compose.yml down`.
 
 ## Through the product
