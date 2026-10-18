@@ -47,8 +47,11 @@ or resetting it emits `review.resolved`, which closes the alert. The consumer
 in-process right after the commit, so the Approvals and Cases pages behave identically. Each event is applied once per `event_id`, so redelivery is harmless. Events that fail three
 times are stored in `dead_letter_events` and published to `<topic>.dlq`.
 
-A Hugging Face Space cannot run a broker, so use a hosted one with a free tier (Upstash Kafka or
-Redpanda Cloud):
+**On the Hugging Face Space this is already handled:** `app.py` starts a single-node Apache Kafka (KRaft)
+beside the API through `start_kafka.sh` (Java comes from `packages.txt`). Storage is ephemeral, and if the broker
+cannot start the app falls back to in-process delivery. Set `EMBEDDED_KAFKA=false` to turn it off.
+
+To use a managed broker instead (for example one with a free tier), configure it as follows:
 
 1. Create a cluster and the topics `risk.scored`, `review.requested`, `review.resolved` and a `.dlq` twin of each
    (hosted brokers usually do not auto-create topics).
