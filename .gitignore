@@ -37,9 +37,6 @@ out/
 # Logs
 *.log
 
-# Local AI/editor metadata
-.refact/
-
 # Temporary project context / archives
 recoveriq-source.zip
 recoveriq-shap-context.txt
@@ -65,14 +62,9 @@ gomask.toml
 # Local private project material — never commit
 /.private/
 
-# AI coding-assistant instruction files
-AGENTS.md
-
 # Local staging credentials (the .example template is safe to track)
 /infra/.env.deploy
 
-# Generated coding-assistant instructions
-/frontend/AGENTS.md
 /data/raw/
 /data/processed/
 /InvoiceIQ/
@@ -82,7 +74,7 @@ AGENTS.md
 # Private test environment
 /backend/.env.test
 
-# Historical coding-assistant source snapshots and one-off patch material.
+# Historical source snapshots and one-off patch material.
 recoveriq_final18_pretrain_audit.txt
 recoveriq_payment_risk_audit_bundle.txt
 gate_patch.py

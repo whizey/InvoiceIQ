@@ -44,7 +44,7 @@
 
 ## Secrets and repository hygiene
 
-- `.env` files and credentials are never committed. CI scans the full history with gitleaks and runs a privacy check that blocks private and assistant-state paths.
+- `.env` files and credentials are never committed. CI scans the full history with gitleaks and runs a privacy check that blocks private local files.
 - Rotate any credential that has appeared in a chat, ticket or log. Treat tokens (Hugging Face, Vercel, model API keys, database passwords) as compromised if they were ever shared.
 - Deploy credentials live only as GitHub secrets, and the deploy requires an approving reviewer.
 

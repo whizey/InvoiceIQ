@@ -102,7 +102,7 @@ Every tool used in the project, grouped by purpose, with the version pinned in t
 | Ruff | Python lint |
 | gitleaks | Secret scanning of the repository history |
 | `npm audit` and a Python dependency audit | Known-vulnerability checks |
-| Custom privacy check | Blocks private and assistant-state files from the repository |
+| Custom privacy check | Blocks private local files and credentials from the repository |
 
 ## Why these choices
 
