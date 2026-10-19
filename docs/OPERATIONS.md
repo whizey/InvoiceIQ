@@ -35,7 +35,7 @@ session; logout revokes it server-side. This is a workspace credential model,
 not per-person accounts. Rate limiting for the exchange is process-local; a
 multi-replica authenticated product needs a shared limiter and user identity.
 
-The portfolio Blueprint in `render.yaml` serves only six verified synthetic
+The former portfolio Blueprint served only six verified synthetic
 companies from a dedicated `invoiceiq_sample` database. The initializer refuses
 any other database name or existing unmarked schema. The public API runs in a
 private service with `PUBLIC_READ_ONLY=true`, no scheduler, outbox dispatcher,

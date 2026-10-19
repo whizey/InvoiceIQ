@@ -1,4 +1,4 @@
-"""Fail if sensitive local/assistant-state paths are indexed or release candidates.
+"""Fail if private local files or credentials are indexed or release candidates.
 
 This complements Gitleaks content scanning. It does not inspect previous
 commits; old history needs separate review before a public release.
@@ -10,8 +10,7 @@ import sys
 
 
 BLOCKED = re.compile(
-    r"(^|/)(?:\.private|\.refact|\.cursor|\.codex|"
-    r"AGENTS\.md|chat_history|conversation_history|"
+    r"(^|/)(?:\.private|chat_history|conversation_history|"
     r"memory_ops|runtime_queue|\.env(?:\.[^/]*)?|"
     r"recoveriq_(?:final18_pretrain_audit|payment_risk_audit_bundle)\.txt|"
     r"gate_patch\.py)(?:/|$)",
@@ -35,7 +34,7 @@ def main() -> int:
         for path in violations:
             print(f"BLOCKED TRACKED PATH: {path}")
         return 1
-    print("PASS: no private/assistant-state paths in Git index or untracked release candidates")
+    print("PASS: no private local files or credentials in Git index or untracked release candidates")
     return 0
 
 

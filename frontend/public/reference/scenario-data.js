@@ -1,5 +1,5 @@
 /* InvoiceIQ scenario portfolio: deterministic, clearly identified simulated records.
- * Never calls or modifies production storage. All writes are browser-local demonstrations.
+ * Never calls or modifies production storage. All writes stay in the browser.
  */
 (function (global) {
   'use strict';

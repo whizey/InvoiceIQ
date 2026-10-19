@@ -9,7 +9,7 @@
 
 ### Platform
 - Transactional outbox, Kafka delivery, idempotent consumer, retries, dead letters, outbox reconciler and replay command.
-- Pipeline health metrics (Prometheus) and a ready Grafana dashboard.
+- Pipeline health metrics exposed for Prometheus.
 - Per-account sign-in lockout with exponential backoff; throttled account creation.
 - Browser security headers; HTTP-only session cookie; allow-listed server-side proxy.
 - CI (lint, tests with coverage gate, migrations, images, secret and dependency scans) and a gated deploy with smoke test.

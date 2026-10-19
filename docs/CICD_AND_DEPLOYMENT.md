@@ -22,7 +22,7 @@ Workflows in `.github/workflows/`:
 |---|---|---|
 | **CI** (`ci.yml`) | Push to `main` and `invoiceiq-integration`, every pull request | Jobs below |
 | **Frontend CI** | Changes under `frontend/` | Lint, TypeScript, tests and build |
-| **Repository security** | Push and pull request | Privacy check for private and assistant-state files, gitleaks secret scan over history, `pip-audit` of the Python dependencies (including the container variant), `npm audit` of production dependencies |
+| **Repository security** | Push and pull request | Privacy check for private local files, gitleaks secret scan over history, `pip-audit` of the Python dependencies (including the container variant), `npm audit` of production dependencies |
 | **AI guardrails and model contracts** | Push and pull request | Prompt-injection guardrail tests, mutation authorization, model artifact verification, request limits, LLM telemetry, and versioned offline agent-safety cases |
 | **ML artifact integrity** | Manual | Verifies model files against their fingerprints |
 
@@ -35,18 +35,17 @@ CI jobs:
 
 ## Continuous deployment
 
-`deploy.yml` is a reusable workflow called as the **last stage of CI**, so it runs only for a push to `main` or `invoiceiq-integration` after every CI job has passed. It can also be started by hand.
+`deploy.yml` is a separate workflow in the Actions tab. A successful push-triggered CI run on `main` starts it automatically, and it checks out the exact commit CI tested. It can also be started manually with `workflow_dispatch`. Integration-branch and pull-request CI runs do not deploy production.
 
 ```mermaid
 flowchart LR
   P[push to release branch] --> CI[CI jobs]
-  CI -->|all green| G{Approval on\nproduction environment}
-  G --> A[API: build Space folder, push to Hugging Face]
+  CI -->|all green on main| A[API: build Space folder, push to Hugging Face]
   A --> W[Web: vercel pull, build, deploy --prod]
   W --> S[Smoke test]
 ```
 
-- **Approval gate:** both deploy jobs use the GitHub environment `production`, which requires a named reviewer. Nothing ships without a human approving.
+- **Trigger:** a separate `workflow_run` watches the `CI` workflow. The deployment jobs use repository secrets and run without the production environment's manual approval gate.
 - **API job:** `scripts/build_hf_space.sh` assembles a runtime-only folder (no tests, env files or report images; binaries tracked by LFS), bundles the checksum-verified Kafka archive, and force-pushes it to the Space. A code-only redeploy of the Space takes under a minute to be running again. Hugging Face then rebuilds and restarts the Space, which migrates the database and seeds the sample workspace.
 - **Web job:** the Vercel CLI pulls the project's production settings, builds, and deploys the prebuilt output. The token is trimmed of stray whitespace.
 - **Smoke test:** waits up to ten minutes for the API health check, then verifies the home page, opens a sample session and fetches the overview, recovery summary and alerts endpoints with the same origin header a browser would send.
@@ -82,9 +81,8 @@ Never place an API key or database URL in a browser-exposed variable, and never 
 1. Wait for green CI on the exact commit.
 2. Back up the database.
 3. Migrations run when the Space starts (Alembic `upgrade head`). For anything beyond the sample deployment, run migrations as a separate, reviewed step.
-4. Approve the deploy in GitHub.
-5. Watch the smoke test.
-6. Rotate any credential that was ever pasted into a chat, ticket or log.
+4. Watch the automatic deploy and smoke test in the Actions tab.
+5. Rotate any credential that was ever pasted into a chat, ticket or log.
 
 ## Rollback
 

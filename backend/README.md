@@ -42,7 +42,7 @@ passes. The [release report](../docs/RELEASE_STATUS.md) records actual results.
   company-scoped authorization in hosted environments.
 - Recovery-case routes implement detection, risk scoring, the policy-gated
   LangGraph cycle, reviewer decisions, reconciliation and audit trails.
-  The payment simulation endpoint is a demonstration action, not a bank
+  The payment simulation endpoint is a sample action, not a bank
   integration.
 - `/dashboard/preserved` and `/dashboard/workspace/*` serve the current
   Next.js dashboard. The web server calls them through server-side proxy

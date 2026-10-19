@@ -1,5 +1,5 @@
 # InvoiceIQ SaaS product API (accounts, dashboard, recovery, AI assistant).
-# render.yaml in this repo is the older read-only synthetic sample; this file is not.
+# Optional SaaS Blueprint; the hosted sample uses Hugging Face and Vercel.
 #
 # Use: Render dashboard -> New -> Blueprint -> pick this repo -> set the Blueprint
 # file path to render.saas.yaml. The `starter` plan is a paid instance; Render asks

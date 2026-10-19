@@ -226,12 +226,3 @@ jobs:
           REVIEWER_API_KEYS: '{"reviewer":"ci-reviewer-token"}'
           INVOICEIQ_REVIEWER_COMPANY_SCOPES: '{"reviewer":["00000000-0000-0000-0000-000000000000"]}'
         run: docker compose -f infra/compose.deploy.yml config --quiet
-
-  deploy:
-    name: Deploy (needs approval)
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/invoiceiq-integration')
-    needs: [backend, frontend, images, staging-compose-config]
-    uses: ./.github/workflows/deploy.yml
-    secrets: inherit
-    permissions:
-      contents: read

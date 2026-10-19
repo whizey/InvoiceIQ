@@ -2,7 +2,7 @@
 
 IMPORTANT: This data is entirely synthetic. There is no real-world
 collections dataset behind it. It exists so a portfolio project can
-demonstrate a working ML training pipeline; the resulting model is NOT a
+exercise a working ML training pipeline; the resulting model is NOT a
 production financial risk model and must not be treated as one.
 
 WHY THIS ISN'T JUST A LINEAR FUNCTION

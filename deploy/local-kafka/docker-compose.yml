@@ -1,4 +1,4 @@
-# Local-only Kafka for demonstrating the event consumer. Not used by the hosted app.
+# Local-only Kafka for trying the event consumer. Not used by the hosted app.
 services:
   redpanda:
     image: docker.redpanda.com/redpandadata/redpanda:v24.3.7

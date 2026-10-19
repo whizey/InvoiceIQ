@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-14T05:56:00.740373+00:00",
+  "generated_at": "2026-10-18T11:27:04+00:00",
   "models": [
     {
       "version": "b2b_v2:5a8417263da99809",
@@ -19,6 +19,16 @@
         "ece_10": 0.17203497792622685
       },
       "evaluation_split": "development_validation",
+      "held_out_test": {
+        "rows": 6181,
+        "prevalence": 0.46011972172787574,
+        "roc_auc": 0.7055962070414528,
+        "pr_auc": 0.6361039238114073,
+        "brier": 0.28099892647871527,
+        "split_sha256": "1514765d592b68f058bce520ee3e919b4f953d5e2b8de63978e95bd7ce9b43b1",
+        "evaluation_script": "backend/app/ml/model_risk.py",
+        "evaluation_note": "Frozen artifact scored once for this report; the test split had been examined during prior development. No refit or threshold selection on test."
+      },
       "temporal_backtest": {
         "valid": true,
         "fold_count": 4,
@@ -52,9 +62,9 @@
     "rows_checked": null,
     "status": "Not independently verified"
   },
-  "test_status": "Development evaluation is not pristine held-out test evidence. The test split was not read.",
+  "test_status": "Retrospective held-out result from a public dataset; not pristine held-out test evidence because the split had already been examined during prior development. It is not prospective production evidence.",
   "limitations": [
-    "Held-out test-set performance is not established",
+    "Test split was examined during prior development and does not provide a pristine blind estimate",
     "Explainability cohort count is not independently verified",
     "Prospective production performance is not established"
   ],

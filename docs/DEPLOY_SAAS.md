@@ -1,8 +1,8 @@
 # Deploying the InvoiceIQ SaaS product
 
-`render.yaml` deploys the **legacy read-only synthetic sample** only. It has no
-accounts, signup, assistant or recovery pages. This document describes what the
-current product needs. Nothing here has been deployed.
+The deployed sample uses Vercel for the frontend, a Hugging Face Space for the API,
+and Supabase PostgreSQL. `render.saas.yaml` remains an optional Render Blueprint;
+the legacy read-only `render.yaml` has been removed.
 
 ## Free path (Hugging Face Space + Supabase + Vercel; no card)
 
@@ -85,7 +85,7 @@ customer database. Choose one:
 
 1. **Portfolio/sample deployment (recommended for a submission).** One Neon
    database named `invoiceiq`. Showcase and sample sign-ups live together;
-   say clearly that accounts are for demonstration only. No real customer data.
+   say clearly that accounts are for evaluation only. No real customer data.
 2. **Production with real customers.** A separate database with no showcase
    (`INVOICEIQ_PORTAL_SHOWCASE=false`), plus a second sample deployment as in (1).
    The visitor "Explore the product" flow needs the showcase, so it runs only on

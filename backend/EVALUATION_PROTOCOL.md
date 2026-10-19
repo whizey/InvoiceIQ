@@ -136,7 +136,7 @@ A model may still be selected by the predefined validation metric, but if tempor
 
 Validation currently does not provide a clean unseen-customer evaluation.
 
-Therefore the project must not claim that validation performance demonstrates generalization to completely new customers.
+Therefore the project must not claim that validation performance shows generalization to completely new customers.
 
 Cold-start behavior may be evaluated separately as a diagnostic, but it is not used for final model selection.
 

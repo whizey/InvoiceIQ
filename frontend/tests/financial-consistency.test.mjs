@@ -5,7 +5,7 @@ import vm from 'node:vm';
 const source = file => readFileSync(new URL('../public/reference/'+file,import.meta.url),'utf8');
 function boot(backend = null){
   const entries=new Map(),calls=[];
-  const mock = async (resource,options={})=>{
+  const mock = async resource=>{
     calls.push(String(resource));
     if(backend) return backend(new URL(String(resource),'https://invoiceiq.local'));
     throw Error('Unexpected historic API request');
