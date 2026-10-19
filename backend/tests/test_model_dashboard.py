@@ -88,6 +88,7 @@ def test_calibration_uses_the_correct_champion_audit_and_discloses_test_history(
     assert by_target['days_late_p80']['validation']['median_pinball'] > 0
     disclosure = data['test_disclosure'].lower()
     assert 'not pristine held-out test evidence' in disclosure
-    assert 'test split was not read' in disclosure
+    assert 'public dataset' in disclosure
+    assert 'examined during prior development' in disclosure
     assert data['bpi']['curve'] is None
     assert data['bpi']['receipt_never_cleared'] is None
