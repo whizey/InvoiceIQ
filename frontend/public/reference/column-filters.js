@@ -119,7 +119,7 @@
     }
     if(key==='risk'){
       const note=document.createElement('small');
-      note.textContent='Historical scores are stored ML predictions. Illustrative scores are demonstration values.';
+      note.textContent='Historical scores are stored ML predictions. Illustrative scores are sample values.';
       note.style.cssText='color:#6B6B6B;line-height:1.5';form.append(note);
     }
     dialog.append(form);

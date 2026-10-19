@@ -56,7 +56,7 @@ test('scenario-only decision updates browser queue but never calls backend',asyn
   const original=win.InvoiceIQScenario.getReviews();
   assert.ok(original.length>0);
   const id=original[0].id;
-  const result=await win.fetch('/api/reviewer/reviews/'+id+'/approve',{method:'POST',body:JSON.stringify({note:'Approved for local scenario demonstration'})});
+  const result=await win.fetch('/api/reviewer/reviews/'+id+'/approve',{method:'POST',body:JSON.stringify({note:'Approved for local scenario check'})});
   assert.equal(result.status,200);
   assert.equal(win.InvoiceIQScenario.getReviews().length,original.length-1);
   assert.ok(win.InvoiceIQScenario.getHistory().some(x=>x.action_id===id));

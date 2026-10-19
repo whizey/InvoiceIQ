@@ -27,7 +27,7 @@ at least 6 GiB host RAM, 3 GiB currently reclaimable, and 4 GiB Docker VM RAM.
 The CSV measured 8.2 MiB in this workspace. PostgreSQL data is limited to a
 2 GiB tmpfs mount, with no bind mount or persistent volume; `df -h` is printed
 after migration for each database. The actual Docker VM memory could not be
-read from Codex's sandbox, so **capacity remains unconfirmed until this script
+read from the sandboxed environment, so **capacity remains unconfirmed until this script
 runs on the host**. Stop if the memory check rejects the machine; do not raise
 the tmpfs limit without checking available memory.
 

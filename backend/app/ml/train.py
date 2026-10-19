@@ -7,7 +7,7 @@ Outputs (both committed to the repo so it runs out of the box):
   app/ml/artifacts/metrics.json              — evaluation metrics + metadata
 
 Reminder: the training data is synthetic (see app/ml/synthetic_data.py).
-This model demonstrates the ML pipeline; it is not a production financial
+This model exercises the ML pipeline; it is not a production financial
 risk model.
 """
 
