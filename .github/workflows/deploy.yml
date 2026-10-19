@@ -1,11 +1,12 @@
 name: Deploy
 
-# Called by ci.yml as its last stage, so it only runs for a push to main or invoiceiq-integration
-# after every CI job has passed. It can also be started by hand from the Actions tab. The
-# `production` environment requires a reviewer's approval in GitHub (Settings -> Environments),
-# so nothing ships without a human yes.
+# A separate Actions run starts after CI passes on main. The checkout is pinned
+# to the tested commit, even if another push lands before this run starts.
 on:
-  workflow_call:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -18,13 +19,14 @@ concurrency:
 jobs:
   api:
     name: API to Hugging Face Space
+    if: (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
-    environment: production
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
           lfs: true
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - name: Build the Space folder
         run: scripts/build_hf_space.sh "$RUNNER_TEMP/space"
       - name: Push to the Space
@@ -41,7 +43,6 @@ jobs:
     name: Frontend to Vercel
     needs: api
     runs-on: ubuntu-latest
-    environment: production
     timeout-minutes: 20
     env:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -49,6 +50,8 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -56,9 +59,10 @@ jobs:
         run: |
           # A pasted secret often carries a trailing newline, which the Vercel CLI rejects.
           VERCEL_TOKEN="$(printf '%s' "$VERCEL_TOKEN" | tr -d '[:space:]')"
-          npx --yes vercel@latest pull --yes --environment=production --token "$VERCEL_TOKEN"
-          npx --yes vercel@latest build --prod --token "$VERCEL_TOKEN"
-          npx --yes vercel@latest deploy --prebuilt --prod --token "$VERCEL_TOKEN"
+          export VERCEL_TOKEN
+          npx --yes vercel@latest pull --yes --environment=production
+          npx --yes vercel@latest build --prod
+          npx --yes vercel@latest deploy --prebuilt --prod
 
   smoke:
     name: Smoke test the release
