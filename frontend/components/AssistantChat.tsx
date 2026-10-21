@@ -1,6 +1,6 @@
 "use client";
 
-import {FormEvent, useRef, useState} from "react";
+import {FormEvent, useEffect, useRef, useState} from "react";
 import {useSpeechToText, useTextToSpeech} from "@/lib/speech";
 
 type Proposal={invoice:string;invoice_id:string;decision:"APPROVE"|"REJECT"|"ESCALATE";reason:string};
@@ -16,6 +16,50 @@ function checkNote(v?:Verification,tools?:string[]){
     v.policy_removed?.length?`${v.policy_removed.length} suggestion${v.policy_removed.length===1?"":"s"} removed by review policy`:""];
   return parts.filter(Boolean).join(" · ");
 }
+type Answer={answer:string;model:string;fallback_used:boolean;tools_used:string[];proposals:Proposal[];verification:Verification};
+
+class StreamUnavailable extends Error {}
+
+/** Ask over server-sent events: onStep gets each progress label; resolves with the verified answer. */
+async function askStreaming(body:string,onStep:(label:string)=>void):Promise<Answer>{
+  let r:Response;
+  try{r=await fetch("/api/portal/assistant-stream",{method:"POST",headers:{"Content-Type":"application/json"},body})}
+  catch{throw new StreamUnavailable()}
+  if(r.status===401||r.status===429||r.status===422){
+    const b=await r.json().catch(()=>({}));throw new Error(b.detail||"The assistant could not answer");
+  }
+  if(!r.ok||!r.body||!(r.headers.get("content-type")||"").includes("text/event-stream"))throw new StreamUnavailable();
+  const reader=r.body.getReader();const decoder=new TextDecoder();let buffer="";
+  for(;;){
+    const {value,done}=await reader.read();
+    if(done)break;
+    buffer+=decoder.decode(value,{stream:true});
+    let cut;
+    while((cut=buffer.indexOf("\n\n"))>=0){
+      const block=buffer.slice(0,cut);buffer=buffer.slice(cut+2);
+      const line=block.split("\n").find(l=>l.startsWith("data: "));
+      if(!line)continue;
+      const event=JSON.parse(line.slice(6));
+      if(event.type==="status")onStep(event.label);
+      else if(event.type==="answer")return event as Answer;
+      else if(event.type==="error")throw new Error(event.detail);
+    }
+  }
+  throw new Error("The connection closed before the answer arrived; try again");
+}
+
+/** Reveals already-verified text word by word, so the answer reads as it arrives. */
+function Reveal({text,animate}:{text:string;animate:boolean}){
+  const words=text.split(/(\s+)/);
+  const [shown,setShown]=useState(animate?0:words.length);
+  useEffect(()=>{
+    if(!animate||shown>=words.length)return;
+    const id=window.setTimeout(()=>setShown(n=>Math.min(words.length,n+4)),35);
+    return ()=>window.clearTimeout(id);
+  },[animate,shown,words.length]);
+  return <>{words.slice(0,shown).join("")}</>;
+}
+
 const SUGGESTIONS=[
   "Which overdue invoices should we chase first?",
   "How have collections trended over the last six months?",
@@ -36,6 +80,10 @@ export default function AssistantChat(){
   const tts=useTextToSpeech();
   const [speakingIndex,setSpeakingIndex]=useState<number|null>(null);
   const [applied,setApplied]=useState<Record<string,string>>({});
+  const [steps,setSteps]=useState<string[]>([]);
+  const [fresh,setFresh]=useState<number|null>(null);
+  const reduceMotion=useRef(false);
+  useEffect(()=>{reduceMotion.current=window.matchMedia?.("(prefers-reduced-motion: reduce)").matches??false},[]);
   const stt=useSpeechToText((text,final)=>{
     setQuestion(text);
     if(final&&text.length>=3){viaVoice.current=true;void ask(null,text)}
@@ -46,13 +94,19 @@ export default function AssistantChat(){
     const q=(preset??question).trim();
     if(q.length<3||asking)return;
     const history=turns.slice(-6).map(({role,content})=>({role,content}));
-    setAsking(true);setError("");setQuestion("");
+    setAsking(true);setError("");setQuestion("");setSteps([]);
     setTurns(t=>[...t,{role:"user",content:q}]);
     try{
-      const r=await fetch("/api/portal/assistant",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:q,history})});
-      const b=await r.json();
-      if(!r.ok)throw new Error(b.detail||"The assistant could not answer");
-      setTurns(t=>[...t,{role:"assistant" as const,content:b.answer,proposals:b.proposals,verification:b.verification,tools:b.tools_used}].slice(-20));
+      const payload=JSON.stringify({question:q,history});
+      let b:Answer;
+      try{b=await askStreaming(payload,label=>setSteps(s=>s[s.length-1]===label?s:[...s,label].slice(-5)))}
+      catch(e){
+        if(!(e instanceof StreamUnavailable))throw e;
+        const r=await fetch("/api/portal/assistant",{method:"POST",headers:{"Content-Type":"application/json"},body:payload});
+        b=await r.json();
+        if(!r.ok)throw new Error((b as unknown as {detail?:string}).detail||"The assistant could not answer");
+      }
+      setTurns(t=>{const next=[...t,{role:"assistant" as const,content:b.answer,proposals:b.proposals,verification:b.verification,tools:b.tools_used}].slice(-20);setFresh(next.length-1);return next});
       setModel(b.fallback_used?`${b.model} (fallback)`:b.model);
       if(viaVoice.current&&tts.supported){tts.speak(b.answer);setSpeakingIndex(history.length+1)}
     }catch(e){setError(e instanceof Error?e.message:"The assistant could not answer")}
@@ -77,7 +131,7 @@ export default function AssistantChat(){
         <p>The assistant looks up this workspace&apos;s balances, ageing, payment history, customer track records, model risk and review decisions, and every figure it states is checked against those records. It can suggest a review decision; nothing is saved until you apply it.</p>
         <div className="rp-chips">{SUGGESTIONS.map(s=><button key={s} type="button" disabled={asking} onClick={()=>void ask(null,s)}>{s}</button>)}</div>
       </div>}
-      {turns.map((t,i)=><div key={i} className={t.role==="user"?"rp-msg rp-user":"rp-msg rp-answer"}><p>{t.content}</p>
+      {turns.map((t,i)=><div key={i} className={t.role==="user"?"rp-msg rp-user":"rp-msg rp-answer"}><p>{t.role==="assistant"?<Reveal text={t.content} animate={i===fresh&&!reduceMotion.current}/>:t.content}</p>
         {t.role==="assistant"&&tts.supported&&<button type="button" className="ai-listen" aria-label={tts.speaking&&speakingIndex===i?"Stop reading":"Read answer aloud"}
           onClick={()=>{if(tts.speaking&&speakingIndex===i){tts.stop();setSpeakingIndex(null)}else{tts.speak(t.content);setSpeakingIndex(i)}}}>
           {tts.speaking&&speakingIndex===i?"■ Stop":"▶ Listen"}</button>}
@@ -86,7 +140,9 @@ export default function AssistantChat(){
           <button type="button" disabled={!!state} onClick={()=>void apply(p)}>{state||"Apply"}</button>
         </div>})}
         {t.role==="assistant"&&checkNote(t.verification,t.tools)&&<p className="rp-muted ai-check">{checkNote(t.verification,t.tools)}</p>}</div>)}
-      {asking&&<div className="rp-msg rp-answer" role="status"><p>Analysing your workspace…</p></div>}
+      {asking&&<div className="rp-msg rp-answer ai-progress" role="status" aria-live="polite">
+        {steps.length===0?<p>Analysing your workspace…</p>:<ol>{steps.map((s,i)=><li key={s+i} className={i===steps.length-1?"ai-step-now":"ai-step-done"}>{i===steps.length-1?s:"✓ "+s.replace(/…$/,"")}</li>)}</ol>}
+      </div>}
       {(error||stt.error)&&<p className="portal-notice-error" role="alert">{error||stt.error}</p>}
       <div ref={end}/>
     </div>

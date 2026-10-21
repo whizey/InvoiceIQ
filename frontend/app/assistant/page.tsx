@@ -1,4 +1,5 @@
 import {cookies} from "next/headers";
+import Link from "next/link";
 import {redirect} from "next/navigation";
 import PortalNavigation from "@/components/PortalNavigation";
 import AssistantChat from "@/components/AssistantChat";
@@ -12,7 +13,7 @@ export default async function AssistantPage(){
     <main className="ai-page">
       <p className="settings-eyebrow">Workspace / AI assistant</p>
       <h1>AI assistant</h1>
-      <p className="settings-intro">A receivables analyst grounded in your workspace data.</p>
+      <p className="settings-intro">A receivables analyst grounded in your workspace data. <Link href="/assistant/reliability">How reliable is it?</Link></p>
       <AssistantChat/>
     </main>
   </div>;

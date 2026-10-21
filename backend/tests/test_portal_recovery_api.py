@@ -1,4 +1,5 @@
 """Recovery summary, assistant and balance bridge through real routes on disposable PostgreSQL."""
+import json
 import uuid
 from datetime import date, timedelta
 from types import SimpleNamespace
@@ -104,9 +105,35 @@ async def test_recovery_summary_assistant_and_bridge_are_tenant_scoped(monkeypat
                                          .where(assistant_traces.c.workspace_id == workspace_ids[0]))
             assert traced >= 5  # rule-based run plus the tool-calling run
             summary = (await client.get("/portal/assistant-traces", headers=headers[0])).json()
-            assert summary["runs"] == {"ok": 1, "unconfigured": 1}
+            assert summary["runs"] == {"primary": 1, "unconfigured": 1}
             assert {"kind": "tool", "name": "search_invoices"}.items() <= next(
                 s for s in summary["steps"] if s["name"] == "search_invoices").items()
+
+            # Streaming: progress events, then the same verified answer as /assistant, all tenant-scoped.
+            portal_api._ASSISTANT_CALLS.clear()
+            async with client.stream("POST", "/portal/assistant-stream", headers=headers[0],
+                                     json={"question": "Who should we chase first?"}) as streamed:
+                assert streamed.status_code == 200
+                assert streamed.headers["content-type"].startswith("text/event-stream")
+                events = [json.loads(line[6:]) async for line in streamed.aiter_lines() if line.startswith("data: ")]
+            labels = [e["label"] for e in events if e["type"] == "status"]
+            assert labels[:2] == ["Working out what to look up…", "Searching invoices…"]
+            assert "Checking every figure against your records…" in labels
+            final = events[-1]
+            assert final["type"] == "answer" and final["answer"] == "Chase INV-A first."
+            assert final["tools_used"] == ["search_invoices"] and "INV-A" in fake.messages[-1].content
+            unauthenticated = await client.post("/portal/assistant-stream", json={"question": "Who first?"})
+            assert unauthenticated.status_code == 401
+
+            # Reliability page data: who answered, how the figures fared, timings; scoped to the workspace.
+            page = (await client.get("/portal/assistant-reliability", headers=headers[0])).json()
+            live = page["live"]
+            assert live["answers"] == 3
+            assert (live["answered_by"]["primary"]["count"], live["answered_by"]["unconfigured"]["count"]) == (2, 1)
+            assert live["figures"]["verified"]["count"] == 2 and live["seconds"]["p95"] >= live["seconds"]["p50"]
+            assert {"provider": "fallback", "model": "fake-model", "answers": 2} in live["models"]
+            other = (await client.get("/portal/assistant-reliability", headers=headers[1])).json()["live"]
+            assert other["answers"] == 1  # workspace B's single question, nothing of A's
             monkeypatch.setattr(portal_api, "ASSISTANT_LIMIT_PER_MINUTE", 2)
             portal_api._ASSISTANT_CALLS.clear()
             statuses = [(await client.post("/portal/assistant", headers=headers[0],

@@ -107,3 +107,40 @@ async def trace_summary(session: AsyncSession, workspace_id: uuid.UUID, days: in
     return {"window_days": days, "runs": {outcome: n for outcome, n in runs},
             "steps": [{"kind": r.kind, "name": r.name, "calls": r.calls, "not_ok": int(r.not_ok or 0),
                        "p50_ms": round(r.p50 or 0, 1), "p95_ms": round(r.p95 or 0, 1)} for r in rows]}
+
+
+def _share(counts: dict, total: int) -> dict:
+    return {key: {"count": n, "pct": round(n * 100 / total, 1) if total else 0.0} for key, n in counts.items()}
+
+
+async def reliability(session: AsyncSession, workspace_id: uuid.UUID, days: int = 7) -> dict:
+    """What the reliability page shows for the live assistant: who answered, how the figures fared, how fast."""
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    t = assistant_traces
+    scope = (t.c.workspace_id == workspace_id, t.c.occurred_at >= since)
+    answered_by = dict((await session.execute(
+        select(t.c.outcome, func.count()).where(*scope, t.c.kind == "run").group_by(t.c.outcome))).all())
+    total = sum(answered_by.values())
+    models = (await session.execute(
+        select(t.c.provider, t.c.name, func.count()).where(*scope, t.c.kind == "run")
+        .group_by(t.c.provider, t.c.name).order_by(func.count().desc()))).all()
+    figures = dict((await session.execute(
+        select(t.c.outcome, func.count()).where(*scope, t.c.kind == "check", t.c.name == "result")
+        .group_by(t.c.outcome))).all())
+    checked = sum(figures.values())
+    advice = dict((await session.execute(
+        select(t.c.outcome, func.count()).where(*scope, t.c.kind == "policy", t.c.name == "written")
+        .group_by(t.c.outcome))).all())
+    timing = (await session.execute(
+        select(func.percentile_cont(0.5).within_group(t.c.duration_ms),
+               func.percentile_cont(0.95).within_group(t.c.duration_ms))
+        .where(*scope, t.c.kind == "run"))).one()
+    return {
+        "window_days": days, "answers": total,
+        "answered_by": _share({k: answered_by.get(k, 0) for k in ("primary", "backup", "rules", "unconfigured")},
+                              total),
+        "models": [{"provider": p, "model": m, "answers": n} for p, m, n in models],
+        "figures": _share({k: figures.get(k, 0) for k in ("verified", "repaired", "trimmed")}, checked),
+        "written_advice": _share({k: advice.get(k, 0) for k in ("allowed", "blocked")}, sum(advice.values())),
+        "seconds": {"p50": round((timing[0] or 0) / 1000, 2), "p95": round((timing[1] or 0) / 1000, 2)},
+    }

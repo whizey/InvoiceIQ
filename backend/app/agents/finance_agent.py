@@ -140,6 +140,23 @@ def start_cooldown(provider: "Provider", seconds: float) -> None:
             del _cooldowns[key]
 
 
+# What the chat shows while the agent works; tools without a label show the generic one.
+TOOL_LABELS = {
+    "get_portfolio_summary": "Reading your headline totals…",
+    "get_aging_breakdown": "Checking ageing…",
+    "list_overdue_accounts": "Ranking overdue customers…",
+    "search_invoices": "Searching invoices…",
+    "get_invoice": "Opening the invoice…",
+    "get_review_status": "Checking the review queue…",
+    "get_collections_trend": "Reading the monthly trend…",
+    "get_customer_profile": "Looking at the customer's record…",
+    "explain_risk": "Asking the risk model why…",
+    "calculate": "Working out the numbers…",
+    "what_if_paid": "Running the scenario…",
+    "propose_decision": "Checking the suggestion against review policy…",
+}
+
+
 @dataclass
 class AgentResult:
     answer: str
@@ -208,7 +225,8 @@ def reply_text(content) -> str:
 
 
 class _Run:
-    def __init__(self, portfolio: Portfolio, providers: list[Provider], recorder: TraceRecorder):
+    def __init__(self, portfolio: Portfolio, providers: list[Provider], recorder: TraceRecorder, on_event=None):
+        self.on_event = on_event
         self.portfolio = portfolio
         self.providers = [p for p in providers if p.client is not None]
         self.recorder = recorder
@@ -218,6 +236,14 @@ class _Run:
         self.used: Provider | None = None
         self.authors: set[tuple[str, str]] = set()
         self.deadline = monotonic() + RUN_BUDGET_SECONDS
+
+    def emit(self, stage: str, label: str, **extra) -> None:
+        """Progress for a streaming client; never lets a broken listener break the answer."""
+        if self.on_event is not None:
+            try:
+                self.on_event({"type": "status", "stage": stage, "label": label, **extra})
+            except Exception:  # noqa: BLE001
+                self.on_event = None
 
     async def call(self, messages, *, tools: bool):
         """One model call, moving down the provider chain on any failure.
@@ -232,6 +258,8 @@ class _Run:
                 provider.alive = False
                 self.recorder.add("fallback", provider.name, outcome="cooldown")
                 continue
+            self.emit("model", "Writing the answer…" if self.tools_called else "Working out what to look up…",
+                      model=provider.model)
             for attempt in range(2):
                 remaining = self.deadline - monotonic()
                 if remaining <= 1:
@@ -267,6 +295,7 @@ class _Run:
                 break
             provider.alive = False
             self.recorder.add("fallback", provider.name, outcome="next")
+            self.emit("fallback", "That model is busy, trying a backup…", model=provider.model)
         return None
 
     async def run_tools(self, reply, messages) -> None:
@@ -278,6 +307,7 @@ class _Run:
             if i >= MAX_TOOLS_PER_STEP:
                 result = {"error": f"at most {MAX_TOOLS_PER_STEP} tool calls per step"}
             else:
+                self.emit("tool", TOOL_LABELS.get(name, "Looking that up…"), tool=name)
                 with self.recorder.timed("tool", name) as span:
                     result = await arun_tool(self.portfolio, name, args)
                     if "error" in result:
@@ -315,10 +345,23 @@ class _Run:
 
 
 async def answer_question(portfolio: Portfolio, question: str, history: list[tuple[str, str]],
-                          providers: list[Provider], recorder: TraceRecorder) -> AgentResult:
+                          providers: list[Provider], recorder: TraceRecorder, on_event=None) -> AgentResult:
+    """Answer one question; ``on_event`` receives progress dicts for a streaming client."""
+    started = monotonic()
+    result = await _answer(portfolio, question, history, providers, recorder, on_event)
+    # One run span per answer: who answered, and how long the whole answer took.
+    outcome = ("unconfigured" if result.provider == "rules" and not any(p.client for p in providers)
+               else "rules" if result.provider == "rules" else "backup" if result.fallback_used else "primary")
+    recorder.add("run", result.model, provider=result.provider, outcome=outcome,
+                 duration_ms=(monotonic() - started) * 1000)
+    return result
+
+
+async def _answer(portfolio: Portfolio, question: str, history: list[tuple[str, str]],
+                  providers: list[Provider], recorder: TraceRecorder, on_event) -> AgentResult:
     from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-    run = _Run(portfolio, providers, recorder)
+    run = _Run(portfolio, providers, recorder, on_event)
     messages = [SystemMessage(SYSTEM_PROMPT.format(today=portfolio.today.isoformat()))]
     for role, content in history[-6:]:
         messages.append(HumanMessage(content) if role == "user" else AIMessage(content))
@@ -326,8 +369,10 @@ async def answer_question(portfolio: Portfolio, question: str, history: list[tup
 
     answer = await run.loop(messages, MAX_STEPS) if run.providers else None
     if answer is None:
+        run.emit("rules", "Using the standard summary…")
         return _rule_based(portfolio, question, recorder, attempted=bool(run.providers))
     answer = plain_answer(answer)
+    run.emit("check", "Checking every figure against your records…")
 
     sources = [run.outputs, question, *[c for r, c in history if r == "user"]]
     with recorder.timed("check", "grounding") as span:
@@ -335,6 +380,7 @@ async def answer_question(portfolio: Portfolio, question: str, history: list[tup
         span.outcome = "ok" if report.ok else "ungrounded"
     repaired, removed = False, []
     if not report.ok:
+        run.emit("repair", "A figure didn't match, fixing it…")
         messages += [AIMessage(answer),
                      HumanMessage(REPAIR_PROMPT.format(claims=", ".join(c.text for c in report.ungrounded)))]
         retry = await run.loop(messages, 3)
@@ -354,6 +400,7 @@ async def answer_question(portfolio: Portfolio, question: str, history: list[tup
         span.outcome = "blocked" if written else "allowed"
     policy_repaired, policy_removed = False, []
     if written:
+        run.emit("policy", "Checking suggestions against review policy…")
         items = "; ".join(f"{v.decision.lower()} {v.target} ({v.reasons[0]})" for v in written)
         messages += [AIMessage(answer), HumanMessage(POLICY_PROMPT.format(items=items))]
         retry = await run.loop(messages, 2)
@@ -370,7 +417,8 @@ async def answer_question(portfolio: Portfolio, question: str, history: list[tup
         recorder.add("policy", "written_retry", outcome="blocked" if written else "allowed")
 
     allowed = [v for v in run.verdicts.values() if v["allowed"]][:MAX_PROPOSALS]
-    recorder.add("run", "answer", outcome="ok" if report.ok else "trimmed")
+    recorder.add("check", "result", outcome="trimmed" if removed or policy_removed
+                 else "repaired" if repaired or policy_repaired else "verified")
     return AgentResult(
         answer=answer[:3000], model=run.used.model, provider=run.used.name, tools_called=run.tools_called,
         proposals=allowed,
@@ -446,7 +494,6 @@ def _rule_based(portfolio: Portfolio, question: str, recorder: TraceRecorder, *,
     tool = choice.split(":")[0]
     with recorder.timed("tool", tool):
         text, called = _template(portfolio, choice)
-    recorder.add("run", "rule_based", outcome="fallback" if attempted else "unconfigured")
     return AgentResult(answer=text, model=RULE_BASED_MODEL, provider="rules", tools_called=called,
                        verification={"figures_checked": 0, "repaired": False, "removed": [],
                                      "blocked_proposals": 0, "policy_repaired": False, "policy_removed": []},

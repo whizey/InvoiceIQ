@@ -5,6 +5,7 @@ import binascii
 import csv
 import hashlib
 import io
+import json
 import hmac
 import os
 import secrets
@@ -12,8 +13,10 @@ import time
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
@@ -471,29 +474,77 @@ async def transcribe(payload: TranscribeInput, subject=Depends(identity)):
     return {"text": reply_text(reply.content)[:600]}
 
 
-@router.post("/assistant")
-async def assistant(payload: AssistantInput, subject=Depends(identity), db: AsyncSession = Depends(get_db)):
-    """Answer with a read-only tool-calling agent; every figure is checked against what the tools returned."""
-    from app.agents.finance_agent import answer_question, build_providers
+async def _assistant_portfolio(db: AsyncSession, session, workspace):
+    """Everything the agent may read, loaded up front so a streamed answer does not need the request's session."""
     from app.agents.finance_tools import Portfolio
-    from app.services.assistant_tracing import TraceRecorder
 
-    session, workspace = subject
-    if not _assistant_allowed(session.token_digest):
-        raise HTTPException(429, "Too many questions; wait a minute and try again")
-    providers = build_providers()
     invoices, events = await _records(db, session, workspace)
     payments = (await db.scalars(select(PortalPayment).where(PortalPayment.workspace_id == workspace.id))).all()
-    portfolio = Portfolio(invoices, events, payments=payments, workspace=workspace,
-                          explain=lambda invoice_id: explain_invoice(db, workspace.id, invoice_id))
+
+    async def explain(invoice_id):
+        async with async_session_factory() as own:
+            return await explain_invoice(own, workspace.id, invoice_id)
+
+    return Portfolio(invoices, events, payments=payments, workspace=workspace, explain=explain)
+
+
+async def _assistant_answer(portfolio, payload: AssistantInput, workspace, on_event=None) -> dict:
+    from app.agents.finance_agent import answer_question, build_providers
+    from app.services.assistant_tracing import TraceRecorder
+
     recorder = TraceRecorder()
     result = await answer_question(portfolio, payload.question.strip(),
-                                   [(t.role, t.content) for t in payload.history], providers, recorder)
+                                   [(t.role, t.content) for t in payload.history], build_providers(), recorder,
+                                   on_event=on_event)
     await recorder.persist(async_session_factory, workspace.id)
     return {"answer": result.answer, "model": result.model, "provider": result.provider,
             "fallback_used": result.fallback_used, "tools_used": result.tools_called,
             "proposals": result.proposals, "verification": result.verification,
             "trace_id": str(recorder.run_id), "grounded_in": "workspace figures as of " + str(date.today())}
+
+
+@router.post("/assistant")
+async def assistant(payload: AssistantInput, subject=Depends(identity), db: AsyncSession = Depends(get_db)):
+    """Answer with a read-only tool-calling agent; every figure is checked against what the tools returned."""
+    session, workspace = subject
+    if not _assistant_allowed(session.token_digest):
+        raise HTTPException(429, "Too many questions; wait a minute and try again")
+    portfolio = await _assistant_portfolio(db, session, workspace)
+    return await _assistant_answer(portfolio, payload, workspace)
+
+
+@router.post("/assistant-stream")
+async def assistant_stream(payload: AssistantInput, subject=Depends(identity), db: AsyncSession = Depends(get_db)):
+    """The same answer as /assistant, as server-sent events: progress steps while the agent works, then the
+    verified answer. The answer text is only sent once its figures and suggestions have been checked."""
+    session, workspace = subject
+    if not _assistant_allowed(session.token_digest):
+        raise HTTPException(429, "Too many questions; wait a minute and try again")
+    portfolio = await _assistant_portfolio(db, session, workspace)
+    queue: asyncio.Queue = asyncio.Queue()
+
+    async def produce():
+        try:
+            await queue.put({"type": "answer", **await _assistant_answer(portfolio, payload, workspace,
+                                                                         on_event=queue.put_nowait)})
+        except Exception:  # noqa: BLE001 - the client gets a clean error event, never a stack trace
+            await queue.put({"type": "error", "detail": "The assistant could not answer; try again shortly"})
+        finally:
+            await queue.put(None)
+
+    async def events():
+        task = asyncio.create_task(produce())  # finishes and saves its trace even if the client leaves
+        _streams.add(task)
+        task.add_done_callback(_streams.discard)
+        yield ": ok\n\n"
+        while (item := await queue.get()) is not None:
+            yield f"data: {json.dumps(item, default=str)}\n\n"
+
+    return StreamingResponse(events(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"})
+
+
+_streams: set = set()
 
 
 @router.get("/assistant-traces")
@@ -504,6 +555,23 @@ async def assistant_traces(days: int = Query(default=7, ge=1, le=90), subject=De
 
     _, workspace = subject
     return await trace_summary(db, workspace.id, days)
+
+
+EVAL_RESULTS = Path(__file__).resolve().parents[1] / "agents" / "eval_results.json"
+
+
+@router.get("/assistant-reliability")
+async def assistant_reliability(days: int = Query(default=7, ge=1, le=90), subject=Depends(identity),
+                                db: AsyncSession = Depends(get_db)):
+    """The reliability page: this workspace's live answers from the traces, plus the published eval results."""
+    from app.services.assistant_tracing import reliability
+
+    _, workspace = subject
+    try:
+        evaluation = json.loads(EVAL_RESULTS.read_text())
+    except (OSError, ValueError):
+        evaluation = None
+    return {"live": await reliability(db, workspace.id, days), "eval": evaluation}
 
 
 @router.get("/invoices")

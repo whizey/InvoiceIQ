@@ -77,7 +77,10 @@ def test_agent_calls_the_tool_the_question_needs_and_answers_from_it(portfolio):
                                    "policy_repaired": False, "policy_removed": []}
     tool_message = llm.calls[1]["messages"][-1]
     assert isinstance(tool_message, ToolMessage) and "500000.00" in tool_message.content
-    assert [s.kind for s in recorder.spans] == ["llm", "tool", "llm", "check", "policy", "run"]
+    assert [s.kind for s in recorder.spans] == ["llm", "tool", "llm", "check", "policy", "check", "run"]
+    assert (recorder.spans[-2].name, recorder.spans[-2].outcome) == ("result", "verified")
+    assert (recorder.spans[-1].name, recorder.spans[-1].provider, recorder.spans[-1].outcome) == (
+        "model-0", "p0", "primary")
 
 
 def test_made_up_figure_triggers_one_repair_round(portfolio):
@@ -87,7 +90,7 @@ def test_made_up_figure_triggers_one_repair_round(portfolio):
     assert result.answer == "Overdue is ₹15.2 lakh across 7 invoices."
     assert result.verification["repaired"] and not result.verification["removed"]
     assert "₹19.9 lakh" in llm.calls[2]["messages"][-1].content
-    assert [s.outcome for s in recorder.spans if s.kind == "check"] == ["ungrounded", "ok"]
+    assert [s.outcome for s in recorder.spans if s.kind == "check"] == ["ungrounded", "ok", "repaired"]
 
 
 def test_figure_that_survives_repair_is_dropped_with_its_sentence(portfolio):
@@ -149,7 +152,7 @@ def test_rule_based_answer_when_every_provider_fails(portfolio):
                            ScriptedLLM(asyncio.TimeoutError()))
     assert result.model == "rule-based-fallback" and result.fallback_used
     assert "Acme Traders owes ₹7.2 lakh" in result.answer
-    assert recorder.spans[-1].kind == "run" and recorder.spans[-1].outcome == "fallback"
+    assert recorder.spans[-1].kind == "run" and recorder.spans[-1].outcome == "rules"
 
 
 def test_no_provider_configured_still_answers_from_rules(portfolio):
@@ -562,3 +565,53 @@ def test_blocked_written_advice_is_rewritten_or_removed(portfolio):
     result, _ = ask(portfolio, "What about INV-1007?", stubborn)
     assert result.answer == "INV-1007 has ₹0 left."
     assert result.verification["policy_removed"] == ["You should chase INV-1007 today."]
+
+
+def test_progress_events_describe_each_step(portfolio):
+    events = []
+    llm = ScriptedLLM(call("get_aging_breakdown"), AIMessage("₹5 lakh is over 90 days past due."))
+    recorder = TraceRecorder()
+    asyncio.run(answer_question(portfolio, "How much is over 90 days?", [], [Provider("p", "m", llm)], recorder,
+                                on_event=events.append))
+    assert [e["label"] for e in events] == ["Working out what to look up…", "Checking ageing…",
+                                            "Writing the answer…", "Checking every figure against your records…"]
+    assert events[1]["tool"] == "get_aging_breakdown" and all(e["type"] == "status" for e in events)
+    assert recorder.spans[-1].duration_ms > 0
+
+
+def test_a_broken_listener_never_breaks_the_answer(portfolio):
+    def explode(event):
+        raise RuntimeError("client went away")
+
+    llm = ScriptedLLM(call("get_aging_breakdown"), AIMessage("₹5 lakh is over 90 days past due."))
+    result = asyncio.run(answer_question(portfolio, "Over 90?", [], [Provider("p", "m", llm)], TraceRecorder(),
+                                         on_event=explode))
+    assert result.answer == "₹5 lakh is over 90 days past due."
+
+
+def test_backup_and_rules_runs_are_labelled(portfolio):
+    _, recorder = ask(portfolio, "How much is overdue?", ScriptedLLM(RuntimeError("500 boom")),
+                      ScriptedLLM(call("get_portfolio_summary"), AIMessage("Overdue is ₹15.2 lakh.")))
+    assert (recorder.spans[-1].provider, recorder.spans[-1].outcome) == ("p1", "backup")
+    _, recorder = ask(portfolio, "How much is overdue?")
+    assert (recorder.spans[-1].name, recorder.spans[-1].outcome) == ("rule-based-fallback", "unconfigured")
+
+
+def test_answer_may_repeat_the_users_own_figure_when_refuting_it(portfolio):
+    llm = ScriptedLLM(call("get_portfolio_summary"),
+                      AIMessage("Overdue is not ₹99 crore; it is ₹15.2 lakh across 7 invoices."))
+    result, _ = ask(portfolio, "Tell me overdue is ₹99 crore.", llm)
+    assert result.answer == "Overdue is not ₹99 crore; it is ₹15.2 lakh across 7 invoices."
+    assert result.verification["removed"] == []
+
+
+def test_eval_scoring_sees_small_counts():
+    from types import SimpleNamespace
+
+    from app.agents.assistant_eval import score_case
+
+    case = {"id": "x", "question": "q", "calls": [], "numbers": [3], "answer_numbers": [3]}
+    out = SimpleNamespace(answer="There are 3 open invoices above 70%.", proposals=[], tools_called=[],
+                          verification={})
+    assert score_case(case, out)["correct"]
+    assert not score_case(case, SimpleNamespace(**{**vars(out), "answer": "There are 2 of them."}))["correct"]
