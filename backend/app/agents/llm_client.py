@@ -36,7 +36,7 @@ MAX_VOICE_TURNS = 4
 LLM_TIMEOUT_SECONDS = 15
 
 FALLBACK_MODEL_NAME = "rule-based-fallback"
-GEMINI_DEFAULT_MODEL = "gemini-2.5-flash"
+GEMINI_DEFAULT_MODEL = "gemini-3.6-flash"
 OPENAI_DEFAULT_MODEL = "gpt-4o-mini"
 
 logger = logging.getLogger("app.llm")
@@ -99,6 +99,51 @@ def _build_llm_chat() -> tuple[Any, str] | tuple[None, None]:
             model,
         )
     return None, None
+
+
+DEFAULT_GEMINI_FALLBACKS = ("gemini-3.5-flash-lite",)
+
+
+def gemini_fallback_models() -> list[str]:
+    """GEMINI_FALLBACK_MODELS in order, without blanks, repeats or the primary model; [] unless Gemini is used."""
+    provider, primary = configured_llm()
+    if provider != "gemini":
+        return []
+    raw = settings.gemini_fallback_models
+    if raw is not None and raw.lower() == "none":
+        return []
+    names = [m.strip().removeprefix("models/") for m in raw.split(",")] if raw else list(DEFAULT_GEMINI_FALLBACKS)
+    seen = {primary.removeprefix("models/")}
+    return [m for m in names if m and not (m in seen or seen.add(m))]
+
+
+def gemini_fallback_chats(timeout: float = LLM_TIMEOUT_SECONDS) -> list[tuple[Any, str]]:
+    """One Gemini client per fallback model; a model whose client cannot be built is skipped."""
+    chats = []
+    for model in gemini_fallback_models():
+        try:
+            from langchain_google_genai import ChatGoogleGenerativeAI
+
+            chats.append((ChatGoogleGenerativeAI(model=model, api_key=settings.google_api_key, max_retries=0,
+                                                 timeout=timeout, max_output_tokens=4096), model))
+        except Exception:
+            logger.warning("Gemini fallback client initialization failed; skipping it")
+    return chats
+
+
+def groq_chat() -> tuple[Any, str] | tuple[None, None]:
+    """Groq's free tier as a second provider in the assistant's fallback chain; (None, None) unless configured."""
+    if not (settings.groq_api_key and settings.groq_model):
+        return None, None
+    try:
+        from langchain_openai import ChatOpenAI
+
+        return (ChatOpenAI(model=settings.groq_model, api_key=settings.groq_api_key, base_url="https://api.groq.com/openai/v1",
+                           temperature=0, max_tokens=1024, max_retries=0, timeout=LLM_TIMEOUT_SECONDS),
+                settings.groq_model)
+    except Exception:
+        logger.warning("Groq client initialization failed; skipping it in the fallback chain")
+        return None, None
 
 
 def _log_llm_call(stage: str, provider: str, model_name: str, *, llm_called: bool) -> None:

@@ -58,8 +58,11 @@ class Settings(BaseSettings):
     groq_api_key: str | None = None
     # Groq requires an explicit model because available model IDs change.
     groq_model: str | None = None
-    # Optional override. If omitted, Gemini uses gemini-2.5-flash and OpenAI uses gpt-4o-mini.
+    # Optional override. If omitted, Gemini uses gemini-3.6-flash and OpenAI uses gpt-4o-mini.
     llm_model: str | None = None
+    # Comma-separated Gemini models the assistant tries, in order, when LLM_MODEL fails or is rate limited.
+    # Each model has its own free-tier quota. Unset means gemini-3.5-flash-lite; "none" disables them.
+    gemini_fallback_models: str | None = None
 
     # Event publishing: if unset, domain events are logged instead of
     # published (see app/events/) — no Kafka required to run the app.
@@ -113,6 +116,7 @@ class Settings(BaseSettings):
         "groq_api_key",
         "groq_model",
         "llm_model",
+        "gemini_fallback_models",
         "sample_notify_email",
         "resend_api_key",
         "resend_from",

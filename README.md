@@ -74,7 +74,7 @@ Want your own data instead? **Create workspace**, then import invoices from a CS
 | 🔮 | **Late-payment prediction** | A LightGBM model scores every open invoice at posting time and explains each score with its top SHAP drivers. |
 | 🤖 | **Policy-gated recovery agent** | A LangGraph workflow investigates a case and proposes an action; a deterministic policy engine allows, holds or blocks it; held actions wait in an approvals queue. |
 | ✅ | **Approvals and alerts** | Escalations raise approval alerts through the Kafka pipeline; reviewers approve or reject, and every decision is audited. |
-| 💬 | **Grounded assistant** | Ask "who owes us the most past 90 days?" by text or voice. Answers are built only from the workspace's own facts. |
+| 💬 | **Tool-calling assistant** | Ask about balances, ageing, monthly trends and DSO, a customer's payment record, what falls due soon, why an invoice looks risky, or "what if Acme pays?", by text or voice. Every figure in an answer is checked against what its tools returned. |
 | 🏢 | **Multi-tenant workspaces** | Sign up, import invoices by CSV (validated), and work in an isolated workspace with roles (owner, admin, reviewer). |
 
 ## Screens
@@ -144,6 +144,17 @@ The language model **proposes**; plain, tested Python **decides**. The policy en
 | 7 | Otherwise | Allow the reminder |
 
 Inputs are screened for prompt injection and model output is validated against a schema, as defence in depth; the policy engine is the actual safety boundary. Without an LLM key, a rule-based fallback keeps the workflow running. Details in [docs/BACKEND.md](docs/BACKEND.md).
+
+### The receivables assistant
+
+The portal assistant ([`finance_agent.py`](backend/app/agents/finance_agent.py)) is a read-only tool-calling agent rather than a single prompt stuffed with facts:
+
+1. **Act.** The model chooses from read-only tools over the workspace's own invoices, dated payments, model scores and review decisions: portfolio summary, ageing, overdue accounts, invoice search (including a due-date window), invoice detail, review queue, monthly trend and DSO, customer profile, risk explanation, a payment scenario (`what_if_paid`) and a calculator that accepts only arithmetic. At most 5 model calls and 4 tool calls per step.
+2. **Check.** Code extracts every figure from the answer, whether written as ₹15.2 lakh, 83% or "ninety-one percent", and matches it against the tool results at the precision written. An unmatched figure gets one repair round, then its sentence is removed; if the lead sentence goes, the user is told the answer could not be verified.
+3. **Propose.** The model may suggest a review decision; code blocks paid invoices, escalations without a reason or before the due date, other workspaces' invoices and repeats. Allowed suggestions show an **Apply** button; nothing is saved until a person clicks it.
+4. **Fall back.** `LLM_MODEL`, then each of `GEMINI_FALLBACK_MODELS`, then Groq if configured, then a rule-based answer. A rate-limited model is retried once when the delay is a few seconds, otherwise skipped by later requests until its quota window passes.
+
+Every model call, tool call, check and fallback is recorded in `assistant_traces` (metadata only, no question or answer text), summarised per workspace at `GET /portal/assistant-traces`. A 30-question eval set with hand-computed answers ([`assistant_eval_v1.json`](backend/tests/fixtures/assistant_eval_v1.json)) runs offline in CI; `python -m app.agents.assistant_eval report.json --live` scores the real models on tool choice, accuracy, grounding and latency. `python -m app.agents.check_providers` tests each model in the chain with one tool call.
 
 ## The late-payment model
 
@@ -283,6 +294,9 @@ All settings are environment variables; every optional integration switches itse
 | `ENV` | `local`, `staging` or `production`; hosted modes tighten auth on private endpoints | `local` |
 | `INVOICEIQ_PORTAL_ENABLED` / `INVOICEIQ_PORTAL_SHOWCASE` | Turn on the multi-tenant portal and the shared sample workspace | off |
 | `GOOGLE_API_KEY` | Gemini for the agent, the assistant and transcription | rule-based fallback |
+| `LLM_MODEL` | Primary model | `gemini-3.6-flash` |
+| `GEMINI_FALLBACK_MODELS` | Comma-separated Gemini models tried in order when the primary is rate limited; each has its own free quota. `none` disables | `gemini-3.5-flash-lite` |
+| `GROQ_API_KEY`, `GROQ_MODEL` | Groq's free tier as the next fallback | off |
 | `SARVAM_API_KEY` | Hinglish speech in and out for the voice-call flow | off |
 | `RESEND_API_KEY`, `RESEND_FROM` | Real reminder email | simulated |
 | `KAFKA_BOOTSTRAP_SERVERS` | External Kafka broker (TLS and SASL supported) | in-process delivery |
@@ -355,6 +369,7 @@ See [docs/CICD_AND_DEPLOYMENT.md](docs/CICD_AND_DEPLOYMENT.md) and [docs/DEPLOY_
 |---|---|
 | Free hosting serves a handful of simultaneous users comfortably | Larger instance or horizontal scaling |
 | Caches and rate limits are per process | Shared Redis cache and limiter |
+| Free-tier model quotas cap assistant traffic; each answer takes several model calls (about 3 s on Gemini Flash-Lite) | Paid tier or more fallback models |
 | Single-node Kafka with ephemeral storage (covered by the outbox and reconciler) | Managed, replicated cluster; the configuration already supports it |
 | Policy thresholds are global constants | Per-workspace policy settings |
 | No email verification or password reset | Both, once an email sender is configured |

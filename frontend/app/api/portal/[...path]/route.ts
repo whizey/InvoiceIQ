@@ -2,7 +2,7 @@ import {NextRequest} from "next/server";
 import {cookies} from "next/headers";
 import {backendBase} from "../../../../lib/backend-base";
 export const dynamic = "force-dynamic";
-const allowedGet = new Set(["me", "overview", "invoices", "settings", "intelligence", "recovery-summary","alerts"]);
+const allowedGet = new Set(["me", "overview", "invoices", "settings", "intelligence", "recovery-summary","alerts","assistant-traces"]);
 const allowedPost = new Set(["register", "login", "showcase", "decisions", "import", "score", "assistant", "transcribe"]);
 const cookieName = "invoiceiq_portal_session";
 type Params = {params: Promise<{path: string[]}>};
@@ -28,7 +28,7 @@ async function handler(req: NextRequest, context: Params, method: "GET"|"POST"|"
   try {
     const query=action==="invoices"?req.nextUrl.search:"";
     const upstream=await fetch(backendBase()+"/portal/"+path.map(encodeURIComponent).join("/")+query,{
-      method,cache:"no-store",signal:AbortSignal.timeout(action==="assistant"?30000:action==="transcribe"?60000:15000),
+      method,cache:"no-store",signal:AbortSignal.timeout(action==="assistant"?60000:action==="transcribe"?60000:15000),
       headers:{...(token?{Authorization:"Bearer "+token}:{}),...(body?{"Content-Type":"application/json"}:{})},
       body,
     });

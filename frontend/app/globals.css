@@ -165,4 +165,9 @@ html, body {
 .ai-form .ai-mic-on{background:#c2410c;color:#fff;border-color:#c2410c;animation:ai-pulse 1.2s ease-in-out infinite}
 @keyframes ai-pulse{50%{opacity:.7}}
 .ai-listen{margin-top:8px;height:28px;padding:0 10px;border-radius:999px;border:1px solid #d9d9d6;background:#fff;font:inherit;font-size:12px;cursor:pointer}
+.ai-proposal{margin-top:10px;padding:10px 12px;border:1px solid #d9d9d6;border-radius:10px;background:#fafaf8;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.ai-proposal p{margin:0;font-size:13px;flex:1 1 220px}
+.ai-proposal button{height:30px;padding:0 12px;border-radius:999px;border:1px solid #1f1f1f;background:#1f1f1f;color:#fff;font:inherit;font-size:12px;cursor:pointer}
+.ai-proposal button:disabled{background:#fff;color:#555;border-color:#d9d9d6;cursor:default}
+.ai-check{margin:8px 0 0;font-size:12px}
 @media (prefers-reduced-motion:reduce){.ai-form .ai-mic-on{animation:none}}
