@@ -110,7 +110,7 @@ def score_case(case: dict, out) -> dict:
     """Did the answer get the case right? Every rule is a plain check against the hand-written case."""
     answer = out.answer.lower()
     def stated(number: float) -> bool:
-        report = check_grounding(out.answer, {float(number)})
+        report = check_grounding(out.answer, {float(number)}, exempt_small=False)
         return any(c not in report.ungrounded for c in report.claims)
 
     if "answer_numbers" in case:  # every key figure must be stated
@@ -132,24 +132,42 @@ def score_case(case: dict, out) -> dict:
             "grounded": not out.verification.get("removed"),
             "repaired": bool(out.verification.get("repaired")),
             "policy_trimmed": bool(out.verification.get("policy_removed")),
-            "policy_repaired": bool(out.verification.get("policy_repaired"))}
+            "policy_repaired": bool(out.verification.get("policy_repaired")),
+            "removed": out.verification.get("removed", []), "policy_removed": out.verification.get("policy_removed", []),
+            "proposals": [[x["invoice"], x["decision"]] for x in out.proposals]}
+
+
+USE_PRODUCTION_KEYS = False  # set by --use-production-keys
+
+
+def eval_key(provider: str) -> str:
+    """The key for live evals: EVAL_GOOGLE_API_KEY / EVAL_GROQ_API_KEY, kept apart from the live site's quota."""
+    from app.core.config import settings
+
+    dedicated = {"gemini": settings.eval_google_api_key, "groq": settings.eval_groq_api_key}[provider]
+    if dedicated:
+        return dedicated
+    if USE_PRODUCTION_KEYS:
+        return {"gemini": settings.google_api_key, "groq": settings.groq_api_key}[provider] or ""
+    env = {"gemini": "EVAL_GOOGLE_API_KEY", "groq": "EVAL_GROQ_API_KEY"}[provider]
+    raise SystemExit(f"Set {env} to a key used only for evals (the live site's key would lose its daily quota), "
+                     "or pass --use-production-keys to accept that.")
 
 
 def provider_for(spec: str):
     """'gemini:<model>' or 'groq:<model>' as a single provider with no fallback, to measure that model alone."""
     from app.agents.finance_agent import Provider
-    from app.core.config import settings
 
     name, _, model = spec.partition(":")
     if name == "gemini":
         from langchain_google_genai import ChatGoogleGenerativeAI
 
-        client = ChatGoogleGenerativeAI(model=model, api_key=settings.google_api_key, max_retries=0, timeout=25,
+        client = ChatGoogleGenerativeAI(model=model, api_key=eval_key("gemini"), max_retries=0, timeout=25,
                                         max_output_tokens=4096)
     elif name == "groq":
         from langchain_openai import ChatOpenAI
 
-        client = ChatOpenAI(model=model, api_key=settings.groq_api_key, base_url="https://api.groq.com/openai/v1",
+        client = ChatOpenAI(model=model, api_key=eval_key("groq"), base_url="https://api.groq.com/openai/v1",
                             temperature=0, max_tokens=2048, max_retries=0, timeout=25)
     else:
         raise SystemExit(f"unknown provider in {spec!r}; use gemini:<model> or groq:<model>")
@@ -211,6 +229,38 @@ async def _one_pass(spec, run, p, cases, version, log, done, pause_seconds, max_
         done.add(case["id"])
         await asyncio.sleep(pause_seconds)
     return False
+
+
+def rescore(out_dir: Path, path: Path = FIXTURE) -> int:
+    """Score saved answers again after a scoring or case fix, without asking any model. Runs saved before
+    proposals were recorded keep their original proposal verdict."""
+    from types import SimpleNamespace
+
+    _, cases, version = load_fixture(path)
+    by_id = {c["id"]: c for c in cases}
+    changed = 0
+    for log in sorted(out_dir.glob("*-run*.jsonl")):
+        rows = [json.loads(line) for line in log.read_text().splitlines() if line.strip()]
+        for row in rows:
+            case = by_id.get(row["id"])
+            if case is None:
+                continue
+            proposals = [{"invoice": i, "decision": d} for i, d in row.get("proposals", [])]
+            out = SimpleNamespace(answer=row["answer"], proposals=proposals, tools_called=row["tools_called"],
+                                  verification={"removed": row.get("removed") or ([] if row["grounded"] else ["?"]),
+                                                "repaired": row["repaired"],
+                                                "policy_removed": row.get("policy_removed")
+                                                or (["?"] if row["policy_trimmed"] else []),
+                                                "policy_repaired": row.get("policy_repaired", False)})
+            fresh = score_case(case, out)
+            if "proposals" not in row:
+                fresh["allowed_blocked_proposal"] = row["allowed_blocked_proposal"]
+                fresh["correct"] = fresh["correct"] and not row["allowed_blocked_proposal"]
+                fresh["proposals"] = []
+            changed += fresh["correct"] != row["correct"]
+            row.update(fresh, fixture=version)
+        log.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows))
+    return changed
 
 
 def _percentile(ordered: list[float], q: float) -> float:
@@ -279,6 +329,27 @@ def markdown(report: dict) -> str:
     return "\n".join(lines)
 
 
+README_START, README_END = "<!-- assistant-eval:start -->", "<!-- assistant-eval:end -->"
+
+
+def update_readme(readme: Path, report: dict, table: str) -> None:
+    """Replace the block between the eval markers with the latest results."""
+    text = readme.read_text()
+    if README_START not in text or README_END not in text:
+        raise SystemExit(f"{readme} has no {README_START} … {README_END} block")
+    answered = {m: sum(v["answered_per_run"]) for m, v in report["models"].items()}
+    complete = all(v["runs"] == 3 and all(n == report["cases"] for n in v["answered_per_run"])
+                   for v in report["models"].values())
+    status = ("" if complete else
+              "\n_In progress: free-tier quotas allow a few dozen questions per model per day, so the runs fill in "
+              "over several days; cases answered so far: "
+              + ", ".join(f"`{m.split(':', 1)[1]}` {n}" for m, n in answered.items()) + "._\n")
+    block = (f"{README_START}\n{table}\n{status}\nFixture `{report['fixture']}`, results as of "
+             f"{report['generated_on']}. Mean ± sample standard deviation across runs.\n{README_END}")
+    start, end = text.index(README_START), text.index(README_END) + len(README_END)
+    readme.write_text(text[:start] + block + text[end:])
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("report", nargs="?", type=Path, help="offline: write the JSON report here")
@@ -287,15 +358,30 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--runs", type=int, default=3)
     parser.add_argument("--out-dir", type=Path, default=Path("eval-runs"))
     parser.add_argument("--summary", action="store_true", help="summarise the runs in --out-dir")
+    parser.add_argument("--readme", type=Path, help="with --summary: replace the results table in this file")
+    parser.add_argument("--rescore", action="store_true", help="re-score saved answers in --out-dir; no model calls")
+    parser.add_argument("--use-production-keys", action="store_true",
+                        help="allow the live site's keys when no EVAL_* key is set (spends the site's quota)")
     args = parser.parse_args(argv)
     if args.live:
+        global USE_PRODUCTION_KEYS
+        USE_PRODUCTION_KEYS = args.use_production_keys
+        for spec in args.live:
+            eval_key(spec.partition(":")[0])  # fail before any call, not halfway through
         asyncio.run(run_live(args.live, args.runs, args.out_dir))
+        return 0
+    if args.rescore:
+        print(f"{rescore(args.out_dir)} saved answers changed verdict")
         return 0
     if args.summary:
         report = summarise(args.out_dir)
+        report["generated_on"] = str(date.today())
         if args.report:
-            args.report.write_text(json.dumps(report, indent=2))
-        print(markdown(report))
+            args.report.write_text(json.dumps(report, indent=2) + "\n")
+        table = markdown(report)
+        if args.readme:
+            update_readme(args.readme, report, table)
+        print(table)
         return 0
     report = run_offline()
     if args.report:

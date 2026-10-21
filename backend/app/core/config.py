@@ -63,6 +63,9 @@ class Settings(BaseSettings):
     # Comma-separated Gemini models the assistant tries, in order, when LLM_MODEL fails or is rate limited.
     # Each model has its own free-tier quota. Unset means gemini-3.5-flash-lite; "none" disables them.
     gemini_fallback_models: str | None = None
+    # Keys used only by the live assistant eval, so it never spends the quota the live site needs.
+    eval_google_api_key: str | None = None
+    eval_groq_api_key: str | None = None
 
     # Event publishing: if unset, domain events are logged instead of
     # published (see app/events/) — no Kafka required to run the app.
@@ -117,6 +120,8 @@ class Settings(BaseSettings):
         "groq_model",
         "llm_model",
         "gemini_fallback_models",
+        "eval_google_api_key",
+        "eval_groq_api_key",
         "sample_notify_email",
         "resend_api_key",
         "resend_from",

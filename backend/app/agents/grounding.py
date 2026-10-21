@@ -85,12 +85,15 @@ def _words_value(words: str) -> float | None:
     return float(total + current)
 
 
-def extract_claims(text: str) -> list[Claim]:
-    """Figures written as digits ("₹15.2 lakh", "83%") or as words ("ninety-one percent")."""
+def extract_claims(text: str, exempt_small: bool = True) -> list[Claim]:
+    """Figures written as digits ("₹15.2 lakh", "83%") or as words ("ninety-one percent").
+
+    Bare whole numbers up to 3 are skipped unless exempt_small is False, since they are usually phrasing.
+    """
     claims = []
     for m in WORD_CLAIM.finditer(text):
         value = _words_value(m.group("words"))
-        if value is None or (value <= SMALL_EXEMPT and not m.group("pct")):
+        if value is None or (exempt_small and value <= SMALL_EXEMPT and not m.group("pct")):
             continue
         claims.append(Claim(text=m.group(0).strip(), value=value, tolerance=0.5, percent=bool(m.group("pct")),
                             start=m.start()))
@@ -102,7 +105,7 @@ def extract_claims(text: str) -> list[Claim]:
         unit = (m.group("unit") or "").lower()
         multiplier = UNITS.get(unit, 1)
         percent = bool(m.group("pct"))
-        if not (m.group("rupee") or unit or percent) and decimals == 0 and number <= SMALL_EXEMPT:
+        if exempt_small and not (m.group("rupee") or unit or percent) and decimals == 0 and number <= SMALL_EXEMPT:
             continue
         claims.append(Claim(text=m.group(0).strip(), value=number * multiplier, percent=percent, start=m.start(),
                             tolerance=max(0.5 * 10 ** -decimals * multiplier, 1e-9)))
@@ -110,9 +113,12 @@ def extract_claims(text: str) -> list[Claim]:
 
 
 def grounded_values(*sources) -> set[float]:
-    """Every number that appears anywhere in the sources (tool results, the question)."""
+    """Every number that appears anywhere in the sources (tool results, the question). Text sources also count
+    their figures with units, so an answer may repeat the user's own "₹99 crore" when it refutes it."""
     values: set[float] = set()
     for source in sources:
+        if isinstance(source, str):
+            values |= {c.value for c in extract_claims(source, exempt_small=False)}
         text = source if isinstance(source, str) else json.dumps(source, default=str)
         for raw in RAW_NUMBER.findall(text):
             values.add(abs(float(raw)))
@@ -126,8 +132,8 @@ def _matches(claim: Claim, values: set[float]) -> bool:
     return any(abs(claim.value - v) <= claim.tolerance + 1e-9 for v in candidates)
 
 
-def check_grounding(answer: str, values: set[float]) -> GroundingReport:
-    claims = extract_claims(answer)
+def check_grounding(answer: str, values: set[float], exempt_small: bool = True) -> GroundingReport:
+    claims = extract_claims(answer, exempt_small)
     return GroundingReport(claims, [c for c in claims if not _matches(c, values)])
 
 

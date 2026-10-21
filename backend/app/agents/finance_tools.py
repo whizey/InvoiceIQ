@@ -163,8 +163,13 @@ def get_aging_breakdown(p: Portfolio, period: str = DEFAULT_PERIOD, start_date: 
     view = dashboard_view(p, period, start_date, end_date)
     bands = view["output"]["aging"]
     overdue = [b for b in bands if b["key"] != "not_due"]
+    open_total = sum((b["amount"] for b in bands), Decimal(0))
+    overdue_total = sum((b["amount"] for b in overdue), Decimal(0))
     return {"as_of": str(p.today), **view["period"],
-            "buckets_days_past_due": [{"bucket": b["key"], "balance": _money(b["amount"]), "invoices": b["count"]}
+            "buckets_days_past_due": [{"bucket": b["key"], "balance": _money(b["amount"]), "invoices": b["count"],
+                                       "share_of_open_pct": _pct(b["amount"], open_total),
+                                       "share_of_overdue_pct": None if b["key"] == "not_due"
+                                       else _pct(b["amount"], overdue_total)}
                                       for b in bands],
             "overdue_total": _money(sum((b["amount"] for b in overdue), Decimal(0))),
             "overdue_invoices": sum(b["count"] for b in overdue),
@@ -475,10 +480,11 @@ PERIOD_PROPS = {
 
 TOOL_SPECS = [
     _fn("get_portfolio_summary", "The dashboard's headline tiles: invoiced, collected, open and overdue balances "
-        "and counts, overdue share of open balance, and how many open invoices the model rates high risk.",
+        "and counts, overdue share of open balance, number of customers billed, partly paid and settled invoice "
+        "counts, and how many open invoices the model rates high risk.",
         PERIOD_PROPS),
-    _fn("get_aging_breakdown", "The dashboard's ageing chart: open balance and invoice count per days-past-due "
-        "bucket (not_due, 1-30, 31-60, 61-90, 90+).", PERIOD_PROPS),
+    _fn("get_aging_breakdown", "The dashboard's ageing chart: open balance, invoice count and percentage share "
+        "per days-past-due bucket (not_due, 1-30, 31-60, 61-90, 90+).", PERIOD_PROPS),
     _fn("list_overdue_accounts", "Customer accounts ranked by overdue balance, with invoice count, "
         "oldest days past due and highest model risk.",
         {"limit": {"type": "integer", "description": "How many accounts, 1-15", "default": 5}, **PERIOD_PROPS}),

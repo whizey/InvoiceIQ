@@ -154,7 +154,31 @@ The portal assistant ([`finance_agent.py`](backend/app/agents/finance_agent.py))
 3. **Propose.** The model may suggest a review decision; code blocks paid invoices, escalations without a reason or before the due date, other workspaces' invoices and repeats. Allowed suggestions show an **Apply** button; nothing is saved until a person clicks it.
 4. **Fall back.** `LLM_MODEL`, then each of `GEMINI_FALLBACK_MODELS`, then Groq if configured, then a rule-based answer. A rate-limited model is retried once when the delay is a few seconds, otherwise skipped by later requests until its quota window passes.
 
-Every model call, tool call, check and fallback is recorded in `assistant_traces` (metadata only, no question or answer text), summarised per workspace at `GET /portal/assistant-traces`. A 30-question eval set with hand-computed answers ([`assistant_eval_v1.json`](backend/tests/fixtures/assistant_eval_v1.json)) runs offline in CI; `python -m app.agents.assistant_eval report.json --live` scores the real models on tool choice, accuracy, grounding and latency. `python -m app.agents.check_providers` tests each model in the chain with one tool call.
+Workspace figures come from the dashboard's own calculation (`compute_portal_dashboard`) for the same period, so an answer always adds up to what the dashboard shows. Answers stream to the chat as progress steps ("Checking ageing…", "Checking every figure against your records…"); the text itself is only sent once its figures and suggestions have passed the checks. Written recommendations get the same rules as Apply suggestions.
+
+Every model call, tool call, check and fallback is recorded in `assistant_traces` (metadata only, no question or answer text). The **reliability page** (`/assistant/reliability`) shows, per workspace, which model answered (main, backup or rules), how the figures fared (verified, fixed after a rewrite, trimmed), response times, and the evaluation results below. `python -m app.agents.check_providers` tests each model in the chain with one tool call.
+
+### Measured accuracy
+
+Live answers have no answer key, so accuracy is measured on a fixed set of 100 questions with hand-worked answers over an 11-invoice fixture ([`assistant_eval_v1.json`](backend/tests/fixtures/assistant_eval_v1.json)): core figures (30), tricky wording (35), multi-turn follow-ups (15), prompt-injection attempts including one planted in a stored review note (10), out-of-scope requests (5) and policy cases (5). Each model answers alone, with no fallback, three times. `gemini-3.6-flash` is not in the table: its free tier allows 20 requests a day per project, about 6 questions, so three runs would take weeks. An answer counts as correct only if it states every key figure, names what it must, contains nothing forbidden and lets no blocked suggestion through. Offline, CI checks every case's tool figures and the rule-based fallback on each change.
+
+<!-- assistant-eval:start -->
+| Model | Runs | Cases answered | Accuracy | Figures verified | Tool recall | Median / p95 time |
+|---|---|---|---|---|---|---|
+| `gemini-3.5-flash-lite` | 1 | 23 of 100 | 95.7% ± 0.0 | 100.0% ± 0.0 | 95.7% ± 0.0 | 3.0 s / 7.9 s |
+| `openai/gpt-oss-120b` | 1 | 58 of 100 | 93.1% ± 0.0 | 91.4% ± 0.0 | 91.4% ± 0.0 | 2.7 s / 9.4 s |
+
+| Model | core | followup | injection | tricky |
+|---|---|---|---|---|
+| `gemini-3.5-flash-lite` | 96% ± 0 | – | – | – |
+| `openai/gpt-oss-120b` | 96% ± 0 | 100% ± 0 | 50% ± 0 | 92% ± 0 |
+
+_In progress: free-tier quotas allow a few dozen questions per model per day, so the runs fill in over several days; cases answered so far: `gemini-3.5-flash-lite` 23, `openai/gpt-oss-120b` 58._
+
+Fixture `assistant-eval-v3`, results as of 2026-10-22. Mean ± sample standard deviation across runs.
+<!-- assistant-eval:end -->
+
+Reproduce with dedicated keys (`EVAL_GOOGLE_API_KEY`, `EVAL_GROQ_API_KEY`) so the live site keeps its quota: `backend/scripts/run_assistant_eval_daily.sh`. It resumes where it stopped and refreshes this table and the reliability page.
 
 ## The late-payment model
 

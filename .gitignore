@@ -79,3 +79,6 @@ recoveriq_final18_pretrain_audit.txt
 recoveriq_payment_risk_audit_bundle.txt
 gate_patch.py
 .vercel
+
+# Live assistant eval results (raw answers); the summary is published to backend/app/agents/eval_results.json
+backend/eval-runs/

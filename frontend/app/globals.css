@@ -170,4 +170,31 @@ html, body {
 .ai-proposal button{height:30px;padding:0 12px;border-radius:999px;border:1px solid #1f1f1f;background:#1f1f1f;color:#fff;font:inherit;font-size:12px;cursor:pointer}
 .ai-proposal button:disabled{background:#fff;color:#555;border-color:#d9d9d6;cursor:default}
 .ai-check{margin:8px 0 0;font-size:12px}
+.ai-progress ol{list-style:none;margin:0;padding:0;display:grid;gap:4px;font-size:13px}
+.ai-step-done{color:#6b6b6b}
+.ai-step-now{font-weight:600}
+@media (prefers-reduced-motion: no-preference){.ai-step-now{animation:ai-pulse 1.2s ease-in-out infinite}}
+@keyframes ai-pulse{50%{opacity:.55}}
 @media (prefers-reduced-motion:reduce){.ai-form .ai-mic-on{animation:none}}
+
+.rel{display:grid;gap:40px;margin-top:24px}
+.rel h2{font-size:20px;letter-spacing:-.02em;margin:0}
+.rel h3{font-size:14px;margin:24px 0 8px}
+.rel-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.rel-window{display:flex;gap:6px}
+.rel-window button{height:30px;padding:0 12px;border-radius:999px;border:1px solid #d9d9d6;background:#fff;font:inherit;font-size:12px;cursor:pointer}
+.rel-window button[aria-pressed="true"]{background:#141414;color:#fff;border-color:#141414}
+.rel-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.rel-tile{border:1px solid #e3e3df;border-radius:12px;padding:14px 16px;background:#fff}
+.rel-label{margin:0;color:#6b6b6b;font-size:12px}
+.rel-value{margin:6px 0 2px;font-size:26px;font-weight:650;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.rel-note{margin:0;color:#6b6b6b;font-size:12px}
+.rel-bar{display:flex;height:12px;border-radius:999px;overflow:hidden;background:#efefec}
+.rel-seg{height:100%}
+.rel-legend{list-style:none;padding:0;margin:8px 0 0;display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px;color:#444}
+.rel-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:baseline}
+.t-good{background:#2f7d4f}.t-mid{background:#6f8fd8}.t-warn{background:#d0892f}.t-off{background:#b9b9b4}
+.rel-scroll{overflow-x:auto}
+.rel-table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+.rel-table th,.rel-table td{text-align:left;padding:8px 10px;border-bottom:1px solid #ececea;white-space:nowrap}
+.rel-table th{color:#6b6b6b;font-weight:500}
