@@ -44,26 +44,11 @@ def test_empty_workspace_has_zero_kpis():
     assert kpis["reviewed"] == 0 and kpis["awaiting_review"] == 0
 
 
-def test_assistant_facts_are_aggregated_and_tenant_free_of_raw_rows():
-    from app.api.portal import _assistant_facts
-    from datetime import date as real_date
-    due = real_date.today() - timedelta(days=45)
-    mk = lambda total, paid, risk: NS(id=uuid.uuid4(), invoice_number="X", counterparty="Acme", due_date=due,  # noqa: E731
-                                      amount_total=Decimal(total), amount_paid=Decimal(paid), risk_probability=risk)
-    a, b = mk(100, 0, Decimal("0.7")), mk(50, 50, None)
-    facts = _assistant_facts([a, b], [NS(invoice_id=a.id, decision="ESCALATE", note="chase", created_at=datetime.now(timezone.utc))])
-    assert facts["open_invoices"] == 1 and facts["overdue_balance"] == "100"
-    assert facts["aging_open_balance"]["31-60"] == "100"
-    assert facts["high_risk_open_invoices_ge_60pct"] == 1
-    assert facts["top_overdue_accounts"][0]["account"] == "Acme"
-    assert facts["largest_overdue_invoices"][0]["review_status"] == "ESCALATE"
-
-
 def test_reply_text_handles_string_and_content_blocks():
-    from app.api.portal import _reply_text
-    assert _reply_text("  hi ") == "hi"
-    assert _reply_text([{"type": "text", "text": "a", "extras": {"signature": "x"}}, {"type": "thinking", "text": "no"},
-                        {"type": "text", "text": "b"}]) == "ab"
+    from app.agents.finance_agent import reply_text
+    assert reply_text("  hi ") == "hi"
+    assert reply_text([{"type": "text", "text": "a", "extras": {"signature": "x"}}, {"type": "thinking", "text": "no"},
+                       {"type": "text", "text": "b"}]) == "ab"
 
 
 def test_balance_bridge_reconciles_and_rejects_unreconcilable_ledgers():

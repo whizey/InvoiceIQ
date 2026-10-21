@@ -151,3 +151,26 @@ async def test_voice_turn_falls_back_when_configured_llm_errors(monkeypatch):
     assert model == FALLBACK_MODEL_NAME
     assert result.proposed_action == "NONE"
     assert result.concluded is False
+
+
+@pytest.mark.parametrize("raw,expected", [
+    (None, ["gemini-3.5-flash-lite"]),
+    ("gemini-3.5-flash, models/gemini-3.5-flash-lite,,gemini-3.5-flash", ["gemini-3.5-flash", "gemini-3.5-flash-lite"]),
+    ("gemini-3.6-flash,gemini-3.5-flash", ["gemini-3.5-flash"]),  # the primary model is never its own fallback
+    ("none", []),
+])
+def test_gemini_fallback_models_are_ordered_and_deduplicated(monkeypatch, raw, expected):
+    from app.agents.llm_client import gemini_fallback_chats, gemini_fallback_models
+
+    monkeypatch.setattr(settings, "google_api_key", "test-key")
+    monkeypatch.setattr(settings, "llm_model", "gemini-3.6-flash")
+    monkeypatch.setattr(settings, "gemini_fallback_models", raw)
+    assert gemini_fallback_models() == expected
+    assert [model for _, model in gemini_fallback_chats()] == expected
+
+
+def test_no_gemini_fallbacks_without_gemini(monkeypatch):
+    from app.agents.llm_client import gemini_fallback_models
+
+    monkeypatch.setattr(settings, "gemini_fallback_models", "gemini-3.5-flash")
+    assert gemini_fallback_models() == []

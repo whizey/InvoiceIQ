@@ -5,29 +5,38 @@ from types import SimpleNamespace
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import delete
+from langchain_core.messages import AIMessage, ToolMessage
+from sqlalchemy import delete, func, select
 
 from app.api import portal as portal_api
 from app.core.db import async_session_factory, engine
 from app.main import app
 from app.models.portal import PortalUser, PortalWorkspace
+from app.services.assistant_tracing import assistant_traces
 
 
 class FakeLLM:
+    """Asks for the overdue list once, then answers; unbound calls (transcription) answer directly."""
     max_output_tokens = 1024
 
     def __init__(self):
         self.messages = []
 
-    async def ainvoke(self, messages):
+    def bind_tools(self, specs):
+        return SimpleNamespace(ainvoke=lambda messages: self.ainvoke(messages, bound=True))
+
+    async def ainvoke(self, messages, bound=False):
         self.messages = messages
-        return SimpleNamespace(content=[{"type": "text", "text": "Chase INV-A first."}, {"type": "thinking", "text": "x"}])
+        if bound and not isinstance(messages[-1], ToolMessage):
+            return AIMessage(content="", tool_calls=[{"name": "search_invoices", "args": {"status": "all"}, "id": "t1"}])
+        return SimpleNamespace(content=[{"type": "text", "text": "Chase INV-A first."}, {"type": "thinking", "text": "x"}],
+                               tool_calls=[])
 
 
 @pytest.mark.asyncio
 async def test_recovery_summary_assistant_and_bridge_are_tenant_scoped(monkeypatch):
     monkeypatch.setenv("PUBLIC_READ_ONLY", "false")
-    monkeypatch.setattr("app.api.portal._fast_gemini", lambda: None)
+    monkeypatch.setattr("app.agents.llm_client.gemini_fallback_chats", lambda timeout=None: [])
     monkeypatch.setenv("INVOICEIQ_PORTAL_ENABLED", "true")
     monkeypatch.setenv("INVOICEIQ_PORTAL_SHOWCASE", "false")
     await engine.dispose()
@@ -72,8 +81,9 @@ async def test_recovery_summary_assistant_and_bridge_are_tenant_scoped(monkeypat
             # Assistant: unconfigured, validation, grounded call, tenant scope, rate limit.
             portal_api._ASSISTANT_CALLS.clear()
             monkeypatch.setattr("app.agents.llm_client._llm_chat", lambda: (None, None))
-            missing = await client.post("/portal/assistant", headers=headers[0], json={"question": "Who first?"})
-            assert missing.status_code == 503 and "not configured" in missing.json()["detail"]
+            rules = await client.post("/portal/assistant", headers=headers[0], json={"question": "How much is overdue?"})
+            assert rules.status_code == 200 and rules.json()["model"] == "rule-based-fallback"
+            assert "₹1,000" in rules.json()["answer"] and rules.json()["tools_used"] == ["get_portfolio_summary"]
             fake = FakeLLM()
             monkeypatch.setattr("app.agents.llm_client._llm_chat", lambda: (fake, "fake-model"))
             bad = await client.post("/portal/assistant", headers=headers[0], json={
@@ -83,10 +93,20 @@ async def test_recovery_summary_assistant_and_bridge_are_tenant_scoped(monkeypat
                 "question": "Who should we chase first?", "history": [{"role": "user", "content": "hi"}]})
             assert ok.status_code == 200, ok.text
             assert ok.json()["answer"] == "Chase INV-A first." and ok.json()["model"] == "fake-model"
+            assert ok.json()["tools_used"] == ["search_invoices"] and ok.json()["fallback_used"] is False
             assert fake.max_output_tokens == 4096
-            assert "INV-A" in fake.messages[1][1] and "Overdue Co" in fake.messages[1][1]
+            tool_output = fake.messages[-1].content
+            assert "INV-A" in tool_output and "Overdue Co" in tool_output
             await client.post("/portal/assistant", headers=headers[1], json={"question": "What do we have?"})
-            assert "INV-A" not in fake.messages[1][1]
+            assert "INV-A" not in fake.messages[-1].content
+            async with async_session_factory() as db:
+                traced = await db.scalar(select(func.count()).select_from(assistant_traces)
+                                         .where(assistant_traces.c.workspace_id == workspace_ids[0]))
+            assert traced >= 5  # rule-based run plus the tool-calling run
+            summary = (await client.get("/portal/assistant-traces", headers=headers[0])).json()
+            assert summary["runs"] == {"ok": 1, "unconfigured": 1}
+            assert {"kind": "tool", "name": "search_invoices"}.items() <= next(
+                s for s in summary["steps"] if s["name"] == "search_invoices").items()
             monkeypatch.setattr(portal_api, "ASSISTANT_LIMIT_PER_MINUTE", 2)
             portal_api._ASSISTANT_CALLS.clear()
             statuses = [(await client.post("/portal/assistant", headers=headers[0],

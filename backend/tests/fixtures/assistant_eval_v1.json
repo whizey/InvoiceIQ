@@ -1,0 +1,737 @@
+{
+ "version": "assistant-eval-v2",
+ "note": "Expected figures are worked out by hand from the portfolio below, not produced by the tools under test. Payments reconcile to each invoice's paid amount. answer_names entries may be lists, meaning any one of them must appear in the answer. answer_numbers, when present, replaces numbers for the live answer check.",
+ "today": "2026-10-01",
+ "invoices": [
+  {
+   "number": "INV-1001",
+   "account": "Acme Traders",
+   "due": "2026-06-01",
+   "total": "500000",
+   "paid": "0",
+   "risk": "0.91",
+   "posted": "2026-05-02"
+  },
+  {
+   "number": "INV-1002",
+   "account": "Acme Traders",
+   "due": "2026-08-15",
+   "total": "200000",
+   "paid": "50000",
+   "risk": "0.72",
+   "posted": "2026-07-16"
+  },
+  {
+   "number": "INV-1003",
+   "account": "Bluefin Logistics",
+   "due": "2026-09-10",
+   "total": "300000",
+   "paid": "0",
+   "risk": "0.45",
+   "posted": "2026-08-11"
+  },
+  {
+   "number": "INV-1004",
+   "account": "Bluefin Logistics",
+   "due": "2026-07-20",
+   "total": "120000",
+   "paid": "0",
+   "risk": "0.66",
+   "posted": "2026-06-20"
+  },
+  {
+   "number": "INV-1005",
+   "account": "Coral Foods",
+   "due": "2026-09-25",
+   "total": "80000",
+   "paid": "0",
+   "risk": "0.20",
+   "posted": "2026-08-26"
+  },
+  {
+   "number": "INV-1006",
+   "account": "Coral Foods",
+   "due": "2026-10-20",
+   "total": "250000",
+   "paid": "0",
+   "risk": "0.15",
+   "posted": "2026-09-20"
+  },
+  {
+   "number": "INV-1007",
+   "account": "Delta Retail",
+   "due": "2026-05-15",
+   "total": "90000",
+   "paid": "90000",
+   "risk": null,
+   "posted": "2026-04-15"
+  },
+  {
+   "number": "INV-1008",
+   "account": "Delta Retail",
+   "due": "2026-11-05",
+   "total": "60000",
+   "paid": "0",
+   "risk": null,
+   "posted": "2026-09-28"
+  },
+  {
+   "number": "INV-1009",
+   "account": "Evergreen Pharma",
+   "due": "2026-08-01",
+   "total": "400000",
+   "paid": "100000",
+   "risk": "0.83",
+   "posted": "2026-07-02"
+  },
+  {
+   "number": "INV-1010",
+   "account": "Evergreen Pharma",
+   "due": "2026-09-01",
+   "total": "100000",
+   "paid": "100000",
+   "risk": null,
+   "posted": "2026-08-02"
+  },
+  {
+   "number": "INV-1011",
+   "account": "Acme Traders",
+   "due": "2026-09-30",
+   "total": "70000",
+   "paid": "0",
+   "risk": "0.55",
+   "posted": "2026-08-31"
+  }
+ ],
+ "events": [
+  {
+   "invoice": "INV-1001",
+   "decision": "ESCALATE",
+   "note": "Customer disputes delivery; owner to call",
+   "on": "2026-09-20"
+  },
+  {
+   "invoice": "INV-1004",
+   "decision": "APPROVE",
+   "note": "Send reminder",
+   "on": "2026-09-22"
+  },
+  {
+   "invoice": "INV-1003",
+   "decision": "REJECT",
+   "note": "Credit note pending",
+   "on": "2026-09-25"
+  }
+ ],
+ "cases": [
+  {
+   "id": "overdue-total",
+   "question": "How much is overdue right now?",
+   "calls": [
+    [
+     "get_portfolio_summary",
+     {}
+    ]
+   ],
+   "fallback_route": "summary",
+   "numbers": [
+    1520000,
+    7
+   ]
+  },
+  {
+   "id": "open-balance",
+   "question": "What is our total open balance?",
+   "calls": [
+    [
+     "get_portfolio_summary",
+     {}
+    ]
+   ],
+   "fallback_route": "summary",
+   "numbers": [
+    1830000,
+    9
+   ]
+  },
+  {
+   "id": "collected-vs-invoiced",
+   "question": "How much have we collected versus invoiced?",
+   "calls": [
+    [
+     "get_portfolio_summary",
+     {}
+    ]
+   ],
+   "fallback_route": "summary",
+   "numbers": [
+    340000,
+    2170000,
+    15.67
+   ]
+  },
+  {
+   "id": "overdue-share",
+   "question": "What share of the open balance is overdue?",
+   "calls": [
+    [
+     "get_portfolio_summary",
+     {}
+    ]
+   ],
+   "fallback_route": "summary",
+   "numbers": [
+    83.06
+   ]
+  },
+  {
+   "id": "overdue-count",
+   "question": "How many invoices are overdue?",
+   "calls": [
+    [
+     "get_portfolio_summary",
+     {}
+    ]
+   ],
+   "fallback_route": "summary",
+   "numbers": [
+    7
+   ]
+  },
+  {
+   "id": "high-risk-count",
+   "question": "How many open invoices does the model rate as high risk?",
+   "calls": [
+    [
+     "get_portfolio_summary",
+     {}
+    ]
+   ],
+   "fallback_route": "invoices",
+   "numbers": [
+    4
+   ]
+  },
+  {
+   "id": "aging",
+   "question": "Summarise our overdue exposure by age.",
+   "calls": [
+    [
+     "get_aging_breakdown",
+     {}
+    ]
+   ],
+   "fallback_route": "aging",
+   "numbers": [
+    450000,
+    150000,
+    420000,
+    500000,
+    310000
+   ]
+  },
+  {
+   "id": "over-90",
+   "question": "How much is more than 90 days overdue?",
+   "calls": [
+    [
+     "get_aging_breakdown",
+     {}
+    ]
+   ],
+   "fallback_route": "aging",
+   "numbers": [
+    500000
+   ]
+  },
+  {
+   "id": "top-account",
+   "question": "Which account owes us the most overdue?",
+   "calls": [
+    [
+     "list_overdue_accounts",
+     {
+      "limit": 5
+     }
+    ]
+   ],
+   "fallback_route": "accounts",
+   "numbers": [
+    720000,
+    122
+   ],
+   "names": [
+    "Acme Traders"
+   ]
+  },
+  {
+   "id": "account-ranking",
+   "question": "Rank our customers by overdue balance.",
+   "calls": [
+    [
+     "list_overdue_accounts",
+     {
+      "limit": 5
+     }
+    ]
+   ],
+   "fallback_route": "accounts",
+   "numbers": [
+    720000,
+    420000,
+    300000,
+    80000
+   ],
+   "names": [
+    "Acme Traders",
+    "Bluefin Logistics",
+    "Evergreen Pharma"
+   ]
+  },
+  {
+   "id": "chase-first",
+   "question": "Which overdue invoices should we chase first?",
+   "calls": [
+    [
+     "search_invoices",
+     {
+      "status": "overdue",
+      "sort": "balance_desc",
+      "limit": 3
+     }
+    ]
+   ],
+   "fallback_route": "invoices",
+   "numbers": [
+    500000,
+    300000
+   ],
+   "names": [
+    "INV-1001"
+   ],
+   "answer_names": [
+    [
+     "INV-1001",
+     "Acme Traders"
+    ]
+   ]
+  },
+  {
+   "id": "oldest",
+   "question": "What is the oldest overdue invoice?",
+   "calls": [
+    [
+     "search_invoices",
+     {
+      "status": "overdue",
+      "sort": "days_past_due_desc",
+      "limit": 1
+     }
+    ]
+   ],
+   "fallback_route": "invoices",
+   "numbers": [
+    122
+   ],
+   "names": [
+    "INV-1001"
+   ]
+  },
+  {
+   "id": "risk-above-80",
+   "question": "Show open invoices where the model risk is above 80%.",
+   "calls": [
+    [
+     "search_invoices",
+     {
+      "status": "open",
+      "min_risk_pct": 80,
+      "sort": "risk_desc"
+     }
+    ]
+   ],
+   "fallback_route": "invoices",
+   "numbers": [
+    2,
+    91,
+    83
+   ],
+   "names": [
+    "INV-1001",
+    "INV-1009"
+   ],
+   "answer_names": [
+    [
+     "INV-1001",
+     "Acme Traders"
+    ],
+    [
+     "INV-1009",
+     "Evergreen Pharma"
+    ]
+   ]
+  },
+  {
+   "id": "one-account",
+   "question": "What does Bluefin Logistics owe us?",
+   "calls": [
+    [
+     "search_invoices",
+     {
+      "status": "open",
+      "account": "Bluefin"
+     }
+    ]
+   ],
+   "fallback_route": "customer:Bluefin Logistics",
+   "numbers": [
+    420000,
+    2
+   ]
+  },
+  {
+   "id": "not-due",
+   "question": "Which invoices are not due yet?",
+   "calls": [
+    [
+     "search_invoices",
+     {
+      "status": "not_due",
+      "sort": "due_date_asc"
+     }
+    ]
+   ],
+   "fallback_route": "upcoming",
+   "numbers": [
+    310000,
+    250000,
+    60000
+   ],
+   "names": [
+    "INV-1006",
+    "INV-1008"
+   ],
+   "answer_names": [
+    [
+     "INV-1006",
+     "Coral Foods"
+    ],
+    [
+     "INV-1008",
+     "Delta Retail"
+    ]
+   ]
+  },
+  {
+   "id": "invoice-detail",
+   "question": "Tell me about INV-1009.",
+   "calls": [
+    [
+     "get_invoice",
+     {
+      "invoice_number": "INV-1009"
+     }
+    ]
+   ],
+   "fallback_route": "invoice:INV-1009",
+   "numbers": [
+    300000,
+    61,
+    83
+   ]
+  },
+  {
+   "id": "invoice-status",
+   "question": "What is the status of INV-1001?",
+   "calls": [
+    [
+     "get_invoice",
+     {
+      "invoice_number": "INV-1001"
+     }
+    ]
+   ],
+   "fallback_route": "invoice:INV-1001",
+   "numbers": [
+    500000,
+    122
+   ],
+   "contains": [
+    "ESCALATE"
+   ]
+  },
+  {
+   "id": "review-queue",
+   "question": "What is waiting for review?",
+   "calls": [
+    [
+     "get_review_status",
+     {}
+    ]
+   ],
+   "fallback_route": "review",
+   "numbers": [
+    4,
+    600000,
+    920000
+   ]
+  },
+  {
+   "id": "escalate-paid",
+   "question": "Should we escalate INV-1007?",
+   "calls": [
+    [
+     "get_invoice",
+     {
+      "invoice_number": "INV-1007"
+     }
+    ]
+   ],
+   "fallback_route": "invoice:INV-1007",
+   "numbers": [
+    90000
+   ],
+   "proposal": {
+    "invoice_number": "INV-1007",
+    "decision": "ESCALATE",
+    "reason": "Large balance, chase the owner directly",
+    "allowed": false
+   },
+   "answer_numbers": [],
+   "answer_names": [
+    [
+     "paid"
+    ]
+   ]
+  },
+  {
+   "id": "escalate-overdue",
+   "question": "Should we escalate INV-1009?",
+   "calls": [
+    [
+     "get_invoice",
+     {
+      "invoice_number": "INV-1009"
+     }
+    ]
+   ],
+   "fallback_route": "invoice:INV-1009",
+   "numbers": [
+    300000
+   ],
+   "proposal": {
+    "invoice_number": "INV-1009",
+    "decision": "ESCALATE",
+    "reason": "₹3 lakh is 61 days overdue at 83% model risk",
+    "allowed": true
+   }
+  },
+  {
+   "id": "collections-trend",
+   "question": "How have collections trended over the last six months?",
+   "calls": [
+    [
+     "get_collections_trend",
+     {
+      "months": 6
+     }
+    ]
+   ],
+   "fallback_route": "trend",
+   "numbers": [
+    90000,
+    200000,
+    50000,
+    340000,
+    2080000
+   ]
+  },
+  {
+   "id": "best-invoicing-month",
+   "question": "Which month did we invoice the most?",
+   "calls": [
+    [
+     "get_collections_trend",
+     {
+      "months": 6
+     }
+    ]
+   ],
+   "fallback_route": "trend",
+   "numbers": [
+    600000
+   ],
+   "names": [
+    "2026-07"
+   ],
+   "answer_names": [
+    "July"
+   ]
+  },
+  {
+   "id": "collected-in-month",
+   "question": "How much did we collect in August?",
+   "calls": [
+    [
+     "get_collections_trend",
+     {
+      "months": 6
+     }
+    ]
+   ],
+   "fallback_route": "trend",
+   "numbers": [
+    200000
+   ]
+  },
+  {
+   "id": "dso",
+   "question": "What is our DSO right now?",
+   "calls": [
+    [
+     "get_collections_trend",
+     {
+      "months": 3
+     }
+    ]
+   ],
+   "fallback_route": "trend",
+   "numbers": [
+    155.4
+   ]
+  },
+  {
+   "id": "customer-reliable",
+   "question": "How reliable a payer is Evergreen Pharma?",
+   "calls": [
+    [
+     "get_customer_profile",
+     {
+      "account": "Evergreen"
+     }
+    ]
+   ],
+   "fallback_route": "customer:Evergreen Pharma",
+   "numbers": [
+    100,
+    300000,
+    61
+   ]
+  },
+  {
+   "id": "customer-late",
+   "question": "Does Delta Retail usually pay late?",
+   "calls": [
+    [
+     "get_customer_profile",
+     {
+      "account": "Delta Retail"
+     }
+    ]
+   ],
+   "fallback_route": "customer:Delta Retail",
+   "numbers": [
+    15,
+    60000
+   ]
+  },
+  {
+   "id": "due-next-30",
+   "question": "What falls due in the next 30 days?",
+   "calls": [
+    [
+     "search_invoices",
+     {
+      "status": "open",
+      "due_within_days": 30,
+      "sort": "due_date_asc"
+     }
+    ]
+   ],
+   "fallback_route": "upcoming",
+   "numbers": [
+    250000
+   ],
+   "names": [
+    "INV-1006"
+   ],
+   "answer_names": [
+    [
+     "INV-1006",
+     "Coral Foods"
+    ]
+   ]
+  },
+  {
+   "id": "what-if-acme-pays",
+   "question": "If Acme Traders paid all its overdue invoices, how much would still be overdue?",
+   "calls": [
+    [
+     "what_if_paid",
+     {
+      "account": "Acme"
+     }
+    ]
+   ],
+   "fallback_route": "customer:Acme Traders",
+   "numbers": [
+    800000
+   ]
+  },
+  {
+   "id": "account-share",
+   "question": "What share of our overdue balance sits with Acme Traders?",
+   "calls": [
+    [
+     "get_portfolio_summary",
+     {}
+    ],
+    [
+     "list_overdue_accounts",
+     {
+      "limit": 5
+     }
+    ],
+    [
+     "calculate",
+     {
+      "expression": "720000 / 1520000 * 100"
+     }
+    ]
+   ],
+   "fallback_route": "customer:Acme Traders",
+   "numbers": [
+    47.37
+   ]
+  },
+  {
+   "id": "general-dso-meaning",
+   "question": "What does DSO mean and why does it matter?",
+   "calls": [],
+   "fallback_route": "trend",
+   "numbers": []
+  }
+ ],
+ "payments": [
+  {
+   "invoice": "INV-1007",
+   "on": "2026-05-30",
+   "amount": "90000"
+  },
+  {
+   "invoice": "INV-1009",
+   "on": "2026-08-20",
+   "amount": "100000"
+  },
+  {
+   "invoice": "INV-1010",
+   "on": "2026-08-28",
+   "amount": "100000"
+  },
+  {
+   "invoice": "INV-1002",
+   "on": "2026-09-05",
+   "amount": "50000"
+  }
+ ]
+}
