@@ -178,7 +178,7 @@ _In progress: free-tier quotas allow a few dozen questions per model per day, so
 Fixture `assistant-eval-v3`, results as of 2026-10-22. Mean ± sample standard deviation across runs.
 <!-- assistant-eval:end -->
 
-Reproduce with dedicated keys (`EVAL_GOOGLE_API_KEY`, `EVAL_GROQ_API_KEY`) so the live site keeps its quota: `backend/scripts/run_assistant_eval_daily.sh`. It resumes where it stopped and refreshes this table and the reliability page.
+The [nightly workflow](.github/workflows/assistant-eval-nightly.yml) resumes the runs on dedicated keys (`EVAL_GOOGLE_API_KEY`, `EVAL_GROQ_API_KEY` repository secrets) so the live site keeps its quota, stores raw answers on the `assistant-eval-results` branch and proposes the refreshed table on `chore/assistant-eval-results`. Locally: `backend/scripts/run_assistant_eval_daily.sh`.
 
 ## The late-payment model
 

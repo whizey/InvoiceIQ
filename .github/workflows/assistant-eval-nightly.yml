@@ -1,0 +1,103 @@
+name: Assistant eval (nightly)
+
+# Resumes the 3 x 100-case live eval each night on the dedicated EVAL_* keys (never the live site's), keeps the
+# raw answers on the assistant-eval-results branch, and opens or updates a pull request with the refreshed
+# README table and reliability-page data. Free-tier quotas mean each night adds a few dozen cases per model.
+
+on:
+  schedule:
+    - cron: '0 21 * * *'  # 02:30 IST
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: assistant-eval-nightly
+  cancel-in-progress: false
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      ENV: test
+      SCHEDULER_ENABLED: 'false'
+      EVAL_GOOGLE_API_KEY: ${{ secrets.EVAL_GOOGLE_API_KEY }}
+      EVAL_GROQ_API_KEY: ${{ secrets.EVAL_GROQ_API_KEY }}
+      RESULTS_BRANCH: assistant-eval-results
+      PR_BRANCH: chore/assistant-eval-results
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+          fetch-depth: 0
+
+      - name: Require the eval-only keys
+        run: |
+          if [ -z "$EVAL_GOOGLE_API_KEY" ] && [ -z "$EVAL_GROQ_API_KEY" ]; then
+            echo "::error::Set EVAL_GOOGLE_API_KEY and/or EVAL_GROQ_API_KEY repository secrets (keys used only for evals)."
+            exit 1
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+      - run: python -m pip install -r backend/requirements-dev.txt
+
+      - name: Restore earlier answers
+        run: |
+          mkdir -p backend/eval-runs
+          if git ls-remote --exit-code --heads origin "$RESULTS_BRANCH" >/dev/null; then
+            git fetch origin "$RESULTS_BRANCH"
+            git archive "origin/$RESULTS_BRANCH" eval-runs | tar -x -C backend
+          fi
+          ls backend/eval-runs
+
+      - name: Run tonight's share of the eval
+        working-directory: backend
+        run: |
+          models=""
+          [ -n "$EVAL_GOOGLE_API_KEY" ] && models="gemini:gemini-3.5-flash-lite"
+          [ -n "$EVAL_GROQ_API_KEY" ] && models="$models groq:openai/gpt-oss-120b"
+          EVAL_MODELS="$models" ./scripts/run_assistant_eval_daily.sh | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Save raw answers to the results branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          workdir=$(mktemp -d)
+          if git ls-remote --exit-code --heads origin "$RESULTS_BRANCH" >/dev/null; then
+            git worktree add "$workdir" "origin/$RESULTS_BRANCH" -B "$RESULTS_BRANCH"
+          else
+            git worktree add --orphan -b "$RESULTS_BRANCH" "$workdir"
+          fi
+          rm -rf "$workdir/eval-runs" && cp -r backend/eval-runs "$workdir/eval-runs"
+          cp backend/app/agents/eval_results.json "$workdir/eval_results.json"
+          cd "$workdir"
+          git add -A
+          git diff --cached --quiet || git commit -q -m "Assistant eval answers $(date -u +%F)"
+          git push -q origin "$RESULTS_BRANCH"
+
+      - name: Propose the refreshed results
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet -- README.md backend/app/agents/eval_results.json; then
+            echo "Results unchanged; no pull request needed."
+            exit 0
+          fi
+          git switch -C "$PR_BRANCH"
+          git add README.md backend/app/agents/eval_results.json
+          git commit -q -m "docs: assistant eval results $(date -u +%F)"
+          git push -q -f origin "$PR_BRANCH"
+          # An open pull request picks up the new commit by itself. Opening one needs the repository setting
+          # "Allow GitHub Actions to create and approve pull requests"; without it, the run links the branch.
+          if [ -z "$(gh pr list --head "$PR_BRANCH" --state open --json number --jq '.[].number')" ]; then
+            gh pr create --head "$PR_BRANCH" --base main --title "Assistant eval results" \
+              --body "Nightly refresh of the README accuracy table and the reliability page data from the live assistant eval. Raw answers are on the \`$RESULTS_BRANCH\` branch. Merge whenever you want the published numbers updated." \
+            || echo "Open a pull request from [$PR_BRANCH](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/main...${PR_BRANCH}) to publish tonight's results." >> "$GITHUB_STEP_SUMMARY"
+          fi
