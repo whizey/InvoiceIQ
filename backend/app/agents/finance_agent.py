@@ -22,8 +22,8 @@ from app.agents.finance_tools import (
     get_customer_profile, get_invoice, get_portfolio_summary, get_review_status, list_overdue_accounts,
     search_invoices,
 )
-from app.agents.grounding import check_grounding, drop_ungrounded, grounded_values
-from app.agents.proposal_policy import MAX_PROPOSALS
+from app.agents.grounding import check_grounding, drop_sentences_at, drop_ungrounded, grounded_values
+from app.agents.proposal_policy import MAX_PROPOSALS, check_written_recommendations
 from app.services.assistant_tracing import TraceRecorder
 
 MAX_STEPS = 5
@@ -43,7 +43,9 @@ SYSTEM_PROMPT = (
     "tool result. For 'what if a customer or invoice pays' call what_if_paid and answer for the whole "
     "portfolio unless the user asks about that customer only; for anything else derived (differences, "
     "shares, averages) call calculate with numbers copied from tool results rather than doing the maths "
-    "yourself. In follow-up questions, call tools "
+    "yourself. Workspace figures are the dashboard's own, for the dashboard's default view (invoices posted "
+    "in the last 12 months) unless the user names another period; when the period matters, say which one. "
+    "In follow-up questions, call tools "
     "again rather than reusing figures from earlier turns. If the tools do not hold the answer, say what is "
     "missing. General questions about receivables practice or terms such as DSO can be answered from your "
     "own knowledge, without quoting workspace figures unless you looked them up. Politely decline anything "
@@ -60,6 +62,8 @@ SYSTEM_PROMPT = (
 )
 REPAIR_PROMPT = ("These figures in your answer do not appear in any tool result: {claims}. Rewrite the answer "
                  "using only figures that tools returned (call a tool if you need one), or drop those claims.")
+POLICY_PROMPT = ("Your answer recommends actions the review policy blocks: {items}. Rewrite it without "
+                 "recommending them; you may say why they are not appropriate.")
 FINAL_PROMPT = "Answer now from the tool results you already have; no more tool calls."
 
 
@@ -212,6 +216,7 @@ class _Run:
         self.tools_called: list[str] = []
         self.verdicts: dict[tuple[str, str], dict] = {}
         self.used: Provider | None = None
+        self.authors: set[tuple[str, str]] = set()
         self.deadline = monotonic() + RUN_BUDGET_SECONDS
 
     async def call(self, messages, *, tools: bool):
@@ -235,7 +240,10 @@ class _Run:
                 with self.recorder.timed("llm", provider.model, provider.name) as span:
                     try:
                         client = provider.bound() if tools else provider.client
-                        sent = messages if provider.name == "gemini" else portable_history(messages)
+                        # Replies carry model-specific thought signatures; a different model, even another
+                        # Gemini one, gets only their text and tool calls.
+                        own = self.authors <= {(provider.name, provider.model)}
+                        sent = messages if own else portable_history(messages)
                         reply = await asyncio.wait_for(client.ainvoke(sent),
                                                        timeout=min(CALL_TIMEOUT_SECONDS, remaining))
                     except asyncio.TimeoutError:
@@ -244,8 +252,11 @@ class _Run:
                         failure = classify_failure(exc)
                         span.outcome = failure.kind
                     else:
-                        self.used = provider
-                        return reply
+                        if getattr(reply, "tool_calls", None) or reply_text(reply.content):
+                            self.used = provider
+                            self.authors.add((provider.name, provider.model))
+                            return reply
+                        span.outcome = "empty"  # nothing to show or run: let the next model try
                 if (failure and failure.kind == "rate_limited" and attempt == 0
                         and failure.retry_after <= SHORT_RETRY_SECONDS
                         and self.deadline - monotonic() > failure.retry_after + 5):
@@ -338,13 +349,34 @@ async def answer_question(portfolio: Portfolio, question: str, history: list[tup
             removed = [c.text for c in report.ungrounded]
             answer = drop_ungrounded(answer, report) or UNVERIFIED_REPLY
 
+    with recorder.timed("policy", "written") as span:
+        written = check_written_recommendations(answer, portfolio)
+        span.outcome = "blocked" if written else "allowed"
+    policy_repaired, policy_removed = False, []
+    if written:
+        items = "; ".join(f"{v.decision.lower()} {v.target} ({v.reasons[0]})" for v in written)
+        messages += [AIMessage(answer), HumanMessage(POLICY_PROMPT.format(items=items))]
+        retry = await run.loop(messages, 2)
+        if retry:
+            candidate = plain_answer(retry)
+            recheck = check_grounding(candidate, grounded_values(run.outputs, *sources[1:]))
+            candidate = candidate if recheck.ok else drop_ungrounded(candidate, recheck)
+            if candidate:
+                answer, policy_repaired = candidate, True
+        written = check_written_recommendations(answer, portfolio)
+        if written:
+            policy_removed = [v.sentence for v in written]
+            answer = drop_sentences_at(answer, [v.start for v in written]) or UNVERIFIED_REPLY
+        recorder.add("policy", "written_retry", outcome="blocked" if written else "allowed")
+
     allowed = [v for v in run.verdicts.values() if v["allowed"]][:MAX_PROPOSALS]
     recorder.add("run", "answer", outcome="ok" if report.ok else "trimmed")
     return AgentResult(
         answer=answer[:3000], model=run.used.model, provider=run.used.name, tools_called=run.tools_called,
         proposals=allowed,
         verification={"figures_checked": len(report.claims), "repaired": repaired, "removed": removed,
-                      "blocked_proposals": sum(not v["allowed"] for v in run.verdicts.values())},
+                      "blocked_proposals": sum(not v["allowed"] for v in run.verdicts.values()),
+                      "policy_repaired": policy_repaired, "policy_removed": policy_removed},
         fallback_used=run.used is not run.providers[0])
 
 
@@ -417,7 +449,7 @@ def _rule_based(portfolio: Portfolio, question: str, recorder: TraceRecorder, *,
     recorder.add("run", "rule_based", outcome="fallback" if attempted else "unconfigured")
     return AgentResult(answer=text, model=RULE_BASED_MODEL, provider="rules", tools_called=called,
                        verification={"figures_checked": 0, "repaired": False, "removed": [],
-                                     "blocked_proposals": 0},
+                                     "blocked_proposals": 0, "policy_repaired": False, "policy_removed": []},
                        fallback_used=True)
 
 
@@ -482,6 +514,7 @@ def _template(p: Portfolio, choice: str) -> tuple[str, list[str]]:
                           for r in rows)
         return f"Chase the largest overdue invoices first: {named}.{note}", ["search_invoices"]
     s = get_portfolio_summary(p)
-    return (f"You have invoiced {inr(s['invoiced'])} and collected {inr(s['collected'])}. The open balance is "
+    return (f"In the last 12 months you have invoiced {inr(s['invoiced'])} and collected "
+            f"{inr(s['collected_in_period'])}. The open balance is "
             f"{inr(s['open_balance'])}, of which {inr(s['overdue_balance'])} across {s['overdue_invoices']} "
             f"invoices is overdue.{note}", ["get_portfolio_summary"])

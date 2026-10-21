@@ -484,7 +484,7 @@ async def assistant(payload: AssistantInput, subject=Depends(identity), db: Asyn
     providers = build_providers()
     invoices, events = await _records(db, session, workspace)
     payments = (await db.scalars(select(PortalPayment).where(PortalPayment.workspace_id == workspace.id))).all()
-    portfolio = Portfolio(invoices, events, payments=payments,
+    portfolio = Portfolio(invoices, events, payments=payments, workspace=workspace,
                           explain=lambda invoice_id: explain_invoice(db, workspace.id, invoice_id))
     recorder = TraceRecorder()
     result = await answer_question(portfolio, payload.question.strip(),

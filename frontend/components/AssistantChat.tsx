@@ -4,7 +4,7 @@ import {FormEvent, useRef, useState} from "react";
 import {useSpeechToText, useTextToSpeech} from "@/lib/speech";
 
 type Proposal={invoice:string;invoice_id:string;decision:"APPROVE"|"REJECT"|"ESCALATE";reason:string};
-type Verification={figures_checked:number;repaired:boolean;removed:string[];blocked_proposals:number};
+type Verification={figures_checked:number;repaired:boolean;removed:string[];blocked_proposals:number;policy_removed?:string[]};
 type Turn={role:"user"|"assistant";content:string;proposals?:Proposal[];verification?:Verification;tools?:string[]};
 const DECISION_LABEL={APPROVE:"Approve recovery",REJECT:"Reject",ESCALATE:"Escalate"};
 
@@ -12,7 +12,8 @@ function checkNote(v?:Verification,tools?:string[]){
   if(!v)return "";
   const parts=[tools?.length?`Looked up: ${[...new Set(tools)].map(t=>t.replace(/_/g," ")).join(", ")}`:"",
     v.figures_checked?`${v.figures_checked} figure${v.figures_checked===1?"":"s"} checked against your records`:"",
-    v.removed.length?`${v.removed.length} unverified claim${v.removed.length===1?"":"s"} removed`:""];
+    v.removed.length?`${v.removed.length} unverified claim${v.removed.length===1?"":"s"} removed`:"",
+    v.policy_removed?.length?`${v.policy_removed.length} suggestion${v.policy_removed.length===1?"":"s"} removed by review policy`:""];
   return parts.filter(Boolean).join(" · ");
 }
 const SUGGESTIONS=[

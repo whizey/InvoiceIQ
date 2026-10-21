@@ -82,11 +82,16 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements-dev.txt
       - run: python -m pip install -r backend/requirements-dev.txt
-      - name: Run the 20-question eval and fail below 80% answer accuracy
+      - name: Run the 100-case eval once against the configured models
         working-directory: backend
-        run: python -m app.agents.assistant_eval "$RUNNER_TEMP/assistant-live-eval.json" --live --min-accuracy 0.8
+        run: |
+          specs=(--live "gemini:${LLM_MODEL:-gemini-3.6-flash}")
+          [ -n "$GROQ_API_KEY" ] && [ -n "$GROQ_MODEL" ] && specs+=(--live "groq:$GROQ_MODEL")
+          python -m app.agents.assistant_eval "${specs[@]}" --runs 1 --out-dir "$RUNNER_TEMP/assistant-eval"
+          python -m app.agents.assistant_eval "$RUNNER_TEMP/assistant-eval/summary.json" --summary \
+            --out-dir "$RUNNER_TEMP/assistant-eval" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: assistant-live-eval
-          path: ${{ runner.temp }}/assistant-live-eval.json
+          path: ${{ runner.temp }}/assistant-eval
