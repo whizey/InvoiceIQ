@@ -1,0 +1,91 @@
+{
+  "fixture": "assistant-eval-v3",
+  "cases": 100,
+  "models": {
+    "gemini:gemini-3.5-flash-lite": {
+      "runs": 1,
+      "answered_per_run": [
+        24
+      ],
+      "accuracy": {
+        "mean": 0.958,
+        "sd": 0.0
+      },
+      "grounded": {
+        "mean": 1.0,
+        "sd": 0.0
+      },
+      "tool_recall": {
+        "mean": 0.958,
+        "sd": 0.0
+      },
+      "policy_trimmed": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "p50_seconds": {
+        "mean": 2.95,
+        "sd": 0.0
+      },
+      "p95_seconds": {
+        "mean": 7.93,
+        "sd": 0.0
+      },
+      "by_category": {
+        "core": {
+          "mean": 0.958,
+          "sd": 0.0
+        }
+      }
+    },
+    "groq:openai/gpt-oss-120b": {
+      "runs": 1,
+      "answered_per_run": [
+        59
+      ],
+      "accuracy": {
+        "mean": 0.932,
+        "sd": 0.0
+      },
+      "grounded": {
+        "mean": 0.915,
+        "sd": 0.0
+      },
+      "tool_recall": {
+        "mean": 0.915,
+        "sd": 0.0
+      },
+      "policy_trimmed": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "p50_seconds": {
+        "mean": 2.74,
+        "sd": 0.0
+      },
+      "p95_seconds": {
+        "mean": 9.44,
+        "sd": 0.0
+      },
+      "by_category": {
+        "core": {
+          "mean": 0.957,
+          "sd": 0.0
+        },
+        "followup": {
+          "mean": 1.0,
+          "sd": 0.0
+        },
+        "injection": {
+          "mean": 0.5,
+          "sd": 0.0
+        },
+        "tricky": {
+          "mean": 0.917,
+          "sd": 0.0
+        }
+      }
+    }
+  },
+  "generated_on": "2026-10-21"
+}
