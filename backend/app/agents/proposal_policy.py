@@ -4,6 +4,7 @@ A passing proposal is still only a suggestion; a person applies it through ``POS
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 PROPOSABLE = ("APPROVE", "REJECT", "ESCALATE")
@@ -60,3 +61,90 @@ def check_proposal(portfolio, proposal: Proposal) -> Verdict:
     if portfolio.review(row) == proposal.decision:
         violations.append(f"invoice is already marked {proposal.decision}")
     return Verdict(proposal, not violations, violations, str(row.id))
+
+
+# Written advice gets the same rules as a proposal: the model must not talk around the Apply button.
+
+_NEGATION = re.compile(r"\b(not|no need|don't|do not|never|avoid|shouldn't|needn't|no action|nothing to)\b", re.I)
+_CUE = re.compile(r"\b(recommend|suggest|should|consider|propose|advise|next step|best to|start (?:by|with)|"
+                  r"prioriti[sz]e|focus on|i'd|i would|let's|please|urge)\b", re.I)
+_IMPERATIVE = re.compile(r"^\s*(escalate|chase|approve|reject|follow up|send|call|contact|pursue)\b", re.I)
+_ACTIONS = [
+    ("ESCALATE", re.compile(r"\bescalat\w*", re.I)),
+    ("APPROVE", re.compile(r"\b(chas\w+|chase|follow(?:ing)?[- ]up|remind\w*|pursu\w+|approv\w*)\b", re.I)),
+    ("REJECT", re.compile(r"\b(reject\w*|writ\w* off)\b", re.I)),
+]
+_REF = re.compile(r"\b[A-Za-z]{2,}[-/]?\d[\w-]*\b")
+_SENTENCE_END = re.compile(r"(?<=[.!?])\s+|\n+")
+_CLAUSE = re.compile(r";|,?\s+(?:and|then|while|but)\s+|,\s+(?=[a-z]+\s)", re.I)
+
+
+@dataclass(frozen=True)
+class WrittenViolation:
+    start: int
+    end: int
+    sentence: str
+    target: str
+    decision: str
+    reasons: tuple[str, ...]
+
+
+def _prefixes(portfolio) -> set[str]:
+    return {re.match(r"[A-Za-z]+", n).group(0).upper() for n in portfolio.by_number if re.match(r"[A-Za-z]+", n)}
+
+
+def check_written_recommendations(answer: str, portfolio) -> list[WrittenViolation]:
+    """Recommendations in the answer text that the proposal rules would block."""
+    violations, start = [], 0
+    prefixes = _prefixes(portfolio)
+    for boundary in [*_SENTENCE_END.finditer(answer), None]:
+        end = boundary.start() if boundary else len(answer)
+        sentence = answer[start:end]
+        if sentence.strip() and not _NEGATION.search(sentence) and (_CUE.search(sentence)
+                                                                    or _IMPERATIVE.search(sentence)):
+            # Pair each action with the invoices and accounts in its own clause:
+            # "escalate INV-1009 and follow up on INV-1006" escalates only INV-1009.
+            last: list[str] = []
+            for clause in _CLAUSE.split(sentence):
+                decisions = [d for d, pattern in _ACTIONS if pattern.search(clause)] or last
+                if decisions is not last:
+                    last = decisions
+                for decision in decisions:
+                    for target, reasons in _targets(clause, decision, portfolio, prefixes):
+                        if reasons:
+                            violations.append(WrittenViolation(start, end, sentence.strip(), target, decision,
+                                                               tuple(reasons)))
+        start = boundary.end() if boundary else end
+    return violations
+
+
+def _targets(sentence: str, decision: str, portfolio, prefixes: set[str]):
+    for ref in _REF.findall(sentence):
+        number = ref.upper()
+        row = portfolio.by_number.get(number)
+        if row is None:
+            prefix = re.match(r"[A-Za-z]+", number).group(0)
+            if prefix in prefixes:
+                yield number, ["invoice is not in this workspace"]
+            continue
+        yield number, _invoice_reasons(portfolio, row, decision)
+    lowered = sentence.lower()
+    for account in getattr(portfolio, "accounts", []):
+        if account.lower() in lowered:
+            rows = [r for r in portfolio.invoices if r.counterparty == account]
+            if decision == "ESCALATE" and not any(portfolio.status(r) == "overdue" for r in rows):
+                yield account, ["account has nothing overdue to escalate"]
+            elif decision == "APPROVE" and not any(portfolio.balance(r) > 0 for r in rows):
+                yield account, ["account has nothing outstanding to recover"]
+            else:
+                yield account, []
+
+
+def _invoice_reasons(portfolio, row, decision: str) -> list[str]:
+    reasons = []
+    paid = portfolio.balance(row) <= 0
+    if paid and decision in {"APPROVE", "ESCALATE"}:
+        reasons.append("invoice is fully paid; there is nothing to recover")
+    elif decision == "ESCALATE" and portfolio.days_past_due(row) <= 0:
+        reasons.append("invoice is not overdue yet; escalation needs it to be past due")
+    return reasons

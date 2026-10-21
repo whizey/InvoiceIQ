@@ -63,8 +63,8 @@ def ask(portfolio, question, *llms, history=()):
 
 def test_offline_eval_set_passes_every_case():
     report = run_offline()
-    assert report["cases"] == 30
-    assert report["passed"] == 30, [r for r in report["results"] if not r["passed"]]
+    assert report["cases"] == 100
+    assert report["passed"] == 100, [r for r in report["results"] if not r["passed"]]
 
 
 def test_agent_calls_the_tool_the_question_needs_and_answers_from_it(portfolio):
@@ -73,10 +73,11 @@ def test_agent_calls_the_tool_the_question_needs_and_answers_from_it(portfolio):
     result, recorder = ask(portfolio, "How much is over 90 days?", llm)
     assert result.tools_called == ["get_aging_breakdown"]
     assert result.answer.startswith("₹5 lakh") and result.provider == "p0" and not result.fallback_used
-    assert result.verification == {"figures_checked": 2, "repaired": False, "removed": [], "blocked_proposals": 0}
+    assert result.verification == {"figures_checked": 2, "repaired": False, "removed": [], "blocked_proposals": 0,
+                                   "policy_repaired": False, "policy_removed": []}
     tool_message = llm.calls[1]["messages"][-1]
     assert isinstance(tool_message, ToolMessage) and "500000.00" in tool_message.content
-    assert [s.kind for s in recorder.spans] == ["llm", "tool", "llm", "check", "run"]
+    assert [s.kind for s in recorder.spans] == ["llm", "tool", "llm", "check", "policy", "run"]
 
 
 def test_made_up_figure_triggers_one_repair_round(portfolio):
@@ -118,7 +119,8 @@ def test_policy_blocks_bad_proposals_and_returns_only_allowed_ones(portfolio):
     assert result.proposals[0]["invoice_id"] and result.verification["blocked_proposals"] == 2
     blocked = [m for m in llm.calls[1]["messages"] if isinstance(m, ToolMessage) and '"allowed": false' in m.content]
     assert len(blocked) == 2 and "fully paid" in blocked[0].content and "stated reason" in blocked[1].content
-    assert [s.outcome for s in recorder.spans if s.kind == "policy"] == ["blocked", "allowed", "blocked"]
+    assert [s.outcome for s in recorder.spans if s.kind == "policy" and s.name == "ESCALATE"] == [
+        "blocked", "allowed", "blocked"]
 
 
 @pytest.mark.parametrize("invoice,decision,reason,violation", [
@@ -423,3 +425,140 @@ def test_answers_are_shown_as_plain_text(portfolio):
     result, _ = ask(portfolio, "Who first?", llm)
     assert result.answer == "Chase these:\n\nINV-1001 for Acme, \u20b95 lakh\nINV-1003, \u20b93 lakh"
     assert result.verification["removed"] == []
+
+
+def test_second_gemini_model_gets_portable_history_and_empty_replies_move_on(portfolio):
+    signed = AIMessage(content=[{"type": "text", "text": "", "extras": {"signature": "s"}}],
+                       tool_calls=[{"name": "get_portfolio_summary", "args": {}, "id": "t1"}],
+                       additional_kwargs={"__gemini_function_call_thought_signatures__": {"t1": "sig"}})
+    main = ScriptedLLM(signed, RuntimeError("429 RESOURCE_EXHAUSTED retryDelay: '40s'"))
+    lite = ScriptedLLM(AIMessage(content=[]))  # an empty reply is a failure, not an answer
+    groq = ScriptedLLM(AIMessage("Overdue is ₹15.2 lakh."))
+    providers = [Provider("gemini", "gemini-main", main), Provider("gemini", "gemini-lite", lite),
+                 Provider("groq", "llama-x", groq)]
+    recorder = TraceRecorder()
+    result = asyncio.run(answer_question(portfolio, "How much is overdue?", [], providers, recorder))
+    assert result.provider == "groq" and result.answer == "Overdue is ₹15.2 lakh."
+    handed = [m for m in lite.calls[0]["messages"] if isinstance(m, AIMessage)][-1]
+    assert handed.additional_kwargs == {} and handed.content == ""
+    assert [s.outcome for s in recorder.spans if s.kind == "llm"] == ["ok", "rate_limited", "empty", "ok"]
+
+
+def _with_old_invoice(portfolio):
+    """The fixture plus an invoice posted two years ago that is partly paid inside the last 12 months."""
+    import uuid
+    from datetime import date
+    from decimal import Decimal
+    from types import SimpleNamespace
+
+    from app.agents.finance_tools import Portfolio
+
+    old = SimpleNamespace(id=uuid.uuid4(), invoice_number="INV-0900", counterparty="Acme Traders",
+                          issue_date=date(2024, 9, 1), posting_date=date(2024, 9, 1), due_date=date(2024, 10, 1),
+                          amount_total=Decimal("400000"), amount_paid=Decimal("150000"),
+                          risk_probability=Decimal("0.70"), risk_provenance="fixture")
+    pay = SimpleNamespace(invoice_id=old.id, paid_on=date(2026, 6, 10), amount=Decimal("150000"))
+    return Portfolio([*portfolio.invoices, old], portfolio.events, portfolio.today, payments=[*portfolio.payments, pay])
+
+
+def _dashboard(p, **selection):
+    from types import SimpleNamespace
+
+    from app.schemas.preserved_dashboard import DashboardSelection
+    from app.services.portal_dashboard import compute_portal_dashboard
+
+    q = DashboardSelection(page_size=1, **selection)
+    return compute_portal_dashboard(p.invoices, p.payments, {e.invoice_id for e in p.events}, q,
+                                    SimpleNamespace(id=None, name="W", kind="customer"), today=p.today)
+
+
+@pytest.mark.parametrize("period,selection", [
+    ("last_12_months", {"start_date": "2025-10-01", "end_date": "2026-10-01"}),  # what the dashboard opens on
+    ("all_time", {}),
+])
+def test_every_assistant_figure_equals_the_dashboard(portfolio, period, selection):
+    from decimal import Decimal
+
+    p = _with_old_invoice(portfolio)
+    dash = _dashboard(p, **selection)
+    m = dash["metrics"]
+    summary = run_tool(p, "get_portfolio_summary", {"period": period})
+    assert summary["invoiced"] == f"{m['invoiced']:.2f}" and summary["collected_in_period"] == f"{m['collected']:.2f}"
+    assert summary["open_balance"] == f"{m['open']:.2f}" and summary["overdue_balance"] == f"{m['overdue']:.2f}"
+    assert (summary["overdue_invoices"], summary["open_invoices"], summary["invoice_count"]) == (
+        m["overdue_count"], m["open_count"], m["invoice_count"])
+    assert summary["overdue_share_of_open_pct"] == round(float(m["overdue_share"]), 2)
+    aging = run_tool(p, "get_aging_breakdown", {"period": period})
+    assert [(b["bucket"], b["balance"], b["invoices"]) for b in aging["buckets_days_past_due"]] == [
+        (b["key"], f"{b['amount']:.2f}", b["count"]) for b in dash["aging"]]
+    top = run_tool(p, "list_overdue_accounts", {"limit": 15, "period": period})["accounts"]
+    dash_top = [t for t in dash["top"] if t["overdue"] > 0]
+    assert [(a["account"], a["overdue_balance"], a["open_balance"]) for a in top] == [
+        (t["name"], f"{t['overdue']:.2f}", f"{t['open']:.2f}") for t in dash_top]
+    what_if = run_tool(p, "what_if_paid", {"account": "Acme", "period": period})
+    assert what_if["overdue_balance_before"] == f"{m['overdue']:.2f}"
+    assert what_if["open_balance_before"] == f"{m['open']:.2f}"
+    acme = run_tool(p, "get_customer_profile", {"account": "Acme", "period": period})
+    acme_dash = next(t for t in dash["top"] if t["name"] == "Acme Traders")
+    assert (acme["open_balance"], acme["overdue_balance"]) == (f"{acme_dash['open']:.2f}", f"{acme_dash['overdue']:.2f}")
+    found = run_tool(p, "search_invoices", {"status": "all", "limit": 15, "period": period})
+    assert found["matched"] == m["invoice_count"]
+    assert sum(Decimal(r["balance"]) for r in found["invoices"]) == m["open"]
+
+
+def test_old_invoices_stay_out_of_the_default_view_like_the_dashboard(portfolio):
+    p = _with_old_invoice(portfolio)
+    default = run_tool(p, "get_portfolio_summary", {})
+    everything = run_tool(p, "get_portfolio_summary", {"period": "all_time"})
+    assert default["period"] == "last_12_months" and default["overdue_balance"] == "1520000.00"
+    assert everything["overdue_balance"] == "1770000.00"  # plus the old invoice's ₹2.5 lakh balance
+    custom = run_tool(p, "get_portfolio_summary", {"start_date": "2024-01-01", "end_date": "2024-12-31"})
+    assert custom["invoice_count"] == 1 and custom["overdue_balance"] == "250000.00"
+    assert "error" in run_tool(p, "get_portfolio_summary", {"period": "forever"})
+    assert "error" in run_tool(p, "get_portfolio_summary", {"start_date": "2026-13-01"})
+
+
+def test_trend_is_the_dashboard_monthly_chart(portfolio):
+    p = _with_old_invoice(portfolio)
+    dash = {pt["period"].strftime("%Y-%m"): pt for pt in
+            _dashboard(p, start_date="2025-10-01", end_date="2026-10-01")["series"]}
+    trend = run_tool(p, "get_collections_trend", {"months": 6})
+    for month in trend["months"]:
+        point = dash.get(month["month"])
+        expected = (f"{point['invoiced']:.2f}", f"{point['collected']:.2f}") if point else ("0.00", "0.00")
+        assert (month["invoiced"], month["collected"]) == expected, month
+    # The old invoice's June receipt is outside the 12-month cohort, exactly as on the dashboard chart.
+    assert next(m for m in trend["months"] if m["month"] == "2026-06")["collected"] == "0.00"
+
+
+@pytest.mark.parametrize("text,blocked", [
+    ("I recommend escalating INV-1006 to prompt early outreach.", [("INV-1006", "ESCALATE")]),
+    ("You should chase INV-1007 today.", [("INV-1007", "APPROVE")]),
+    ("We should escalate INV-9999.", [("INV-9999", "ESCALATE")]),
+    ("Escalate INV-1009 and follow up on INV-1006 next week.", []),
+    ("INV-1007 is fully paid, so there is no need to escalate it.", []),
+    ("Acme Traders escalated INV-1001 last week.", []),
+    ("I suggest escalating Coral Foods.", []),  # it has a 6-day-overdue invoice
+])
+def test_written_recommendations_follow_the_proposal_rules(portfolio, text, blocked):
+    from app.agents.proposal_policy import check_written_recommendations
+
+    assert [(v.target, v.decision) for v in check_written_recommendations(text, portfolio)] == blocked
+
+
+def test_blocked_written_advice_is_rewritten_or_removed(portfolio):
+    llm = ScriptedLLM(call("get_invoice", {"invoice_number": "INV-1006"}),
+                      AIMessage("INV-1006 owes ₹2.5 lakh. I recommend escalating INV-1006 now."),
+                      AIMessage("INV-1006 owes ₹2.5 lakh and is not due yet, so wait until it falls due."))
+    result, recorder = ask(portfolio, "Should we escalate INV-1006?", llm)
+    assert result.answer.startswith("INV-1006 owes ₹2.5 lakh and is not due yet")
+    assert result.verification["policy_repaired"] and not result.verification["policy_removed"]
+    assert "escalate INV-1006 (invoice is not overdue yet" in llm.calls[2]["messages"][-1].content
+    assert [s.outcome for s in recorder.spans if s.kind == "policy"] == ["blocked", "allowed"]
+
+    stubborn = ScriptedLLM(call("get_invoice", {"invoice_number": "INV-1007"}),
+                           AIMessage("INV-1007 has ₹0 left. You should chase INV-1007 today."),
+                           AIMessage("INV-1007 has ₹0 left. You should chase INV-1007 today."))
+    result, _ = ask(portfolio, "What about INV-1007?", stubborn)
+    assert result.answer == "INV-1007 has ₹0 left."
+    assert result.verification["policy_removed"] == ["You should chase INV-1007 today."]

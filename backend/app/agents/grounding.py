@@ -140,7 +140,11 @@ def drop_ungrounded(answer: str, report: GroundingReport) -> str:
     Returns "" when the first sentence goes: it carries the direct answer, and what follows usually refers
     back to it ("That month's billing..."), so the remainder would read as nonsense.
     """
-    bad = [c.start for c in report.ungrounded]
+    return drop_sentences_at(answer, [c.start for c in report.ungrounded])
+
+
+def drop_sentences_at(answer: str, bad: list[int]) -> str:
+    """Remove each sentence containing one of the character positions; "" if the first sentence goes."""
     kept, start = [], 0
     for i, boundary in enumerate([*SENTENCE_END.finditer(answer), None]):
         end = boundary.start() if boundary else len(answer)

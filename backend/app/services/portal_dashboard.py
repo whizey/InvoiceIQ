@@ -168,25 +168,8 @@ def balance_bridge(invoices, payment_map, start, end):
             "collected": collected, "written_off": ZERO, "closing": closing}
 
 
-async def build_portal_dashboard(db, q, subject, *, export: bool = False):
-    session, workspace = subject
-    today = date.today()
-    as_of = q.as_of or today
-    if as_of > today:
-        raise HTTPException(422, "As-of cannot exceed the current business date")
-    if q.compare_date and q.compare_date >= as_of:
-        raise HTTPException(422, "Comparison cutoff must precede As of")
-    if q.currency != "INR":
-        raise HTTPException(422, "Portal ledger currently supports INR only")
-    invoices = (await db.scalars(select(PortalInvoice).where(
-        PortalInvoice.workspace_id == workspace.id).order_by(PortalInvoice.posting_date, PortalInvoice.id)
-        .limit(20001))).all()
-    if len(invoices) > 20000:
-        raise HTTPException(422, "This portfolio exceeds the interactive analytics limit")
-    payments = (await db.scalars(select(PortalPayment).where(
-        PortalPayment.workspace_id == workspace.id).limit(50001))).all()
-    if len(payments) > 50000:
-        raise HTTPException(422, "This payment ledger exceeds the interactive analytics limit")
+def payment_ledger(invoices, payments, today):
+    """invoice id -> [(paid_on, amount)] for payments dated up to today; the ledger must reconcile."""
     by_id = {r.id: r for r in invoices}
     payment_map = defaultdict(list)
     for payment in payments:
@@ -197,20 +180,56 @@ async def build_portal_dashboard(db, q, subject, *, export: bool = False):
     for invoice in invoices:
         if sum((p[1] for p in payment_map[invoice.id]), ZERO) != invoice.amount_paid:
             raise HTTPException(503, "Dated payments do not reconcile with invoice")
+    return payment_map
+
+
+def select_rows(invoices, payment_map, q, cutoff, event_ids):
+    """The invoices a dashboard selection covers at a cutoff, with their balance, age and status then."""
+    rows = []
+    for inv in invoices:
+        if inv.posting_date > cutoff:
+            continue
+        p, balance, age, status = invoice_state(inv, payment_map[inv.id], cutoff)
+        if permitted(inv, p, balance, age, status, q, cutoff,
+                     [entry[0] for entry in payment_map[inv.id]], event_ids):
+            rows.append({"invoice": inv, "paid": p, "balance": balance, "age": age, "status": status})
+    return rows
+
+
+async def build_portal_dashboard(db, q, subject, *, export: bool = False):
+    session, workspace = subject
+    invoices = (await db.scalars(select(PortalInvoice).where(
+        PortalInvoice.workspace_id == workspace.id).order_by(PortalInvoice.posting_date, PortalInvoice.id)
+        .limit(20001))).all()
+    if len(invoices) > 20000:
+        raise HTTPException(422, "This portfolio exceeds the interactive analytics limit")
+    payments = (await db.scalars(select(PortalPayment).where(
+        PortalPayment.workspace_id == workspace.id).limit(50001))).all()
+    if len(payments) > 50000:
+        raise HTTPException(422, "This payment ledger exceeds the interactive analytics limit")
     actor = str(session.user_id) if session.user_id else session.token_digest
     event_ids = set((await db.scalars(select(PortalCaseEvent.invoice_id).where(
         PortalCaseEvent.workspace_id == workspace.id,
         PortalCaseEvent.actor_scope.in_((actor, SHOWCASE_BASELINE_SCOPE) if workspace.kind == "showcase" else (actor,))))).all())
+    return PreservedDashboard(**compute_portal_dashboard(invoices, payments, event_ids, q, workspace, export=export))
+
+
+def compute_portal_dashboard(invoices, payments, event_ids, q, workspace, *, today: date | None = None,
+                             export: bool = False) -> dict:
+    """Every dashboard figure from already-loaded workspace rows. The assistant's tools call this too, so the
+    two can never disagree."""
+    today = today or date.today()
+    as_of = q.as_of or today
+    if as_of > today:
+        raise HTTPException(422, "As-of cannot exceed the current business date")
+    if q.compare_date and q.compare_date >= as_of:
+        raise HTTPException(422, "Comparison cutoff must precede As of")
+    if q.currency != "INR":
+        raise HTTPException(422, "Portal ledger currently supports INR only")
+    payment_map = payment_ledger(invoices, payments, today)
+
     def make_rows(cutoff):
-        rows = []
-        for inv in invoices:
-            if inv.posting_date > cutoff:
-                continue
-            p, balance, age, status = invoice_state(inv, payment_map[inv.id], cutoff)
-            if permitted(inv, p, balance, age, status, q, cutoff,
-                         [entry[0] for entry in payment_map[inv.id]], event_ids):
-                rows.append({"invoice": inv, "paid": p, "balance": balance, "age": age, "status": status})
-        return rows
+        return select_rows(invoices, payment_map, q, cutoff, event_ids)
     rows = make_rows(as_of)
     selected_ids = {r["invoice"].id for r in rows}
     def receipt_allowed(payment):
@@ -346,4 +365,4 @@ async def build_portal_dashboard(db, q, subject, *, export: bool = False):
             "limits": "Interactive cohort limited to 20,000 invoices and 50,000 payments.",
         },
     }
-    return PreservedDashboard(**output)
+    return output
