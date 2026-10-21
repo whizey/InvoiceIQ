@@ -520,11 +520,13 @@ async def assistant_stream(payload: AssistantInput, subject=Depends(identity), d
     session, workspace = subject
     if not _assistant_allowed(session.token_digest):
         raise HTTPException(429, "Too many questions; wait a minute and try again")
-    portfolio = await _assistant_portfolio(db, session, workspace)
     queue: asyncio.Queue = asyncio.Queue()
 
     async def produce():
         try:
+            # The workspace loads on its own session while the client already sees progress.
+            async with async_session_factory() as own:
+                portfolio = await _assistant_portfolio(own, session, workspace)
             await queue.put({"type": "answer", **await _assistant_answer(portfolio, payload, workspace,
                                                                          on_event=queue.put_nowait)})
         except Exception:  # noqa: BLE001 - the client gets a clean error event, never a stack trace
@@ -537,6 +539,7 @@ async def assistant_stream(payload: AssistantInput, subject=Depends(identity), d
         _streams.add(task)
         task.add_done_callback(_streams.discard)
         yield ": ok\n\n"
+        yield "data: " + json.dumps({"type": "status", "stage": "load", "label": "Reading your workspace…"}) + "\n\n"
         while (item := await queue.get()) is not None:
             yield f"data: {json.dumps(item, default=str)}\n\n"
 

@@ -117,7 +117,7 @@ async def test_recovery_summary_assistant_and_bridge_are_tenant_scoped(monkeypat
                 assert streamed.headers["content-type"].startswith("text/event-stream")
                 events = [json.loads(line[6:]) async for line in streamed.aiter_lines() if line.startswith("data: ")]
             labels = [e["label"] for e in events if e["type"] == "status"]
-            assert labels[:2] == ["Working out what to look up…", "Searching invoices…"]
+            assert labels[:3] == ["Reading your workspace…", "Working out what to look up…", "Searching invoices…"]
             assert "Checking every figure against your records…" in labels
             final = events[-1]
             assert final["type"] == "answer" and final["answer"] == "Chase INV-A first."
