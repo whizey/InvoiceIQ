@@ -615,3 +615,9 @@ def test_eval_scoring_sees_small_counts():
                           verification={})
     assert score_case(case, out)["correct"]
     assert not score_case(case, SimpleNamespace(**{**vars(out), "answer": "There are 2 of them."}))["correct"]
+
+
+def test_aging_buckets_carry_their_shares(portfolio):
+    buckets = {b["bucket"]: b for b in run_tool(portfolio, "get_aging_breakdown", {})["buckets_days_past_due"]}
+    assert buckets["90+"]["share_of_open_pct"] == 27.32 and buckets["90+"]["share_of_overdue_pct"] == 32.89
+    assert buckets["not_due"]["share_of_overdue_pct"] is None

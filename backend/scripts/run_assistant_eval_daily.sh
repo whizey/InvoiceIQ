@@ -6,7 +6,8 @@ cd "$(dirname "$0")/.."
 
 PYTHON=".venv/bin/python"
 [[ -x "$PYTHON" ]] || PYTHON="python"
-MODELS=${EVAL_MODELS:-"gemini:gemini-3.6-flash gemini:gemini-3.5-flash-lite groq:openai/gpt-oss-120b"}
+# gemini-3.6-flash is left out by default: its free tier allows 20 requests a day (about 6 questions).
+MODELS=${EVAL_MODELS:-"gemini:gemini-3.5-flash-lite groq:openai/gpt-oss-120b"}
 specs=()
 for model in $MODELS; do specs+=(--live "$model"); done
 

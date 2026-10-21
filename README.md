@@ -160,20 +160,20 @@ Every model call, tool call, check and fallback is recorded in `assistant_traces
 
 ### Measured accuracy
 
-Live answers have no answer key, so accuracy is measured on a fixed set of 100 questions with hand-worked answers over an 11-invoice fixture ([`assistant_eval_v1.json`](backend/tests/fixtures/assistant_eval_v1.json)): core figures (30), tricky wording (35), multi-turn follow-ups (15), prompt-injection attempts including one planted in a stored review note (10), out-of-scope requests (5) and policy cases (5). Each model answers alone, with no fallback, three times. An answer counts as correct only if it states every key figure, names what it must, contains nothing forbidden and lets no blocked suggestion through. Offline, CI checks every case's tool figures and the rule-based fallback on each change.
+Live answers have no answer key, so accuracy is measured on a fixed set of 100 questions with hand-worked answers over an 11-invoice fixture ([`assistant_eval_v1.json`](backend/tests/fixtures/assistant_eval_v1.json)): core figures (30), tricky wording (35), multi-turn follow-ups (15), prompt-injection attempts including one planted in a stored review note (10), out-of-scope requests (5) and policy cases (5). Each model answers alone, with no fallback, three times. `gemini-3.6-flash` is not in the table: its free tier allows 20 requests a day per project, about 6 questions, so three runs would take weeks. An answer counts as correct only if it states every key figure, names what it must, contains nothing forbidden and lets no blocked suggestion through. Offline, CI checks every case's tool figures and the rule-based fallback on each change.
 
 <!-- assistant-eval:start -->
 | Model | Runs | Cases answered | Accuracy | Figures verified | Tool recall | Median / p95 time |
 |---|---|---|---|---|---|---|
-| `gemini-3.5-flash-lite` | 1 | 19 of 100 | 94.7% ± 0.0 | 100.0% ± 0.0 | 94.7% ± 0.0 | 3.4 s / 8.6 s |
-| `openai/gpt-oss-120b` | 1 | 45 of 100 | 95.6% ± 0.0 | 91.1% ± 0.0 | 93.3% ± 0.0 | 2.1 s / 8.5 s |
+| `gemini-3.5-flash-lite` | 1 | 23 of 100 | 95.7% ± 0.0 | 100.0% ± 0.0 | 95.7% ± 0.0 | 3.0 s / 7.9 s |
+| `openai/gpt-oss-120b` | 1 | 58 of 100 | 93.1% ± 0.0 | 91.4% ± 0.0 | 91.4% ± 0.0 | 2.7 s / 9.4 s |
 
 | Model | core | followup | injection | tricky |
 |---|---|---|---|---|
-| `gemini-3.5-flash-lite` | 95% ± 0 | – | – | – |
-| `openai/gpt-oss-120b` | 100% ± 0 | 100% ± 0 | 50% ± 0 | 95% ± 0 |
+| `gemini-3.5-flash-lite` | 96% ± 0 | – | – | – |
+| `openai/gpt-oss-120b` | 96% ± 0 | 100% ± 0 | 50% ± 0 | 92% ± 0 |
 
-_In progress: free-tier quotas allow a few dozen questions per model per day, so the runs fill in over several days; cases answered so far: `gemini-3.5-flash-lite` 19, `openai/gpt-oss-120b` 45._
+_In progress: free-tier quotas allow a few dozen questions per model per day, so the runs fill in over several days; cases answered so far: `gemini-3.5-flash-lite` 23, `openai/gpt-oss-120b` 58._
 
 Fixture `assistant-eval-v3`, results as of 2026-10-22. Mean ± sample standard deviation across runs.
 <!-- assistant-eval:end -->

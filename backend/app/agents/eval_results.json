@@ -5,10 +5,10 @@
     "gemini:gemini-3.5-flash-lite": {
       "runs": 1,
       "answered_per_run": [
-        19
+        23
       ],
       "accuracy": {
-        "mean": 0.947,
+        "mean": 0.957,
         "sd": 0.0
       },
       "grounded": {
@@ -16,7 +16,7 @@
         "sd": 0.0
       },
       "tool_recall": {
-        "mean": 0.947,
+        "mean": 0.957,
         "sd": 0.0
       },
       "policy_trimmed": {
@@ -24,16 +24,16 @@
         "sd": 0.0
       },
       "p50_seconds": {
-        "mean": 3.43,
+        "mean": 2.99,
         "sd": 0.0
       },
       "p95_seconds": {
-        "mean": 8.63,
+        "mean": 7.93,
         "sd": 0.0
       },
       "by_category": {
         "core": {
-          "mean": 0.947,
+          "mean": 0.957,
           "sd": 0.0
         }
       }
@@ -41,18 +41,18 @@
     "groq:openai/gpt-oss-120b": {
       "runs": 1,
       "answered_per_run": [
-        45
+        58
       ],
       "accuracy": {
-        "mean": 0.956,
+        "mean": 0.931,
         "sd": 0.0
       },
       "grounded": {
-        "mean": 0.911,
+        "mean": 0.914,
         "sd": 0.0
       },
       "tool_recall": {
-        "mean": 0.933,
+        "mean": 0.914,
         "sd": 0.0
       },
       "policy_trimmed": {
@@ -60,16 +60,16 @@
         "sd": 0.0
       },
       "p50_seconds": {
-        "mean": 2.14,
+        "mean": 2.74,
         "sd": 0.0
       },
       "p95_seconds": {
-        "mean": 8.47,
+        "mean": 9.44,
         "sd": 0.0
       },
       "by_category": {
         "core": {
-          "mean": 1.0,
+          "mean": 0.955,
           "sd": 0.0
         },
         "followup": {
@@ -81,7 +81,7 @@
           "sd": 0.0
         },
         "tricky": {
-          "mean": 0.952,
+          "mean": 0.917,
           "sd": 0.0
         }
       }
