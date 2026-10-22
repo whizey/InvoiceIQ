@@ -26,6 +26,7 @@ from app.agents.grounding import check_grounding, drop_sentences_at, drop_ungrou
 from app.agents.proposal_policy import (
     MAX_PROPOSALS, check_written_recommendations, mark_unknown_invoices, unknown_invoice_refs,
 )
+from app.services import langsmith_tracing as langsmith
 from app.services.assistant_tracing import TraceRecorder
 
 MAX_STEPS = 5
@@ -299,6 +300,9 @@ class _Run:
                 break
             provider.alive = False
             self.recorder.add("fallback", provider.name, outcome="next")
+            with langsmith.step("provider_fallback", inputs={"from": provider.model, "provider": provider.name,
+                                                             "reason": failure.kind if failure else "timeout"}):
+                pass
             self.emit("fallback", "That model is busy, trying a backup…", model=provider.model)
         return None
 
@@ -312,10 +316,13 @@ class _Run:
                 result = {"error": f"at most {MAX_TOOLS_PER_STEP} tool calls per step"}
             else:
                 self.emit("tool", TOOL_LABELS.get(name, "Looking that up…"), tool=name)
-                with self.recorder.timed("tool", name) as span:
+                with self.recorder.timed("tool", name) as span, \
+                        langsmith.step(name, "tool", {"args": args}) as tool_run:
                     result = await arun_tool(self.portfolio, name, args)
                     if "error" in result:
                         span.outcome = "error"
+                    if tool_run is not None:
+                        tool_run.add_outputs({"result": result})
                 if name == "propose_decision" and "allowed" in result:
                     self.record_proposal(args, result)
                 self.outputs.append(result)
@@ -352,12 +359,22 @@ async def answer_question(portfolio: Portfolio, question: str, history: list[tup
                           providers: list[Provider], recorder: TraceRecorder, on_event=None) -> AgentResult:
     """Answer one question; ``on_event`` receives progress dicts for a streaming client."""
     started = monotonic()
-    result = await _answer(portfolio, question, history, providers, recorder, on_event)
-    # One run span per answer: who answered, and how long the whole answer took.
-    outcome = ("unconfigured" if result.provider == "rules" and not any(p.client for p in providers)
-               else "rules" if result.provider == "rules" else "backup" if result.fallback_used else "primary")
-    recorder.add("run", result.model, provider=result.provider, outcome=outcome,
-                 duration_ms=(monotonic() - started) * 1000)
+    with langsmith.answer_trace(portfolio.workspace, question, len(history)) as trace:
+        result = await _answer(portfolio, question, history, providers, recorder, on_event)
+        # One run span per answer: who answered, and how long the whole answer took.
+        outcome = ("unconfigured" if result.provider == "rules" and not any(p.client for p in providers)
+                   else "rules" if result.provider == "rules" else "backup" if result.fallback_used else "primary")
+        seconds = monotonic() - started
+        recorder.add("run", result.model, provider=result.provider, outcome=outcome, duration_ms=seconds * 1000)
+        v = result.verification
+        langsmith.finish(trace, {"answer": result.answer, "proposals": result.proposals}, {
+            "answered_by": outcome, "provider": result.provider, "model": result.model,
+            "fallback_used": result.fallback_used, "tools_called": result.tools_called,
+            "figures_checked": v.get("figures_checked", 0), "figures_removed": len(v.get("removed", [])),
+            "repaired": bool(v.get("repaired") or v.get("policy_repaired")),
+            "advice_removed": len(v.get("policy_removed", [])), "unknown_invoices": len(v.get("unknown_invoices", [])),
+            "blocked_proposals": v.get("blocked_proposals", 0), "seconds": round(seconds, 2),
+            "assistant_trace_id": str(recorder.run_id)})
     return result
 
 
@@ -379,9 +396,13 @@ async def _answer(portfolio: Portfolio, question: str, history: list[tuple[str, 
     run.emit("check", "Checking every figure against your records…")
 
     sources = [run.outputs, question, *[c for r, c in history if r == "user"]]
-    with recorder.timed("check", "grounding") as span:
+    with recorder.timed("check", "grounding") as span, \
+            langsmith.step("check_figures", inputs={"answer": answer}) as check_run:
         report = check_grounding(answer, grounded_values(*sources))
         span.outcome = "ok" if report.ok else "ungrounded"
+        if check_run is not None:
+            check_run.add_outputs({"figures": [c.text for c in report.claims],
+                                   "unverified": [c.text for c in report.ungrounded]})
     repaired, removed = False, []
     if not report.ok:
         run.emit("repair", "A figure didn't match, fixing it…")
@@ -399,9 +420,13 @@ async def _answer(portfolio: Portfolio, question: str, history: list[tuple[str, 
             removed = [c.text for c in report.ungrounded]
             answer = drop_ungrounded(answer, report) or UNVERIFIED_REPLY
 
-    with recorder.timed("policy", "written") as span:
+    with recorder.timed("policy", "written") as span, \
+            langsmith.step("check_written_advice", inputs={"answer": answer}) as policy_run:
         written = check_written_recommendations(answer, portfolio)
         span.outcome = "blocked" if written else "allowed"
+        if policy_run is not None:
+            policy_run.add_outputs({"blocked": [{"target": v.target, "decision": v.decision, "reasons": v.reasons}
+                                                for v in written]})
     policy_repaired, policy_removed = False, []
     if written:
         run.emit("policy", "Checking suggestions against review policy…")

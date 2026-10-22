@@ -477,7 +477,10 @@ async def transcribe(payload: TranscribeInput, subject=Depends(identity)):
         {"type": "media", "data": payload.audio, "mime_type": payload.mime}])
     # Fallback models first: they are the fast ones, and LLM_MODEL may be a slower reasoning model.
     fallbacks = [client for client, _ in gemini_fallback_chats(timeout=45)]
-    reply = await _invoke_first([*fallbacks, llm], [message], timeout=45)
+    from app.services.langsmith_tracing import untraced
+
+    with untraced():  # recorded customer audio never goes to LangSmith
+        reply = await _invoke_first([*fallbacks, llm], [message], timeout=45)
     if reply is None:
         raise HTTPException(503, "Transcription did not respond; try again shortly")
     return {"text": reply_text(reply.content)[:600]}

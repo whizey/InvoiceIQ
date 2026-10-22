@@ -48,6 +48,12 @@ services:
         sync: false
       - key: GROQ_MODEL        # a tool-calling model id; list yours with python -m app.agents.check_providers --groq
         sync: false
+      - key: LANGCHAIN_TRACING_V2   # optional LangSmith tracing of assistant answers
+        sync: false
+      - key: LANGCHAIN_API_KEY
+        sync: false
+      - key: LANGCHAIN_PROJECT
+        value: invoiceiq
       - key: INVOICEIQ_PORTAL_ENABLED
         value: "true"
       - key: INVOICEIQ_SHOWCASE_DATABASE
