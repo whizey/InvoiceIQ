@@ -306,28 +306,35 @@ class _Run:
             self.emit("fallback", "That model is busy, trying a backup…", model=provider.model)
         return None
 
+    async def run_tool_call(self, name: str, args: dict) -> dict:
+        self.emit("tool", TOOL_LABELS.get(name, "Looking that up…"), tool=name)
+        with self.recorder.timed("tool", name) as span, \
+                langsmith.step(name, "tool", {"args": args}) as tool_run:
+            result = await arun_tool(self.portfolio, name, args)
+            if "error" in result:
+                span.outcome = "error"
+            if tool_run is not None:
+                tool_run.add_outputs({"result": result})
+        return result
+
     async def run_tools(self, reply, messages) -> None:
+        """Run one step's tool calls together: every tool is a read-only lookup, so they are independent,
+        and a step that searches notes four times waits for one embedding call instead of four. Results are
+        recorded and handed back to the model in the order it asked for them."""
         from langchain_core.messages import ToolMessage
 
         messages.append(reply)
-        for i, call in enumerate(reply.tool_calls):
-            name, args = call.get("name", ""), call.get("args") or {}
-            if i >= MAX_TOOLS_PER_STEP:
-                result = {"error": f"at most {MAX_TOOLS_PER_STEP} tool calls per step"}
-            else:
-                self.emit("tool", TOOL_LABELS.get(name, "Looking that up…"), tool=name)
-                with self.recorder.timed("tool", name) as span, \
-                        langsmith.step(name, "tool", {"args": args}) as tool_run:
-                    result = await arun_tool(self.portfolio, name, args)
-                    if "error" in result:
-                        span.outcome = "error"
-                    if tool_run is not None:
-                        tool_run.add_outputs({"result": result})
+        calls = [(call.get("name", ""), call.get("args") or {}, call.get("id")) for call in reply.tool_calls]
+        allowed = calls[:MAX_TOOLS_PER_STEP]
+        results = list(await asyncio.gather(*(self.run_tool_call(name, args) for name, args, _ in allowed)))
+        results += [{"error": f"at most {MAX_TOOLS_PER_STEP} tool calls per step"}] * (len(calls) - len(allowed))
+        for index, ((name, args, call_id), result) in enumerate(zip(calls, results)):
+            if index < MAX_TOOLS_PER_STEP:
                 if name == "propose_decision" and "allowed" in result:
                     self.record_proposal(args, result)
                 self.outputs.append(result)
                 self.tools_called.append(name)
-            messages.append(ToolMessage(content=json.dumps(result, default=str), tool_call_id=call.get("id") or name,
+            messages.append(ToolMessage(content=json.dumps(result, default=str), tool_call_id=call_id or name,
                                         name=name))
 
     def record_proposal(self, args: dict, result: dict) -> None:

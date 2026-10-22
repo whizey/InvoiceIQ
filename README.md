@@ -170,6 +170,14 @@ Every model call, tool call, check and fallback is recorded in `assistant_traces
 
 Hybrid keeps every exact-term match (invoice numbers, "IFSC", "credit note"), which meaning alone misses, while lifting paraphrase recall from 0.07 to 0.71; meaning alone is better on pure paraphrases. The floor was chosen on this same benchmark, so these figures are optimistic for unseen notes; `gemini-embedding-2` scored lower and was not used. `python -m app.agents.retrieval_eval --sweep` reproduces the table.
 
+**Latency.** Ranking is local and cheap (about 0.7 ms for 28 notes, keyword or hybrid); the cost of hybrid is embedding the question, about 0.65 s median per search (20 calls, p90 0.68 s). Because the model often searches several times in one step, a step's tool calls run concurrently (they are all read-only) and question embeddings are cached, with identical concurrent searches sharing one call. Measured on a step of four hybrid searches against the live embedding API, 5 rounds:
+
+| Step with 4 note searches | Median | Range |
+|---|---|---|
+| One after another (before) | 2.63 s | 2.48–3.44 s |
+| Concurrent | **0.74 s** | 0.71–0.94 s |
+| Concurrent, repeated question (cache) | **0.007 s** | 0.005–0.007 s |
+
 ### Measured accuracy
 
 Live answers have no answer key, so accuracy is measured on a fixed set of 108 questions with hand-worked answers over an 11-invoice fixture ([`assistant_eval_v1.json`](backend/tests/fixtures/assistant_eval_v1.json)): core figures (30), tricky wording (35), multi-turn follow-ups (15), prompt-injection attempts including one planted in a stored review note (10), out-of-scope requests (5), policy cases (5) and invoice notes (8, including a planted instruction). Each model answers alone, with no fallback, three times. `gemini-3.6-flash` is not in the table: its free tier allows 20 requests a day per project, about 6 questions, so three runs would take weeks. An answer counts as correct only if it states every key figure, names what it must, contains nothing forbidden and lets no blocked suggestion through. Offline, CI checks every case's tool figures and the rule-based fallback on each change.

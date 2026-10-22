@@ -1,5 +1,6 @@
 """Receivables agent: tool loop, figure check, proposal policy, provider fallback and offline evals."""
 import asyncio
+import json
 
 import pytest
 from langchain_core.messages import AIMessage, ToolMessage
@@ -682,3 +683,54 @@ def test_real_invoice_numbers_in_any_format_are_recognised():
         assert unknown_invoice_refs(f"{text} is the oldest invoice.", p) == [], text
     assert [t for _, _, t in unknown_invoice_refs("Chase INV/2026/9999 and SO-7777 now.", p)] == [
         "INV/2026/9999", "SO-7777"]
+
+
+def test_a_steps_tool_calls_run_together_and_keep_their_order(portfolio, monkeypatch):
+    import time
+
+    started = []
+
+    async def slow_tool(p, name, args):
+        started.append(args["tag"])
+        await asyncio.sleep(0.2)
+        return {"tag": args["tag"]}
+
+    monkeypatch.setattr(finance_agent, "arun_tool", slow_tool)
+    step = AIMessage(content="", tool_calls=[{"name": "search_notes", "args": {"tag": t}, "id": t} for t in "abc"])
+    llm = ScriptedLLM(step, AIMessage("Done."))
+    began = time.perf_counter()
+    result, recorder = ask(portfolio, "Search three ways", llm)
+    elapsed = time.perf_counter() - began
+    assert elapsed < 0.45, elapsed  # three 0.2 s lookups overlap instead of taking 0.6 s
+    assert sorted(started) == ["a", "b", "c"] and result.tools_called == ["search_notes"] * 3
+    tool_messages = [m for m in llm.calls[1]["messages"] if isinstance(m, ToolMessage)]
+    assert [m.tool_call_id for m in tool_messages] == ["a", "b", "c"]  # handed back in the order asked
+    assert [json.loads(m.content)["tag"] for m in tool_messages] == ["a", "b", "c"]
+    assert len([s for s in recorder.spans if s.kind == "tool"]) == 3
+
+
+def test_question_embeddings_are_cached_shared_and_failures_retried(monkeypatch):
+    import numpy as np
+
+    from app.services import note_embeddings
+
+    calls = []
+
+    async def fake_embed(texts, task, **kwargs):
+        calls.append(texts[0])
+        await asyncio.sleep(0.05)
+        return None if "fail" in texts[0] else [np.ones(note_embeddings.DIMENSIONS, dtype=np.float32)]
+
+    monkeypatch.setattr(note_embeddings, "embed", fake_embed)
+    monkeypatch.setattr(note_embeddings, "_query_cache", type(note_embeddings._query_cache)())
+
+    async def scenario():
+        first, second = await asyncio.gather(note_embeddings.embed_query("Disputed delivery"),
+                                             note_embeddings.embed_query("disputed   DELIVERY"))
+        again = await note_embeddings.embed_query("disputed delivery")
+        assert first is not None and second is not None and again is not None
+        assert await note_embeddings.embed_query("please fail") is None
+        assert await note_embeddings.embed_query("please fail") is None
+
+    asyncio.run(scenario())
+    assert calls == ["Disputed delivery", "please fail", "please fail"]  # one call shared; failures retried
