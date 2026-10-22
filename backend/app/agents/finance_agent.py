@@ -23,7 +23,9 @@ from app.agents.finance_tools import (
     search_invoices,
 )
 from app.agents.grounding import check_grounding, drop_sentences_at, drop_ungrounded, grounded_values
-from app.agents.proposal_policy import MAX_PROPOSALS, check_written_recommendations
+from app.agents.proposal_policy import (
+    MAX_PROPOSALS, check_written_recommendations, mark_unknown_invoices, unknown_invoice_refs,
+)
 from app.services.assistant_tracing import TraceRecorder
 
 MAX_STEPS = 5
@@ -62,8 +64,8 @@ SYSTEM_PROMPT = (
 )
 REPAIR_PROMPT = ("These figures in your answer do not appear in any tool result: {claims}. Rewrite the answer "
                  "using only figures that tools returned (call a tool if you need one), or drop those claims.")
-POLICY_PROMPT = ("Your answer names invoices that do not exist or recommends actions the review policy blocks: "
-                 "{items}. Rewrite it without them; you may say why an action is not appropriate.")
+POLICY_PROMPT = ("Your answer recommends actions the review policy blocks: {items}. Rewrite it without "
+                 "recommending them; you may say why they are not appropriate.")
 FINAL_PROMPT = "Answer now from the tool results you already have; no more tool calls."
 
 
@@ -418,6 +420,11 @@ async def _answer(portfolio: Portfolio, question: str, history: list[tuple[str, 
             answer = drop_sentences_at(answer, [v.start for v in written]) or UNVERIFIED_REPLY
         recorder.add("policy", "written_retry", outcome="blocked" if written else "allowed")
 
+    # An invoice number that matches nothing in the workspace stays in the answer, marked, never removed.
+    unknown = unknown_invoice_refs(answer, portfolio)
+    if unknown:
+        answer = mark_unknown_invoices(answer, unknown)
+
     allowed = [v for v in run.verdicts.values() if v["allowed"]][:MAX_PROPOSALS]
     recorder.add("check", "result", outcome="trimmed" if removed or policy_removed
                  else "repaired" if repaired or policy_repaired else "verified")
@@ -426,7 +433,8 @@ async def _answer(portfolio: Portfolio, question: str, history: list[tuple[str, 
         proposals=allowed,
         verification={"figures_checked": len(report.claims), "repaired": repaired, "removed": removed,
                       "blocked_proposals": sum(not v["allowed"] for v in run.verdicts.values()),
-                      "policy_repaired": policy_repaired, "policy_removed": policy_removed},
+                      "policy_repaired": policy_repaired, "policy_removed": policy_removed,
+                      "unknown_invoices": [text for _, _, text in unknown]},
         fallback_used=run.used is not run.providers[0])
 
 
@@ -498,7 +506,8 @@ def _rule_based(portfolio: Portfolio, question: str, recorder: TraceRecorder, *,
         text, called = _template(portfolio, choice)
     return AgentResult(answer=text, model=RULE_BASED_MODEL, provider="rules", tools_called=called,
                        verification={"figures_checked": 0, "repaired": False, "removed": [],
-                                     "blocked_proposals": 0, "policy_repaired": False, "policy_removed": []},
+                                     "blocked_proposals": 0, "policy_repaired": False, "policy_removed": [],
+                                     "unknown_invoices": []},
                        fallback_used=True)
 
 

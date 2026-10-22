@@ -74,7 +74,7 @@ def test_agent_calls_the_tool_the_question_needs_and_answers_from_it(portfolio):
     assert result.tools_called == ["get_aging_breakdown"]
     assert result.answer.startswith("₹5 lakh") and result.provider == "p0" and not result.fallback_used
     assert result.verification == {"figures_checked": 2, "repaired": False, "removed": [], "blocked_proposals": 0,
-                                   "policy_repaired": False, "policy_removed": []}
+                                   "policy_repaired": False, "policy_removed": [], "unknown_invoices": []}
     tool_message = llm.calls[1]["messages"][-1]
     assert isinstance(tool_message, ToolMessage) and "500000.00" in tool_message.content
     assert [s.kind for s in recorder.spans] == ["llm", "tool", "llm", "check", "policy", "check", "run"]
@@ -537,8 +537,8 @@ def test_trend_is_the_dashboard_monthly_chart(portfolio):
 @pytest.mark.parametrize("text,blocked", [
     ("I recommend escalating INV-1006 to prompt early outreach.", [("INV-1006", "ESCALATE")]),
     ("You should chase INV-1007 today.", [("INV-1007", "APPROVE")]),
-    ("We should escalate INV-9999.", [("INV-9999", "MENTION")]),
-    ("INV-4242 is the oldest overdue invoice.", [("INV-4242", "MENTION")]),
+    ("We should escalate INV-9999.", []),  # unknown numbers are marked, not treated as policy breaches
+    ("You should chase inv 1007 today.", [("INV-1007", "APPROVE")]),  # resolved despite case and spacing
     ("Escalate INV-1009 and follow up on INV-1006 next week.", []),
     ("INV-1007 is fully paid, so there is no need to escalate it.", []),
     ("Acme Traders escalated INV-1001 last week.", []),
@@ -658,10 +658,27 @@ def test_a_note_telling_the_assistant_to_approve_cannot_get_a_paid_invoice_appro
     assert "withheld" in note_message.content and "Ignore all previous" not in note_message.content
 
 
-def test_an_invented_invoice_number_is_removed(portfolio):
-    llm = ScriptedLLM(call("get_portfolio_summary"),
-                      AIMessage("Overdue is ₹15.2 lakh. INV-4242 is the oldest item."),
-                      AIMessage("Overdue is ₹15.2 lakh. INV-4242 is the oldest item."))
+def test_an_unknown_invoice_number_is_marked_never_removed(portfolio):
+    llm = ScriptedLLM(call("get_portfolio_summary"), AIMessage("Overdue is ₹15.2 lakh. INV-4242 is the oldest item."))
     result, _ = ask(portfolio, "How much is overdue?", llm)
-    assert result.answer == "Overdue is ₹15.2 lakh."
-    assert result.verification["policy_removed"] == ["INV-4242 is the oldest item."]
+    assert result.answer == "Overdue is ₹15.2 lakh. INV-4242 (not found in your records) is the oldest item."
+    assert result.verification["unknown_invoices"] == ["INV-4242"] and result.verification["policy_removed"] == []
+
+
+def test_real_invoice_numbers_in_any_format_are_recognised():
+    from datetime import date
+    from decimal import Decimal
+    from types import SimpleNamespace
+
+    from app.agents.finance_tools import Portfolio
+    from app.agents.proposal_policy import resolve_invoice, unknown_invoice_refs
+
+    numbers = ["SO-1001/2", "INV/2026/0042", "INV-2026-001.A", "IQ-2026-00037", "AB12-77"]
+    rows = [SimpleNamespace(id=i, invoice_number=n, counterparty="C", amount_total=Decimal(10),
+                            amount_paid=Decimal(0), due_date=date(2026, 1, 1)) for i, n in enumerate(numbers)]
+    p = Portfolio(rows, [])
+    for text in numbers + ["so-1001/2", "inv 2026/0042", "INV-2026-001.A.", "iq-2026-00037"]:
+        assert resolve_invoice(text, p) not in (None, "ambiguous"), text
+        assert unknown_invoice_refs(f"{text} is the oldest invoice.", p) == [], text
+    assert [t for _, _, t in unknown_invoice_refs("Chase INV/2026/9999 and SO-7777 now.", p)] == [
+        "INV/2026/9999", "SO-7777"]
