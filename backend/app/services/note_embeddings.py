@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections import OrderedDict
 
 import numpy as np
 
@@ -65,9 +66,27 @@ async def embed(texts: list[str], task: str, *, model: str | None = None, api_ke
         return None
 
 
+QUERY_CACHE_SIZE = 512
+_query_cache: "OrderedDict[tuple[str, str], asyncio.Task]" = OrderedDict()
+
+
 async def embed_query(text: str) -> np.ndarray | None:
-    vectors = await embed([text], "query", timeout=6.0)
-    return vectors[0] if vectors else None
+    """The question's embedding, cached: a repeated or follow-up search with the same words costs no API call,
+    and identical searches running at the same moment share one call. Failures are not cached."""
+    key = (model_name() or "", " ".join(text.lower().split()))
+    task = _query_cache.get(key)
+    if task is None:
+        task = asyncio.ensure_future(embed([text], "query", timeout=6.0))
+        _query_cache[key] = task
+        while len(_query_cache) > QUERY_CACHE_SIZE:
+            _query_cache.popitem(last=False)
+    else:
+        _query_cache.move_to_end(key)
+    vectors = await asyncio.shield(task)
+    if not vectors:
+        _query_cache.pop(key, None)
+        return None
+    return vectors[0]
 
 
 async def backfill(session, workspace_id=None, limit: int = 500) -> int:
