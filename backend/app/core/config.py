@@ -92,6 +92,8 @@ class Settings(BaseSettings):
     langchain_tracing_v2: bool = False
     langchain_api_key: str | None = None
     langchain_project: str = "invoiceiq"
+    # LangSmith traces of customer workspaces carry structure and metadata only, unless this is set.
+    langsmith_log_customer_content: bool = False
 
     # In-process recovery loop (detect overdue + one cycle per active case).
     # Off by default so CI/tests stay deterministic; enable in backend/.env.
