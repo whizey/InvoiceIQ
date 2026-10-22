@@ -158,6 +158,18 @@ Workspace figures come from the dashboard's own calculation (`compute_portal_das
 
 Every model call, tool call, check and fallback is recorded in `assistant_traces` (metadata only, no question or answer text). With `LANGCHAIN_TRACING_V2` and `LANGCHAIN_API_KEY` set, each answer is also one **LangSmith** trace: the model calls, every tool call with its arguments and result, the figure and policy checks and any fallback, nested in order, with metadata to filter on (who answered, fallback used, figures checked and removed, latency). Customer-workspace traces carry structure and metadata only unless `LANGSMITH_LOG_CUSTOMER_CONTENT=true`; the illustrative showcase and eval fixture are sent in full, and recorded voice audio is never sent. The **reliability page** (`/assistant/reliability`) shows, per workspace, which model answered (main, backup or rules), how the figures fared (verified, fixed after a rewrite, trimmed), response times, and the evaluation results below. `python -m app.agents.check_providers` tests each model in the chain with one tool call.
 
+### Note search: hybrid retrieval
+
+`search_notes` ranks a workspace's notes two ways and merges them with reciprocal rank fusion ([`note_search.py`](backend/app/agents/note_search.py)): TF-IDF keywords with light stemming, and similarity of Gemini embeddings (`gemini-embedding-001`, 256 dimensions, stored per note and backfilled). A note counts as a semantic match above a cosine floor of 0.75; without an embedding key it is keyword-only. Measured on a hand-labelled benchmark of 28 notes and 25 queries ([`notes_retrieval_v1.json`](backend/tests/fixtures/notes_retrieval_v1.json): 7 keyword, 6 mixed, 7 paraphrase with no shared words, 5 unrelated), with cached embeddings so CI reruns it offline:
+
+| Method | Recall@3 | MRR | Hit@1 | Recall@3: keyword / mixed / paraphrase | False matches per unrelated query |
+|---|---|---|---|---|---|
+| Keywords only | 0.65 | 0.72 | 0.70 | 1.00 / 0.92 / 0.07 | 0.6 |
+| Meaning only | 0.90 | 0.88 | 0.80 | 0.86 / 1.00 / 0.86 | 0.2 |
+| **Hybrid** | **0.90** | **0.89** | **0.80** | **1.00 / 1.00 / 0.71** | 0.6 |
+
+Hybrid keeps every exact-term match (invoice numbers, "IFSC", "credit note"), which meaning alone misses, while lifting paraphrase recall from 0.07 to 0.71; meaning alone is better on pure paraphrases. The floor was chosen on this same benchmark, so these figures are optimistic for unseen notes; `gemini-embedding-2` scored lower and was not used. `python -m app.agents.retrieval_eval --sweep` reproduces the table.
+
 ### Measured accuracy
 
 Live answers have no answer key, so accuracy is measured on a fixed set of 108 questions with hand-worked answers over an 11-invoice fixture ([`assistant_eval_v1.json`](backend/tests/fixtures/assistant_eval_v1.json)): core figures (30), tricky wording (35), multi-turn follow-ups (15), prompt-injection attempts including one planted in a stored review note (10), out-of-scope requests (5), policy cases (5) and invoice notes (8, including a planted instruction). Each model answers alone, with no fallback, three times. `gemini-3.6-flash` is not in the table: its free tier allows 20 requests a day per project, about 6 questions, so three runs would take weeks. An answer counts as correct only if it states every key figure, names what it must, contains nothing forbidden and lets no blocked suggestion through. Offline, CI checks every case's tool figures and the rule-based fallback on each change.

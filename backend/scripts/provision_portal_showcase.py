@@ -18,6 +18,7 @@ from sqlalchemy.engine import make_url
 from app.core.db import async_session_factory, engine
 from app.api.portal import SHOWCASE_ID
 from app.models.portal import PortalWorkspace, PortalInvoice, PortalPayment, PortalCaseEvent, PortalNote
+from app.services import note_embeddings
 from app.services.portal_recovery import SHOWCASE_BASELINE_SCOPE
 from app.services.portal_risk import score_workspace
 
@@ -137,9 +138,10 @@ async def main(*, refresh: bool = False):
             if count and not refresh:
                 seeded = await seed_baseline_decisions(db)
                 noted = await seed_baseline_notes(db)
+                embedded = await note_embeddings.backfill(db, SHOWCASE_ID)
                 await db.commit()
                 print(f"Showcase already populated: {count} invoices; {seeded} baseline decisions and "
-                      f"{noted} sample notes added")
+                      f"{noted} sample notes added; {embedded} notes embedded for semantic search")
                 return
             if refresh and count != 1500:
                 raise RuntimeError("Expected exactly 1500 existing illustrative invoices before refresh")
@@ -195,6 +197,7 @@ async def main(*, refresh: bool = False):
             scoring = await score_workspace(db, SHOWCASE_ID)
             await seed_baseline_decisions(db)
             await seed_baseline_notes(db)
+            await note_embeddings.backfill(db, SHOWCASE_ID)
             await db.commit()
             print(("Refreshed" if refresh else "Provisioned") +
                   f" 1500 isolated illustrative invoices; {scoring['scored']} "
