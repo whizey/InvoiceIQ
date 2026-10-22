@@ -591,7 +591,16 @@ async def assistant_reliability(days: int = Query(default=7, ge=1, le=90), subje
         evaluation = json.loads(EVAL_RESULTS.read_text())
     except (OSError, ValueError):
         evaluation = None
-    return {"live": await reliability(db, workspace.id, days), "eval": evaluation}
+    from app.core.config import settings
+    from app.services import langsmith_tracing, note_embeddings
+
+    # Configuration only, never the keys: lets an operator confirm the deployed settings took effect.
+    tracing = {"langsmith": langsmith_tracing.enabled(),
+               "project": settings.langchain_project if langsmith_tracing.enabled() else None,
+               "customer_content": "sent" if settings.langsmith_log_customer_content else "redacted",
+               "tracing_flag_set": bool(settings.langchain_tracing_v2), "api_key_set": bool(settings.langchain_api_key),
+               "note_search": "hybrid" if note_embeddings.available() else "keywords"}
+    return {"live": await reliability(db, workspace.id, days), "eval": evaluation, "tracing": tracing}
 
 
 @router.get("/invoices")

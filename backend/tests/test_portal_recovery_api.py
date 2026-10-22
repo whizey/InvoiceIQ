@@ -127,6 +127,9 @@ async def test_recovery_summary_assistant_and_bridge_are_tenant_scoped(monkeypat
 
             # Reliability page data: who answered, how the figures fared, timings; scoped to the workspace.
             page = (await client.get("/portal/assistant-reliability", headers=headers[0])).json()
+            assert page["tracing"] == {"langsmith": False, "project": None, "customer_content": "redacted",
+                                       "tracing_flag_set": False, "api_key_set": False, "note_search": "keywords"}
+            assert all(not isinstance(v, str) or len(v) < 40 for v in page["tracing"].values())  # never a key
             live = page["live"]
             assert live["answers"] == 3
             assert (live["answered_by"]["primary"]["count"], live["answered_by"]["unconfigured"]["count"]) == (2, 1)

@@ -10,7 +10,8 @@ type Stat={mean:number;sd:number};
 type EvalModel={runs:number;answered_per_run:number[];accuracy:Stat;grounded:Stat;tool_recall:Stat;
   p50_seconds:Stat;p95_seconds:Stat;by_category:Record<string,Stat>};
 type Evaluation={fixture:string;cases:number;generated_on?:string;models:Record<string,EvalModel>};
-type Reliability={live:Live;eval:Evaluation|null};
+type Tracing={langsmith:boolean;project:string|null;customer_content:"sent"|"redacted";note_search:"hybrid"|"keywords"};
+type Reliability={live:Live;eval:Evaluation|null;tracing?:Tracing};
 
 const WINDOWS=[7,30,90];
 const CATEGORY_LABEL:Record<string,string>={core:"Core",tricky:"Tricky wording",followup:"Follow-ups",
@@ -84,6 +85,7 @@ export default function AssistantReliability(){
       </>}
     </section>
 
+    {data?.tracing&&<p className="rp-muted">LangSmith tracing: {data.tracing.langsmith?`on (project ${data.tracing.project}, customer content ${data.tracing.customer_content})`:"off"} · Note search: {data.tracing.note_search}</p>}
     <section aria-labelledby="rel-eval">
       <h2 id="rel-eval">Answer accuracy (evaluation)</h2>
       <p className="rp-muted">Live answers have no answer key, so accuracy is measured offline: {evaluation?.cases??100} questions with
