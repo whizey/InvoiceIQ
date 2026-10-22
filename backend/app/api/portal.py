@@ -499,7 +499,10 @@ async def _assistant_portfolio(db: AsyncSession, session, workspace):
         async with async_session_factory() as own:
             return await explain_invoice(own, workspace.id, invoice_id)
 
-    return Portfolio(invoices, events, payments=payments, workspace=workspace, explain=explain, notes=notes)
+    from app.services import note_embeddings
+
+    return Portfolio(invoices, events, payments=payments, workspace=workspace, explain=explain, notes=notes,
+                     embed_query=note_embeddings.embed_query if note_embeddings.available() else None)
 
 
 async def _assistant_answer(portfolio, payload: AssistantInput, workspace, on_event=None) -> dict:
@@ -695,6 +698,12 @@ async def add_note(payload: NoteInput, subject=Depends(identity), db: AsyncSessi
             raise HTTPException(403, "Reviewer permission required to add notes")
     note = PortalNote(workspace_id=workspace.id, invoice_id=invoice.id, kind=payload.kind, body=body,
                       author_scope=session.token_digest if workspace.kind == "showcase" else str(session.user_id))
+    from app.services import note_embeddings
+
+    # Embedded now for semantic search; if that fails the note still saves and is found by keywords.
+    vectors = await note_embeddings.embed([body], "document", timeout=5.0) if note_embeddings.available() else None
+    if vectors:
+        note.embedding, note.embedding_model = note_embeddings.pack(vectors[0]), note_embeddings.model_name()
     db.add(note)
     await db.commit()
     await db.refresh(note)

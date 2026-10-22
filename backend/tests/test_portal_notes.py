@@ -62,15 +62,36 @@ async def test_notes_are_workspace_scoped_validated_and_read_by_the_assistant(mo
             ids = [(await client.get(f"/portal/invoices?q=N-{x}", headers=headers[i])).json()["invoices"][0]["id"]
                    for i, x in enumerate("AB")]
 
+            # Saved notes are embedded for semantic search; if embedding fails the note still saves.
+            import numpy as np
+            from app.services import note_embeddings
+
+            async def fake_embed(texts, task, **kwargs):
+                return None if "offline" in texts[0] else [np.eye(note_embeddings.DIMENSIONS, dtype=np.float32)[0]]
+            monkeypatch.setattr(note_embeddings, "available", lambda: True)
+            monkeypatch.setattr(note_embeddings, "embed", fake_embed)
             added = await client.post("/portal/notes", headers=headers[0], json={
                 "invoice_id": ids[0], "kind": "dispute", "body": "Customer disputes the delivery date."})
             assert added.status_code == 201, added.text
             assert added.json()["invoice"] == "N-A" and added.json()["sample"] is False
+            unembedded = await client.post("/portal/notes", headers=headers[1], json={
+                "invoice_id": ids[1], "kind": "internal", "body": "Embedding service offline today."})
+            assert unembedded.status_code == 201
+            async with async_session_factory() as session:
+                from sqlalchemy import select
+                from app.models.portal import PortalNote
+
+                stored = {n.body: n for n in (await session.scalars(select(PortalNote).where(
+                    PortalNote.workspace_id.in_(workspace_ids)))).all()}
+            assert note_embeddings.unpack(stored["Customer disputes the delivery date."].embedding) is not None
+            assert stored["Customer disputes the delivery date."].embedding_model == note_embeddings.model_name()
+            assert stored["Embedding service offline today."].embedding is None
             # Workspace B can neither write to nor read A's invoice notes.
             assert (await client.post("/portal/notes", headers=headers[1], json={
                 "invoice_id": ids[0], "kind": "internal", "body": "Sneaky note"})).status_code == 404
             assert (await client.get(f"/portal/notes?invoice_id={ids[0]}", headers=headers[1])).json()["notes"] == []
-            assert (await client.get("/portal/notes", headers=headers[1])).json()["notes"] == []
+            assert [n["invoice"] for n in (await client.get("/portal/notes", headers=headers[1])).json()["notes"]] == [
+                "N-B"]  # only its own note
             own = (await client.get(f"/portal/notes?invoice_id={ids[0]}", headers=headers[0])).json()["notes"]
             assert [n["body"] for n in own] == ["Customer disputes the delivery date."]
             # Validation and authentication.
@@ -83,6 +104,7 @@ async def test_notes_are_workspace_scoped_validated_and_read_by_the_assistant(mo
                                                              "body": "No session"})).status_code == 401
 
             # The assistant reads only the asking workspace's notes.
+            monkeypatch.setattr(note_embeddings, "available", lambda: False)  # keyword search for this part
             for index, expected in ((0, ["N-A"]), (1, [])):
                 llm = SearchThenAnswer()
                 monkeypatch.setattr("app.agents.llm_client._llm_chat", lambda llm=llm: (llm, "fake"))

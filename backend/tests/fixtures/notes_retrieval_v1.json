@@ -1,0 +1,237 @@
+{
+ "version": "notes-retrieval-v1",
+ "note": "Relevance marked by hand. 'keyword' queries share words with their notes, 'paraphrase' ones share none, 'mixed' share some. 'unrelated' queries have no relevant note: any result returned is a false match.",
+ "notes": {
+  "n01": "Customer disputes the quantity delivered; waiting for proof of delivery.",
+  "n02": "Pricing dispute: customer expected the contract rate rather than list price.",
+  "n03": "Goods arrived damaged; customer is withholding payment until a replacement ships.",
+  "n04": "Customer says the invoice was raised twice for the same shipment.",
+  "n05": "Customer promised to pay the full balance by the end of this month.",
+  "n06": "Promised a part payment of half the balance this week.",
+  "n07": "Payment promised straight after their month-end close.",
+  "n08": "Owner promised to clear all overdue invoices once their own client pays.",
+  "n09": "Called accounts payable; no answer, left a voicemail.",
+  "n10": "Account manager will raise this at the next quarterly review.",
+  "n11": "Consider a credit hold if nothing is paid in the next two weeks.",
+  "n12": "Sent the second reminder email; no reply yet.",
+  "n13": "Customer says payment is scheduled in their next payment run.",
+  "n14": "Finance contact asked for a copy of the invoice with the purchase order number.",
+  "n15": "Customer asked whether the balance can be split into two instalments.",
+  "n16": "Accounts payable confirmed the invoice is approved and waiting for a cheque signature.",
+  "n17": "Customer disputes delivery of the second consignment; waiting for proof of delivery.",
+  "n18": "Bluefin says this invoice duplicates a shipment already billed; credit note pending.",
+  "n19": "Evergreen's finance team says payment is in their next payment run.",
+  "n20": "The buyer's director is on leave; nobody can sign off payments until she returns.",
+  "n21": "Customer's bank transfer bounced because the IFSC code on our invoice was wrong.",
+  "n22": "They want a 5% discount for early settlement before paying anything.",
+  "n23": "Customer went into insolvency proceedings; claim filed with the administrator.",
+  "n24": "Warehouse rejected two pallets as expired stock.",
+  "n25": "Customer is short on cash this quarter and asked for more time.",
+  "n26": "PO number missing on the invoice, so their system cannot match it.",
+  "n27": "Customer paid into the wrong account; finance is tracing the funds.",
+  "n28": "Spoke to the CFO; payment approved, will be released on Friday."
+ },
+ "queries": [
+  {
+   "id": "q01",
+   "text": "disputed delivery",
+   "relevant": [
+    "n01",
+    "n17"
+   ],
+   "type": "keyword"
+  },
+  {
+   "id": "q02",
+   "text": "duplicate invoice",
+   "relevant": [
+    "n04",
+    "n18"
+   ],
+   "type": "mixed"
+  },
+  {
+   "id": "q03",
+   "text": "customer unhappy with the goods they received",
+   "relevant": [
+    "n03",
+    "n24"
+   ],
+   "type": "paraphrase"
+  },
+  {
+   "id": "q04",
+   "text": "promised to pay",
+   "relevant": [
+    "n05",
+    "n06",
+    "n07",
+    "n08"
+   ],
+   "type": "keyword"
+  },
+  {
+   "id": "q05",
+   "text": "customer cannot afford to pay right now",
+   "relevant": [
+    "n25",
+    "n23"
+   ],
+   "type": "paraphrase"
+  },
+  {
+   "id": "q06",
+   "text": "voicemail",
+   "relevant": [
+    "n09"
+   ],
+   "type": "keyword"
+  },
+  {
+   "id": "q07",
+   "text": "we could not reach anyone on the phone",
+   "relevant": [
+    "n09"
+   ],
+   "type": "paraphrase"
+  },
+  {
+   "id": "q08",
+   "text": "asked to pay in instalments",
+   "relevant": [
+    "n15"
+   ],
+   "type": "keyword"
+  },
+  {
+   "id": "q09",
+   "text": "wants to spread the payment over two months",
+   "relevant": [
+    "n15"
+   ],
+   "type": "paraphrase"
+  },
+  {
+   "id": "q10",
+   "text": "missing purchase order",
+   "relevant": [
+    "n14",
+    "n26"
+   ],
+   "type": "mixed"
+  },
+  {
+   "id": "q11",
+   "text": "price disagreement",
+   "relevant": [
+    "n02"
+   ],
+   "type": "mixed"
+  },
+  {
+   "id": "q12",
+   "text": "payment is waiting for someone to sign",
+   "relevant": [
+    "n16",
+    "n20"
+   ],
+   "type": "mixed"
+  },
+  {
+   "id": "q13",
+   "text": "bankruptcy",
+   "relevant": [
+    "n23"
+   ],
+   "type": "paraphrase"
+  },
+  {
+   "id": "q14",
+   "text": "wrong bank details",
+   "relevant": [
+    "n21",
+    "n27"
+   ],
+   "type": "mixed"
+  },
+  {
+   "id": "q15",
+   "text": "early payment discount",
+   "relevant": [
+    "n22"
+   ],
+   "type": "keyword"
+  },
+  {
+   "id": "q16",
+   "text": "chased them by email",
+   "relevant": [
+    "n12"
+   ],
+   "type": "mixed"
+  },
+  {
+   "id": "q17",
+   "text": "next payment run",
+   "relevant": [
+    "n13",
+    "n19"
+   ],
+   "type": "keyword"
+  },
+  {
+   "id": "q18",
+   "text": "stop supplying them until they pay",
+   "relevant": [
+    "n11"
+   ],
+   "type": "paraphrase"
+  },
+  {
+   "id": "q19",
+   "text": "damaged",
+   "relevant": [
+    "n03"
+   ],
+   "type": "keyword"
+  },
+  {
+   "id": "q20",
+   "text": "the finance director signed off the payment",
+   "relevant": [
+    "n28"
+   ],
+   "type": "paraphrase"
+  },
+  {
+   "id": "x01",
+   "text": "what is the weather in Mumbai today",
+   "relevant": [],
+   "type": "unrelated"
+  },
+  {
+   "id": "x02",
+   "text": "who won the cricket match",
+   "relevant": [],
+   "type": "unrelated"
+  },
+  {
+   "id": "x03",
+   "text": "recipe for biryani",
+   "relevant": [],
+   "type": "unrelated"
+  },
+  {
+   "id": "x04",
+   "text": "how do I reset my password",
+   "relevant": [],
+   "type": "unrelated"
+  },
+  {
+   "id": "x05",
+   "text": "quarterly sales targets for the team",
+   "relevant": [],
+   "type": "unrelated"
+  }
+ ]
+}

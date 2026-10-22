@@ -66,6 +66,8 @@ class Settings(BaseSettings):
     # Keys used only by the live assistant eval, so it never spends the quota the live site needs.
     eval_google_api_key: str | None = None
     eval_groq_api_key: str | None = None
+    # Embedding model for hybrid note search (Gemini, on GOOGLE_API_KEY); "none" keeps note search keyword-only.
+    note_embedding_model: str | None = None
 
     # Event publishing: if unset, domain events are logged instead of
     # published (see app/events/) — no Kafka required to run the app.
@@ -124,6 +126,7 @@ class Settings(BaseSettings):
         "gemini_fallback_models",
         "eval_google_api_key",
         "eval_groq_api_key",
+        "note_embedding_model",
         "sample_notify_email",
         "resend_api_key",
         "resend_from",
