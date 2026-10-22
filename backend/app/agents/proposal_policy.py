@@ -100,6 +100,13 @@ def check_written_recommendations(answer: str, portfolio) -> list[WrittenViolati
     for boundary in [*_SENTENCE_END.finditer(answer), None]:
         end = boundary.start() if boundary else len(answer)
         sentence = answer[start:end]
+        # Any mention of an invoice that does not exist is invented, recommendation or not.
+        for ref in _REF.findall(sentence):
+            number = ref.upper()
+            prefix = re.match(r"[A-Za-z]+", number).group(0)
+            if number not in portfolio.by_number and prefix in prefixes:
+                violations.append(WrittenViolation(start, end, sentence.strip(), number, "MENTION",
+                                                   ("invoice is not in this workspace",)))
         if sentence.strip() and not _NEGATION.search(sentence) and (_CUE.search(sentence)
                                                                     or _IMPERATIVE.search(sentence)):
             # Pair each action with the invoices and accounts in its own clause:
@@ -122,10 +129,7 @@ def _targets(sentence: str, decision: str, portfolio, prefixes: set[str]):
     for ref in _REF.findall(sentence):
         number = ref.upper()
         row = portfolio.by_number.get(number)
-        if row is None:
-            prefix = re.match(r"[A-Za-z]+", number).group(0)
-            if prefix in prefixes:
-                yield number, ["invoice is not in this workspace"]
+        if row is None:  # reported once, as an invented mention, by the caller
             continue
         yield number, _invoice_reasons(portfolio, row, decision)
     lowered = sentence.lower()

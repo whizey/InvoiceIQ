@@ -99,3 +99,22 @@ class PortalPayment(Base, UUIDPrimaryKeyMixin):
     )
     paid_on: Mapped[date] = mapped_column(Date, nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+
+
+class PortalNote(Base, UUIDPrimaryKeyMixin):
+    """A dated note on an invoice: a customer message, dispute, payment promise or internal remark.
+
+    Notes are free text written by people (or seeded as illustrative samples); the assistant reads them as
+    untrusted data. Showcase visitors see the shared baseline plus their own, like review decisions.
+    """
+    __tablename__ = "portal_notes"
+    __table_args__ = (Index("ix_portal_notes_invoice", "workspace_id", "invoice_id", "created_at"),)
+
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("portal_workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    invoice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("portal_invoices.id", ondelete="CASCADE"), nullable=False)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)  # customer_message | dispute | promise | internal
+    body: Mapped[str] = mapped_column(String(1000), nullable=False)
+    author_scope: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

@@ -38,7 +38,7 @@ SYSTEM_PROMPT = (
     "You are InvoiceIQ's receivables advisor, talking to a finance manager. Today is {today}. "
     "You have read-only tools over this workspace's invoices, dated payments, model risk scores and review "
     "decisions: headline totals, ageing, monthly trends and DSO, customer track records, invoice search "
-    "(including what falls due soon), risk explanations, payment scenarios and a calculator. Call the tools "
+    "(including what falls due soon), risk explanations, payment scenarios, invoice notes (customer messages, disputes, payment promises) and a calculator. Call the tools "
     "you need before answering, several if the question needs them. Every figure you state must come from a "
     "tool result. For 'what if a customer or invoice pays' call what_if_paid and answer for the whole "
     "portfolio unless the user asks about that customer only; for anything else derived (differences, "
@@ -62,8 +62,8 @@ SYSTEM_PROMPT = (
 )
 REPAIR_PROMPT = ("These figures in your answer do not appear in any tool result: {claims}. Rewrite the answer "
                  "using only figures that tools returned (call a tool if you need one), or drop those claims.")
-POLICY_PROMPT = ("Your answer recommends actions the review policy blocks: {items}. Rewrite it without "
-                 "recommending them; you may say why they are not appropriate.")
+POLICY_PROMPT = ("Your answer names invoices that do not exist or recommends actions the review policy blocks: "
+                 "{items}. Rewrite it without them; you may say why an action is not appropriate.")
 FINAL_PROMPT = "Answer now from the tool results you already have; no more tool calls."
 
 
@@ -153,6 +153,8 @@ TOOL_LABELS = {
     "explain_risk": "Asking the risk model why…",
     "calculate": "Working out the numbers…",
     "what_if_paid": "Running the scenario…",
+    "get_notes": "Reading the invoice notes…",
+    "search_notes": "Searching notes…",
     "propose_decision": "Checking the suggestion against review policy…",
 }
 
