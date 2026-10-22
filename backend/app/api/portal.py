@@ -56,10 +56,14 @@ def _bump(workspace_id: uuid.UUID) -> None:
     _versions[workspace_id] = _versions.get(workspace_id, 0) + 1
 
 
-async def _cached(workspace, session, name: str, extra, build):
-    key = (workspace.id, _versions.get(workspace.id, 0), session.token_digest if workspace.kind == "showcase" else "", name, extra)
+async def _cached(workspace, session, name: str, extra, build, *, shared: bool = False, ttl: float | None = None):
+    """Versioned read cache. Showcase entries are per visitor (their own decisions and notes layer on top),
+    except ``shared`` ones whose result is the same for every visitor, so only the first one pays the
+    database round trips. ``ttl`` shortens expiry for data written outside a request (approval alerts)."""
+    per_visitor = workspace.kind == "showcase" and not shared
+    key = (workspace.id, _versions.get(workspace.id, 0), session.token_digest if per_visitor else "", name, extra)
     hit = _cache.get(key)
-    if hit and time.monotonic() - hit[0] < CACHE_TTL_SECONDS:
+    if hit and time.monotonic() - hit[0] < (ttl or CACHE_TTL_SECONDS):
         return hit[1]
     value = await build()
     if len(_cache) > 500:
@@ -303,7 +307,11 @@ async def logout(subject=Depends(identity), db: AsyncSession = Depends(get_db)):
 
 @router.get("/intelligence")
 async def intelligence(subject=Depends(identity), db: AsyncSession = Depends(get_db)):
-    _, workspace = subject
+    session, workspace = subject
+    return await _cached(workspace, session, "intelligence", None, lambda: _intelligence(db, workspace), shared=True)
+
+
+async def _intelligence(db, workspace):
     try:
         contract = await run_in_threadpool(verified_contract)
     except PaymentRiskArtifactError as exc:
@@ -361,9 +369,20 @@ async def overview(subject=Depends(identity), db: AsyncSession = Depends(get_db)
     return await _cached(workspace, session, "overview", None, lambda: _overview(db, session, workspace))
 
 
-async def _overview(db, session, workspace):
-    invoices = (await db.scalars(select(PortalInvoice).where(PortalInvoice.workspace_id == workspace.id)
+async def _invoice_rows(db, session, workspace) -> list:
+    """Every invoice in the workspace, newest posting first, loaded once per workspace version and shared by
+    every visitor and view (overview, recovery, assistant); any write bumps the version."""
+    async def load():
+        rows = (await db.scalars(select(PortalInvoice).where(PortalInvoice.workspace_id == workspace.id)
                                  .order_by(PortalInvoice.posting_date.desc(), PortalInvoice.id))).all()
+        for row in rows:  # detached, read-only snapshots: nothing lazy-loads after this session closes
+            db.expunge(row)
+        return list(rows)
+    return await _cached(workspace, session, "invoice-rows", None, load, shared=True)
+
+
+async def _overview(db, session, workspace):
+    invoices = await _invoice_rows(db, session, workspace)
     today = date.today()
     invoiced = sum((r.amount_total for r in invoices), Decimal(0))
     open_balance = sum((r.amount_total - r.amount_paid for r in invoices), Decimal(0))
@@ -387,7 +406,7 @@ async def _overview(db, session, workspace):
 
 
 async def _records(db: AsyncSession, session, workspace):
-    invoices = (await db.scalars(select(PortalInvoice).where(PortalInvoice.workspace_id == workspace.id))).all()
+    invoices = await _invoice_rows(db, session, workspace)
     scope = [PortalCaseEvent.workspace_id == workspace.id]
     if workspace.kind == "showcase":
         scope.append(PortalCaseEvent.actor_scope.in_((session.token_digest, SHOWCASE_BASELINE_SCOPE)))
@@ -584,9 +603,14 @@ EVAL_RESULTS = Path(__file__).resolve().parents[1] / "agents" / "eval_results.js
 async def assistant_reliability(days: int = Query(default=7, ge=1, le=90), subject=Depends(identity),
                                 db: AsyncSession = Depends(get_db)):
     """The reliability page: this workspace's live answers from the traces, plus the published eval results."""
+    session, workspace = subject
+    return await _cached(workspace, session, "reliability", days, lambda: _reliability_page(db, workspace, days),
+                         shared=True, ttl=30)
+
+
+async def _reliability_page(db, workspace, days):
     from app.services.assistant_tracing import reliability
 
-    _, workspace = subject
     try:
         evaluation = json.loads(EVAL_RESULTS.read_text())
     except (OSError, ValueError):
@@ -611,7 +635,12 @@ async def list_portal_invoices(
     sort: str = Query(default="posting_desc", pattern="^(posting_desc|posting_asc|due_asc|due_desc|number_asc)$"),
     subject=Depends(identity), db: AsyncSession = Depends(get_db),
 ):
-    _, workspace = subject
+    session, workspace = subject
+    return await _cached(workspace, session, "invoices", (q.strip(), page, page_size, sort),
+                         lambda: _invoice_page(db, workspace, q, page, page_size, sort), shared=True)
+
+
+async def _invoice_page(db, workspace, q, page, page_size, sort):
     filters = [PortalInvoice.workspace_id == workspace.id]
     if q.strip():
         term = f"%{q.strip().replace('%', r'\%').replace('_', r'\_')}%"
@@ -725,6 +754,10 @@ async def list_notes(invoice_id: uuid.UUID | None = Query(default=None), subject
                      db: AsyncSession = Depends(get_db)):
     """Notes for one invoice, or the workspace's latest notes, newest first."""
     session, workspace = subject
+    return await _cached(workspace, session, "notes", str(invoice_id), lambda: _notes(db, session, workspace, invoice_id))
+
+
+async def _notes(db, session, workspace, invoice_id):
     filters = _note_visibility(session, workspace)
     if invoice_id is not None:
         filters.append(PortalNote.invoice_id == invoice_id)
@@ -738,6 +771,8 @@ async def list_notes(invoice_id: uuid.UUID | None = Query(default=None), subject
 async def approval_alerts(subject=Depends(identity), db: AsyncSession = Depends(get_db)):
     """Alerts raised by escalations; open ones first. Showcase visitors see only their own."""
     session, workspace = subject
+    # Not cached: the event consumer (possibly another process) writes alerts after a decision, and a
+    # visitor who escalates should see the alert at once.
     scope = session.token_digest if workspace.kind == "showcase" else "workspace"
     rows = (await db.execute(select(ApprovalAlert, OutboxEvent.delivery_mode).join(
         OutboxEvent, OutboxEvent.id == ApprovalAlert.event_id, isouter=True).where(
@@ -822,8 +857,10 @@ async def portal_dashboard(
     subject=Depends(identity), db: AsyncSession = Depends(get_db),
 ):
     session, workspace = subject
+    # Visitor decisions only matter to the "has a case" filter; otherwise every visitor sees the same figures.
     return await _cached(workspace, session, "dashboard", selection.model_dump_json(),
-                         lambda: build_portal_dashboard(db, selection, subject))
+                         lambda: build_portal_dashboard(db, selection, subject),
+                         shared=selection.case_presence == "any")
 
 
 def portal_csv_cell(value) -> str:

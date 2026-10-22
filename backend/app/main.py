@@ -7,6 +7,7 @@ from app.core.scoped_reads import ScopedFinancialReadMiddleware
 from fastapi import FastAPI, Request
 
 from app.core.observability import configure_langsmith, configure_logging
+from app.core.server_timing import ServerTimingMiddleware
 
 configure_logging()
 configure_langsmith()
@@ -83,6 +84,7 @@ app.add_middleware(RequestBodyLimitMiddleware)
 from app.api.public_analytics import router as public_analytics_router  # noqa: E402
 from app.core.public_read_only import PublicReadOnlyMiddleware  # noqa: E402
 app.add_middleware(PublicReadOnlyMiddleware)
+app.add_middleware(ServerTimingMiddleware)  # outermost: times the whole request
 app.include_router(public_analytics_router)
 
 app.include_router(health_router)

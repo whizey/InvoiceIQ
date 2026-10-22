@@ -100,7 +100,10 @@ export default function PortalOperations({section,initialFilters}:{section:Secti
       <p style={{fontSize:11,letterSpacing:2,textTransform:"uppercase",color:"#777"}}>Workspace / {title}</p>
       <h1 style={{fontSize:"clamp(30px,4vw,46px)",letterSpacing:"-.045em",margin:"10px 0"}}>{title}</h1>
       <p style={{color:"#6c6c6c",marginBottom:26}}>{data?.workspace||"Loading workspace"} · {data?.provenance||"Tenant-scoped financial workflows"}</p>
-      {loading&&<p role="status">Loading records…</p>}
+      {loading&&<div role="status" aria-label="Loading records" className="ops-skeleton">
+        <div className="sk sk-panel"><span className="sk-line w40"/>{Array.from({length:7},(_,i)=><span key={i} className="sk-line"/>)}</div>
+        <div className="sk sk-panel"><span className="sk-line w60"/>{Array.from({length:5},(_,i)=><span key={i} className="sk-line"/>)}</div>
+      </div>}
       {error&&<div role="alert" style={{padding:16,background:"#fff0ee",borderRadius:8,color:"#922b1e"}}>{error} <button type="button" onClick={()=>setReload(value=>value+1)}>Retry invoices</button></div>}
       {success&&<p role="status" style={{padding:16,background:"#eff7ef",borderRadius:8,color:"#215a27"}}>{success}</p>}
       {data&&section!=="invoices"&&<ApprovalAlerts refreshKey={data}/>}

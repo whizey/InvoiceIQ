@@ -1,0 +1,35 @@
+name: Keep the demo warm
+
+# Free hosting sleeps when idle: the Hugging Face Space after a period without traffic, and Supabase pauses a
+# project after about a week. A visitor arriving then waits minutes or sees errors. Every six hours this opens a
+# showcase session and reads the main views, which wakes both services and fills the shared read caches.
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      API_URL: ${{ vars.API_URL || 'https://riya1104-invoiceiq.hf.space' }}
+    steps:
+      - name: Wake the API and the database, warm the shared views
+        run: |
+          for attempt in $(seq 1 20); do
+            curl -fsS -m 30 "$API_URL/health" >/dev/null && break
+            echo "API not up yet (attempt $attempt); waiting"; sleep 30
+          done
+          token=$(curl -fsS -m 120 -X POST "$API_URL/portal/showcase" | python3 -c "import sys,json;print(json.load(sys.stdin)['token'])")
+          start=$(date -u -d '1 year ago' +%F); end=$(date -u +%F)
+          for path in overview recovery-summary "invoices?page=1&page_size=25&sort=posting_desc" intelligence \
+                      "dashboard?start_date=$start&end_date=$end&preset=12M&sort=posting_desc"; do
+            curl -fsS -m 120 -o /dev/null -H "Authorization: Bearer $token" \
+              -w "%{http_code} %{time_total}s $path\n" "$API_URL/portal/$path"
+          done
+          curl -fsS -m 30 -X DELETE -H "Authorization: Bearer $token" "$API_URL/portal/session" >/dev/null || true
