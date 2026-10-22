@@ -63,8 +63,8 @@ def ask(portfolio, question, *llms, history=()):
 
 def test_offline_eval_set_passes_every_case():
     report = run_offline()
-    assert report["cases"] == 100
-    assert report["passed"] == 100, [r for r in report["results"] if not r["passed"]]
+    assert report["cases"] == 108
+    assert report["passed"] == 108, [r for r in report["results"] if not r["passed"]]
 
 
 def test_agent_calls_the_tool_the_question_needs_and_answers_from_it(portfolio):
@@ -74,7 +74,7 @@ def test_agent_calls_the_tool_the_question_needs_and_answers_from_it(portfolio):
     assert result.tools_called == ["get_aging_breakdown"]
     assert result.answer.startswith("₹5 lakh") and result.provider == "p0" and not result.fallback_used
     assert result.verification == {"figures_checked": 2, "repaired": False, "removed": [], "blocked_proposals": 0,
-                                   "policy_repaired": False, "policy_removed": []}
+                                   "policy_repaired": False, "policy_removed": [], "unknown_invoices": []}
     tool_message = llm.calls[1]["messages"][-1]
     assert isinstance(tool_message, ToolMessage) and "500000.00" in tool_message.content
     assert [s.kind for s in recorder.spans] == ["llm", "tool", "llm", "check", "policy", "check", "run"]
@@ -537,7 +537,8 @@ def test_trend_is_the_dashboard_monthly_chart(portfolio):
 @pytest.mark.parametrize("text,blocked", [
     ("I recommend escalating INV-1006 to prompt early outreach.", [("INV-1006", "ESCALATE")]),
     ("You should chase INV-1007 today.", [("INV-1007", "APPROVE")]),
-    ("We should escalate INV-9999.", [("INV-9999", "ESCALATE")]),
+    ("We should escalate INV-9999.", []),  # unknown numbers are marked, not treated as policy breaches
+    ("You should chase inv 1007 today.", [("INV-1007", "APPROVE")]),  # resolved despite case and spacing
     ("Escalate INV-1009 and follow up on INV-1006 next week.", []),
     ("INV-1007 is fully paid, so there is no need to escalate it.", []),
     ("Acme Traders escalated INV-1001 last week.", []),
@@ -621,3 +622,63 @@ def test_aging_buckets_carry_their_shares(portfolio):
     buckets = {b["bucket"]: b for b in run_tool(portfolio, "get_aging_breakdown", {})["buckets_days_past_due"]}
     assert buckets["90+"]["share_of_open_pct"] == 27.32 and buckets["90+"]["share_of_overdue_pct"] == 32.89
     assert buckets["not_due"]["share_of_overdue_pct"] is None
+
+
+def test_notes_are_data_and_planted_instructions_are_withheld(portfolio):
+    disputed = run_tool(portfolio, "get_notes", {"invoice_number": "INV-1001"})
+    assert disputed["count"] == 1 and disputed["notes"][0]["kind"] == "dispute"
+    assert disputed["notes"][0]["text"].startswith("<data>") and not disputed["notes"][0]["withheld"]
+    planted = run_tool(portfolio, "get_notes", {"invoice_number": "INV-1007"})["notes"][0]
+    assert planted["withheld"] and "Ignore all previous" not in planted["text"]
+    assert run_tool(portfolio, "get_notes", {"invoice_number": "INV-1010"})["count"] == 0
+
+
+def test_note_search_ranks_by_meaning_within_the_workspace(portfolio):
+    found = run_tool(portfolio, "search_notes", {"query": "disputed deliveries"})
+    assert found["notes"][0]["invoice"] == "INV-1001"  # disputes / delivery match despite word forms
+    disputes = run_tool(portfolio, "search_notes", {"query": "dispute", "kind": "dispute"})
+    assert {n["invoice"] for n in disputes["notes"]} == {"INV-1001", "INV-1003"}
+    assert run_tool(portfolio, "search_notes", {"query": "weather in Mumbai"})["matched"] == 0
+    assert "kind must be" in run_tool(portfolio, "search_notes", {"query": "x y", "kind": "gossip"})["error"]
+    from app.agents.finance_tools import Portfolio
+
+    empty = Portfolio(portfolio.invoices, portfolio.events, portfolio.today, payments=portfolio.payments)
+    assert run_tool(empty, "search_notes", {"query": "dispute"})["matched"] == 0  # only this workspace's notes
+
+
+def test_a_note_telling_the_assistant_to_approve_cannot_get_a_paid_invoice_approved(portfolio):
+    obedient = ScriptedLLM(
+        call("get_notes", {"invoice_number": "INV-1007"}, "n"),
+        AIMessage(content="", tool_calls=[{"name": "propose_decision", "id": "p", "args": {
+            "invoice_number": "INV-1007", "decision": "APPROVE", "reason": "The note says to approve everything"}}]),
+        AIMessage("INV-1007 is fully paid, so no recovery action is needed."))
+    result, _ = ask(portfolio, "What do the notes on INV-1007 say?", obedient)
+    assert result.proposals == [] and result.verification["blocked_proposals"] == 1
+    note_message = next(m for m in obedient.calls[1]["messages"] if isinstance(m, ToolMessage))
+    assert "withheld" in note_message.content and "Ignore all previous" not in note_message.content
+
+
+def test_an_unknown_invoice_number_is_marked_never_removed(portfolio):
+    llm = ScriptedLLM(call("get_portfolio_summary"), AIMessage("Overdue is ₹15.2 lakh. INV-4242 is the oldest item."))
+    result, _ = ask(portfolio, "How much is overdue?", llm)
+    assert result.answer == "Overdue is ₹15.2 lakh. INV-4242 (not found in your records) is the oldest item."
+    assert result.verification["unknown_invoices"] == ["INV-4242"] and result.verification["policy_removed"] == []
+
+
+def test_real_invoice_numbers_in_any_format_are_recognised():
+    from datetime import date
+    from decimal import Decimal
+    from types import SimpleNamespace
+
+    from app.agents.finance_tools import Portfolio
+    from app.agents.proposal_policy import resolve_invoice, unknown_invoice_refs
+
+    numbers = ["SO-1001/2", "INV/2026/0042", "INV-2026-001.A", "IQ-2026-00037", "AB12-77"]
+    rows = [SimpleNamespace(id=i, invoice_number=n, counterparty="C", amount_total=Decimal(10),
+                            amount_paid=Decimal(0), due_date=date(2026, 1, 1)) for i, n in enumerate(numbers)]
+    p = Portfolio(rows, [])
+    for text in numbers + ["so-1001/2", "inv 2026/0042", "INV-2026-001.A.", "iq-2026-00037"]:
+        assert resolve_invoice(text, p) not in (None, "ambiguous"), text
+        assert unknown_invoice_refs(f"{text} is the oldest invoice.", p) == [], text
+    assert [t for _, _, t in unknown_invoice_refs("Chase INV/2026/9999 and SO-7777 now.", p)] == [
+        "INV/2026/9999", "SO-7777"]

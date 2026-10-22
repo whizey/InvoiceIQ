@@ -23,7 +23,9 @@ from app.agents.finance_tools import (
     search_invoices,
 )
 from app.agents.grounding import check_grounding, drop_sentences_at, drop_ungrounded, grounded_values
-from app.agents.proposal_policy import MAX_PROPOSALS, check_written_recommendations
+from app.agents.proposal_policy import (
+    MAX_PROPOSALS, check_written_recommendations, mark_unknown_invoices, unknown_invoice_refs,
+)
 from app.services.assistant_tracing import TraceRecorder
 
 MAX_STEPS = 5
@@ -38,7 +40,7 @@ SYSTEM_PROMPT = (
     "You are InvoiceIQ's receivables advisor, talking to a finance manager. Today is {today}. "
     "You have read-only tools over this workspace's invoices, dated payments, model risk scores and review "
     "decisions: headline totals, ageing, monthly trends and DSO, customer track records, invoice search "
-    "(including what falls due soon), risk explanations, payment scenarios and a calculator. Call the tools "
+    "(including what falls due soon), risk explanations, payment scenarios, invoice notes (customer messages, disputes, payment promises) and a calculator. Call the tools "
     "you need before answering, several if the question needs them. Every figure you state must come from a "
     "tool result. For 'what if a customer or invoice pays' call what_if_paid and answer for the whole "
     "portfolio unless the user asks about that customer only; for anything else derived (differences, "
@@ -153,6 +155,8 @@ TOOL_LABELS = {
     "explain_risk": "Asking the risk model why…",
     "calculate": "Working out the numbers…",
     "what_if_paid": "Running the scenario…",
+    "get_notes": "Reading the invoice notes…",
+    "search_notes": "Searching notes…",
     "propose_decision": "Checking the suggestion against review policy…",
 }
 
@@ -416,6 +420,11 @@ async def _answer(portfolio: Portfolio, question: str, history: list[tuple[str, 
             answer = drop_sentences_at(answer, [v.start for v in written]) or UNVERIFIED_REPLY
         recorder.add("policy", "written_retry", outcome="blocked" if written else "allowed")
 
+    # An invoice number that matches nothing in the workspace stays in the answer, marked, never removed.
+    unknown = unknown_invoice_refs(answer, portfolio)
+    if unknown:
+        answer = mark_unknown_invoices(answer, unknown)
+
     allowed = [v for v in run.verdicts.values() if v["allowed"]][:MAX_PROPOSALS]
     recorder.add("check", "result", outcome="trimmed" if removed or policy_removed
                  else "repaired" if repaired or policy_repaired else "verified")
@@ -424,7 +433,8 @@ async def _answer(portfolio: Portfolio, question: str, history: list[tuple[str, 
         proposals=allowed,
         verification={"figures_checked": len(report.claims), "repaired": repaired, "removed": removed,
                       "blocked_proposals": sum(not v["allowed"] for v in run.verdicts.values()),
-                      "policy_repaired": policy_repaired, "policy_removed": policy_removed},
+                      "policy_repaired": policy_repaired, "policy_removed": policy_removed,
+                      "unknown_invoices": [text for _, _, text in unknown]},
         fallback_used=run.used is not run.providers[0])
 
 
@@ -496,7 +506,8 @@ def _rule_based(portfolio: Portfolio, question: str, recorder: TraceRecorder, *,
         text, called = _template(portfolio, choice)
     return AgentResult(answer=text, model=RULE_BASED_MODEL, provider="rules", tools_called=called,
                        verification={"figures_checked": 0, "repaired": False, "removed": [],
-                                     "blocked_proposals": 0, "policy_repaired": False, "policy_removed": []},
+                                     "blocked_proposals": 0, "policy_repaired": False, "policy_removed": [],
+                                     "unknown_invoices": []},
                        fallback_used=True)
 
 

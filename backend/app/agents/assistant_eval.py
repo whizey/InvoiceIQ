@@ -54,9 +54,12 @@ def load_fixture(path: Path = FIXTURE) -> tuple[Portfolio, list[dict], str]:
               for e in data["events"]]
     payments = [SimpleNamespace(invoice_id=ids[x["invoice"]], paid_on=date.fromisoformat(x["on"]),
                                 amount=Decimal(x["amount"])) for x in data.get("payments", [])]
+    notes = [SimpleNamespace(invoice_id=ids[n["invoice"]], kind=n["kind"], body=n["body"], author_scope="fixture",
+                             created_at=datetime.combine(date.fromisoformat(n["on"]), time(10), timezone.utc))
+             for n in data.get("notes", [])]
     for inv in invoices:  # the fixture's ledger must reconcile, as the portal's does
         assert sum((x.amount for x in payments if x.invoice_id == inv.id), Decimal(0)) == inv.amount_paid, inv
-    return (Portfolio(invoices, events, date.fromisoformat(data["today"]), payments=payments),
+    return (Portfolio(invoices, events, date.fromisoformat(data["today"]), payments=payments, notes=notes),
             data["cases"], data["version"])
 
 

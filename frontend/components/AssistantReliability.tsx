@@ -14,7 +14,7 @@ type Reliability={live:Live;eval:Evaluation|null};
 
 const WINDOWS=[7,30,90];
 const CATEGORY_LABEL:Record<string,string>={core:"Core",tricky:"Tricky wording",followup:"Follow-ups",
-  injection:"Injection attempts",out_of_scope:"Out of scope",policy:"Policy"};
+  injection:"Injection attempts",out_of_scope:"Out of scope",policy:"Policy",notes:"Notes"};
 const pct=(s:Stat)=>`${(s.mean*100).toFixed(1)}% ± ${(s.sd*100).toFixed(1)}`;
 
 function Tile({label,value,note}:{label:string;value:string;note?:string}){

@@ -4,6 +4,7 @@ import {useRouter} from "next/navigation";
 import RecoveryCharts from "@/components/RecoveryCharts";
 import ApprovalAlerts from "@/components/ApprovalAlerts";
 import PortalNavigation from "@/components/PortalNavigation";
+import InvoiceNotes from "@/components/InvoiceNotes";
 import {parseInvoiceCsv} from "@/lib/invoice-csv.mjs";
 import type {PortalFilters} from "@/lib/portal-filters";
 
@@ -167,6 +168,7 @@ export default function PortalOperations({section,initialFilters}:{section:Secti
                 {busy?"Saving…":"Record decision"}</button>
               <button onClick={()=>setSelected(null)} style={{background:"white",padding:10,border:"1px solid #ddd",borderRadius:7}}>Cancel</button>
               <p style={{fontSize:12,color:"#777"}}>Records an internal review only. It will not send communications or move money.</p>
+              <InvoiceNotes key={selected.id} invoiceId={selected.id}/>
             </div>}
             {data.actions.length===0&&!selected&&<p style={{fontSize:13,color:"#777"}}>No decisions recorded. Select an invoice to begin.</p>}
             {data.actions.slice(0,30).map(ev=><div key={ev.id} style={{borderTop:"1px solid #eee",padding:"12px 0",fontSize:13}}>

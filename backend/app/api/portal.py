@@ -27,7 +27,7 @@ from app.core.db import get_db
 from app.core.login_throttle import login_throttle, registration_limit
 from app.models.portal import (
     PortalWorkspace, PortalUser, PortalMembership, PortalSession, PortalInvoice, PortalCaseEvent,
-    PortalPayment,
+    PortalPayment, PortalNote,
 )
 from app.ml.champion_serving import verified_contract
 from app.ml.payment_risk_model import PaymentRiskArtifactError
@@ -84,6 +84,15 @@ class DecisionInput(BaseModel):
     invoice_id: uuid.UUID
     decision: str
     note: str = Field(min_length=3, max_length=500)
+
+
+NOTE_KINDS = ("customer_message", "dispute", "promise", "internal")
+
+
+class NoteInput(BaseModel):
+    invoice_id: uuid.UUID
+    kind: str = Field(pattern="^(" + "|".join(NOTE_KINDS) + ")$")
+    body: str = Field(min_length=3, max_length=1000)
 
 
 class SettingsUpdate(BaseModel):
@@ -480,12 +489,14 @@ async def _assistant_portfolio(db: AsyncSession, session, workspace):
 
     invoices, events = await _records(db, session, workspace)
     payments = (await db.scalars(select(PortalPayment).where(PortalPayment.workspace_id == workspace.id))).all()
+    notes = (await db.scalars(select(PortalNote).where(*_note_visibility(session, workspace))
+                              .order_by(PortalNote.created_at.desc()).limit(2000))).all()
 
     async def explain(invoice_id):
         async with async_session_factory() as own:
             return await explain_invoice(own, workspace.id, invoice_id)
 
-    return Portfolio(invoices, events, payments=payments, workspace=workspace, explain=explain)
+    return Portfolio(invoices, events, payments=payments, workspace=workspace, explain=explain, notes=notes)
 
 
 async def _assistant_answer(portfolio, payload: AssistantInput, workspace, on_event=None) -> dict:
@@ -644,6 +655,62 @@ async def decision(payload: DecisionInput, subject=Depends(identity), db: AsyncS
         pass
     return {"ok": True, "mode": "isolated_showcase" if workspace.kind == "showcase" else "customer_portal",
             "external_effects": False}
+
+
+def _note_visibility(session, workspace) -> list:
+    """Showcase visitors see the shared sample notes plus their own; customer members see the workspace's."""
+    scope = [PortalNote.workspace_id == workspace.id]
+    if workspace.kind == "showcase":
+        scope.append(PortalNote.author_scope.in_((session.token_digest, SHOWCASE_BASELINE_SCOPE)))
+    return scope
+
+
+def note_json(note, number: str | None = None) -> dict:
+    return {"id": str(note.id), "invoice_id": str(note.invoice_id), "invoice": number, "kind": note.kind,
+            "body": note.body, "created_at": note.created_at.isoformat() if note.created_at else None,
+            "sample": note.author_scope == SHOWCASE_BASELINE_SCOPE}
+
+
+@router.post("/notes", status_code=201)
+async def add_note(payload: NoteInput, subject=Depends(identity), db: AsyncSession = Depends(get_db)):
+    session, workspace = subject
+    if workspace.kind == "showcase" and os.getenv("INVOICEIQ_PORTAL_SHOWCASE", "").lower() != "true":
+        raise HTTPException(403, "Showcase disabled")
+    body = payload.body.strip()
+    if len(body) < 3:
+        raise HTTPException(422, "Write at least 3 characters")
+    if not _assistant_allowed("note:" + session.token_digest):
+        raise HTTPException(429, "Too many notes; wait a minute and try again")
+    invoice = await db.scalar(select(PortalInvoice).where(
+        PortalInvoice.id == payload.invoice_id, PortalInvoice.workspace_id == workspace.id))
+    if invoice is None:
+        raise HTTPException(404, "Invoice not found")
+    if workspace.kind == "customer":
+        member = await db.scalar(select(PortalMembership).where(
+            PortalMembership.user_id == session.user_id, PortalMembership.workspace_id == workspace.id))
+        if member is None or member.role not in {"owner", "admin", "reviewer"}:
+            raise HTTPException(403, "Reviewer permission required to add notes")
+    note = PortalNote(workspace_id=workspace.id, invoice_id=invoice.id, kind=payload.kind, body=body,
+                      author_scope=session.token_digest if workspace.kind == "showcase" else str(session.user_id))
+    db.add(note)
+    await db.commit()
+    await db.refresh(note)
+    _bump(workspace.id)
+    return note_json(note, invoice.invoice_number)
+
+
+@router.get("/notes")
+async def list_notes(invoice_id: uuid.UUID | None = Query(default=None), subject=Depends(identity),
+                     db: AsyncSession = Depends(get_db)):
+    """Notes for one invoice, or the workspace's latest notes, newest first."""
+    session, workspace = subject
+    filters = _note_visibility(session, workspace)
+    if invoice_id is not None:
+        filters.append(PortalNote.invoice_id == invoice_id)
+    rows = (await db.execute(
+        select(PortalNote, PortalInvoice.invoice_number).join(PortalInvoice, PortalInvoice.id == PortalNote.invoice_id)
+        .where(*filters).order_by(PortalNote.created_at.desc(), PortalNote.id).limit(200))).all()
+    return {"notes": [note_json(note, number) for note, number in rows]}
 
 
 @router.get("/alerts")
