@@ -9,7 +9,10 @@ Live at **https://invoiceiq-ai.vercel.app**. No sign-up needed to look around.
 [![CI](https://github.com/whizey/InvoiceIQ/actions/workflows/ci.yml/badge.svg)](https://github.com/whizey/InvoiceIQ/actions/workflows/ci.yml)
 [![Deploy](https://github.com/whizey/InvoiceIQ/actions/workflows/deploy.yml/badge.svg)](https://github.com/whizey/InvoiceIQ/actions/workflows/deploy.yml)
 
-![The follow-up list](docs/images/follow-ups.png)
+![Clicking through the live site: the nav, the approval queue, then filtering it by status](docs/images/demo.gif)
+
+This is the live site, not a mock-up: open "More" in the nav, go to Approvals, click a status to filter the real
+queue underneath it. Nothing in that recording is staged.
 
 ## Trying it
 
@@ -69,6 +72,18 @@ whether a payment came in within two weeks.
 There's also a receivables dashboard, review and approval queues, an [assistant](docs/ASSISTANT.md) that answers
 questions about the ledger (every figure it states is checked against the data), and account settings including
 deleting all your data. See the [privacy page](https://invoiceiq-ai.vercel.app/privacy) for what's stored where.
+
+## Screens
+
+All of these are the live site, mid-session, with its generated data populated: nothing here is mocked up.
+
+| Dashboard | Model vs simple average |
+|---|---|
+| ![Receivables dashboard with reconciled totals and an aging chart](docs/images/dashboard.png) | ![Model and baseline AUC on this workspace and on public data, with calibration](docs/images/model.png) |
+
+| Approval queue | AI assistant answering a real question |
+|---|---|
+| ![Approval queue with status counts that add up and a weekly decisions chart](docs/images/approvals.png) | ![The assistant naming specific overdue invoices, with every figure checked against the records](docs/images/assistant.png) |
 
 ## How well it works
 
