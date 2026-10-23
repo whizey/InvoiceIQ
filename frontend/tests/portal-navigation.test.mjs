@@ -33,9 +33,9 @@ test("browser history back control works across SaaS routes",()=>{
   }
   assert.ok(read("../app/invoices/page.tsx").includes('<ReferenceFrame page="invoices" portal/>'));
 });
-test("retained KPI template and source adapter are not redesigned",()=>{
+test("retained KPI template keeps its plain-language labels",()=>{
   const s=read("../public/reference/dashboard-data.js");
-  for(const label of ["Invoiced","Open receivables","Overdue exposure","Overdue share","Collected","Score coverage"]){
+  for(const label of ["Total billed","Still owed to you","Overdue","Share that is late","Payments received","Risk scores"]){
     assert.ok(s.includes(label));
   }
 });

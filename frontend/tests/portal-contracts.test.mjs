@@ -4,10 +4,10 @@ import fs from "node:fs";
 
 const read=(path)=>fs.readFileSync(new URL(path,import.meta.url),"utf8");
 
-test("existing financial dashboard template and KPI adapter remain untouched",()=>{
+test("financial dashboard KPI adapter keeps its labels and stays independent",()=>{
  const dashboard=read("../public/reference/dashboard-data.js");
- assert.ok(dashboard.includes("Invoiced"));
- assert.ok(dashboard.includes("Score coverage"));
+ assert.ok(dashboard.includes("Total billed"));
+ assert.ok(dashboard.includes("Risk scores"));
  assert.ok(!dashboard.includes("PortalWorkspace"));
 });
 test("portal proxy requires same-origin mutation and secure cookie flags",()=>{

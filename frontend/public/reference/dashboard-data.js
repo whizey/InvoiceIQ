@@ -2,7 +2,7 @@
 (function (global) {
   'use strict';
   const colors = ['#D4D4D1', '#8A8A87', '#3F3F3F', '#F0F0EE'];
-  const names = ['Invoiced', 'Open receivables', 'Overdue exposure', 'Overdue share', 'Collected', 'Score coverage'];
+  const names = ['Total billed', 'Still owed to you', 'Overdue', 'Share that is late', 'Payments received', 'Risk scores'];
   function money(value, currency, verified, compact) {
     if (value === null || value === undefined || typeof value === 'boolean' || String(value).trim() === '' || !Number.isFinite(Number(value))) return 'Unavailable';
     const amount = Number(value);
@@ -44,12 +44,12 @@
       ? 'Partial results · historical source unavailable'
       : d ? 'Synced ' + new Date(d.generated_at).toLocaleString('en-IN') : 'Connecting…');
     const base = [
-      ['POSTING',fmt(m.invoiced),n(m.invoice_count)+' invoices · '+n(m.company_count)+' companies','Posting date in range. Canceled excluded.',{status:'all'},'View invoices'],
-      ['AS OF',fmt(m.open),n(m.open_count)+' invoices','Unpaid balance at '+(d?.as_of || 'selected cutoff')+'.',{status:'outstanding'},'View open'],
-      ['AS OF',fmt(m.overdue),n(m.overdue_count)+' invoices','Open and past due date.',{status:'overdue'},'View overdue'],
-      ['AS OF',m.overdue_share==null?missing:Number(m.overdue_share).toFixed(1)+'%','of open balance','Overdue ÷ open, same cohort and date.',{status:'overdue'},'See aging'],
-      ['PAYMENT',fmt(m.collected),'cash receipts in range','Not the same as recovery of this cohort.',{date_basis:'payment'},'View payments'],
-      ['OPEN',m.scored_open==null?missing:n(m.scored_open)+' / '+n(m.open_count),'open invoices with a stored score',m.open_count==null||m.scored_open==null?'Score coverage unavailable.':n(m.open_count-m.scored_open)+' not scored. Never shown as 0% risk.',{status:'outstanding',risk:'any'},'View invoices']
+      ['THIS PERIOD',fmt(m.invoiced),n(m.invoice_count)+' invoices · '+n(m.company_count)+' customers','Everything invoiced in the selected period. Cancelled invoices are left out.',{status:'all'},'View invoices'],
+      ['AS OF DATE',fmt(m.open),n(m.open_count)+' unpaid invoices','What customers still have to pay, as of '+(d?.as_of || 'the selected date')+'.',{status:'outstanding'},'View open'],
+      ['AS OF DATE',fmt(m.overdue),n(m.overdue_count)+' invoices','Still owed and already past the agreed due date.',{status:'overdue'},'View overdue'],
+      ['AS OF DATE',m.overdue_share==null?missing:Number(m.overdue_share).toFixed(1)+'%','of the money owed to you','How much of what you are owed is already late.',{status:'overdue'},'See aging'],
+      ['THIS PERIOD',fmt(m.collected),'money received in the period','Payments that came in during the selected period, for any invoice.',{date_basis:'payment'},'View payments'],
+      ['UNPAID',m.scored_open==null?missing:n(m.scored_open)+' / '+n(m.open_count),'unpaid invoices with a late-payment risk score',m.open_count==null||m.scored_open==null?'Risk scores unavailable.':'A model estimates how likely each unpaid invoice is to be paid late. '+n(m.open_count-m.scored_open)+' not scored yet; never shown as 0% risk.',{status:'outstanding',risk:'any'},'View invoices']
     ];
     const comparedDate=logic.query.get('compare_date');
     const previous=d?.comparison;
