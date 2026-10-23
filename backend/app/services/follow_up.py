@@ -17,6 +17,9 @@ EVAL_DAYS = 182  # compare on invoices due in roughly the last six months
 MIN_CLASS = 15  # each outcome needs this many invoices before an AUC means anything
 MODEL_MARGIN = 0.02  # the model must beat the baseline by this much AUC to be used
 DUE_SOON_DAYS = 7
+# The served model was refit on public-dataset invoices posted up to this date; a workspace holding those same
+# invoices compares the model on data it has seen, which flatters it.
+MODEL_TRAINED_THROUGH = date(2015, 12, 8)
 
 
 def settled_on(invoices, payments) -> dict:
@@ -116,7 +119,11 @@ def choose_scorer(invoices, settled: dict, baseline: dict, today: date) -> dict:
         verdict = (f"On your last six months, the model did not beat the simple average "
                    f"(AUC {model_auc:.2f} vs {baseline_auc:.2f}), so the simple average is used.")
     by_scorer = {"model": calibration(model, labels), "baseline": calibration(simple, labels)}
-    return {"used": used, "model_auc": model_auc, "baseline_auc": baseline_auc, "evaluated": len(labels),
+    seen = bool(labelled) and max(r.posting_date for r, _ in labelled) <= MODEL_TRAINED_THROUGH
+    if seen:
+        verdict += (" These invoices come from the data the model was trained on, so its score here is optimistic; "
+                    "on unseen invoices it scored 0.71 against 0.52.")
+    return {"used": used, "model_saw_these": seen, "model_auc": model_auc, "baseline_auc": baseline_auc, "evaluated": len(labels),
             "late_share": round(sum(labels) / len(labels), 3) if labels else None,
             "verdict": verdict, "calibration": by_scorer[used], "calibration_by_scorer": by_scorer,
             "calibration_note": _calibration_note(by_scorer[used])}

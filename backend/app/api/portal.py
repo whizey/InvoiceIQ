@@ -46,6 +46,8 @@ from app.services.portal_recovery import SHOWCASE_BASELINE_SCOPE, recovery_summa
 
 router = APIRouter(prefix="/portal", tags=["customer portal"])
 SHOWCASE_ID = uuid.UUID("60c111be-dde9-4a54-9dcc-f881d0d0aaa1")
+# The real public B2B ledger, viewed as of its last posting date (scripts/provision_public_ledger.py).
+PUBLIC_LEDGER_ID = uuid.UUID("3b6f0d2e-8a41-4c7e-9d15-2f6b0c9e2016")
 SEED_VERSION = "showcase-v2"  # Kaveri Industrial Supplies, app/seed/showcase_seed.py
 
 # Read cache; any write to a workspace bumps its version, so views never go stale. The TTL only bounds memory and
@@ -184,7 +186,7 @@ async def identity(request: Request, db: AsyncSession = Depends(get_db)):
         if not member:
             raise HTTPException(403, "Workspace access denied")
     elif workspace.kind == "showcase":
-        if record.user_id is not None or record.workspace_id != SHOWCASE_ID:
+        if record.user_id is not None or record.workspace_id not in {SHOWCASE_ID, PUBLIC_LEDGER_ID}:
             raise HTTPException(403, "Invalid showcase scope")
     else:
         raise HTTPException(403, "Unknown workspace type")
@@ -237,10 +239,12 @@ async def login(payload: LoginInput, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/showcase")
-async def showcase(db: AsyncSession = Depends(get_db)):
+async def showcase(ledger: str = Query(default="kaveri", pattern="^(kaveri|public-2016)$"),
+                   db: AsyncSession = Depends(get_db)):
+    """A visitor session on a public workspace: the Kaveri business (default) or the real 2016 ledger."""
     if os.getenv("INVOICEIQ_PORTAL_SHOWCASE", "").lower() != "true":
         raise HTTPException(404, "Public showcase unavailable")
-    workspace = await db.get(PortalWorkspace, SHOWCASE_ID)
+    workspace = await db.get(PortalWorkspace, PUBLIC_LEDGER_ID if ledger == "public-2016" else SHOWCASE_ID)
     if not workspace or workspace.kind != "showcase":
         raise HTTPException(503, "Isolated showcase has not been provisioned")
     result = await issue(db, workspace.id, None)
@@ -256,7 +260,8 @@ async def me(subject=Depends(identity), db: AsyncSession = Depends(get_db)):
     ))) if session.user_id else None
     return {"workspace": workspace.name, "workspace_id": str(workspace.id),
             "kind": workspace.kind, "role": membership.role if membership else "visitor",
-            "user_id": str(session.user_id) if session.user_id else None}
+            "user_id": str(session.user_id) if session.user_id else None,
+            "as_of": str(workspace.as_of) if workspace.as_of else None}
 
 
 @router.get("/settings")
@@ -386,7 +391,7 @@ async def _invoice_rows(db, session, workspace) -> list:
 
 async def _overview(db, session, workspace):
     invoices = await _invoice_rows(db, session, workspace)
-    today = date.today()
+    today = workspace.today()
     invoiced = sum((r.amount_total for r in invoices), Decimal(0))
     open_balance = sum((r.amount_total - r.amount_paid for r in invoices), Decimal(0))
     overdue = sum((r.amount_total - r.amount_paid for r in invoices if r.due_date < today), Decimal(0))
@@ -423,7 +428,7 @@ async def portal_recovery_summary(subject=Depends(identity), db: AsyncSession = 
 
     async def build():
         invoices, events = await _records(db, session, workspace)
-        return {"workspace": workspace.name, "kind": workspace.kind, **recovery_summary(invoices, events)}
+        return {"workspace": workspace.name, "kind": workspace.kind, **recovery_summary(invoices, events, workspace.today())}
     return await _cached(workspace, session, "recovery", None, build)
 
 
@@ -524,6 +529,7 @@ async def _assistant_portfolio(db: AsyncSession, session, workspace):
     from app.services import note_embeddings
 
     return Portfolio(invoices, events, payments=payments, workspace=workspace, explain=explain, notes=notes,
+                     today=workspace.today(),
                      embed_query=note_embeddings.embed_query if note_embeddings.available() else None)
 
 
@@ -539,7 +545,7 @@ async def _assistant_answer(portfolio, payload: AssistantInput, workspace, on_ev
     return {"answer": result.answer, "model": result.model, "provider": result.provider,
             "fallback_used": result.fallback_used, "tools_used": result.tools_called,
             "proposals": result.proposals, "verification": result.verification,
-            "trace_id": str(recorder.run_id), "grounded_in": "workspace figures as of " + str(date.today())}
+            "trace_id": str(recorder.run_id), "grounded_in": "workspace figures as of " + str(workspace.today())}
 
 
 @router.post("/assistant")
@@ -659,7 +665,7 @@ async def _lateness(db, session, workspace) -> dict[str, int]:
 
 async def _late_reasons(db, session, workspace, rows) -> dict:
     """Why each overdue row is unpaid. Only notes every viewer can see are used, so the page stays shareable."""
-    today = date.today()
+    today = workspace.today()
     overdue = [r for r in rows if r.amount_paid < r.amount_total and r.due_date < today]
     if not overdue:
         return {}
@@ -682,7 +688,7 @@ async def follow_ups(subject=Depends(identity), db: AsyncSession = Depends(get_d
 
 
 async def _follow_ups(db, session, workspace):
-    today = date.today()
+    today = workspace.today()
     invoices = await _invoice_rows(db, session, workspace)
     payments = (await db.scalars(select(PortalPayment).where(PortalPayment.workspace_id == workspace.id))).all()
     settled = follow_up.settled_on(invoices, payments)
@@ -728,7 +734,7 @@ async def _follow_ups(db, session, workspace):
 async def _invoice_page(db, session, workspace, q, page, page_size, sort, status="all"):
     filters = [PortalInvoice.workspace_id == workspace.id]
     if status != "all":
-        filters += [PortalInvoice.due_date < date.today(), PortalInvoice.amount_paid < PortalInvoice.amount_total]
+        filters += [PortalInvoice.due_date < workspace.today(), PortalInvoice.amount_paid < PortalInvoice.amount_total]
     if status in {"awaiting", "escalated"}:
         _, events = await _records(db, session, workspace)
         latest = {}
@@ -976,8 +982,8 @@ async def _reminder_case(db, session, workspace, invoice_id):
     if workspace.kind == "showcase":
         scope.append(PortalReminder.actor_scope.in_((session.token_digest, SHOWCASE_BASELINE_SCOPE)))
     last = await db.scalar(select(func.max(PortalReminder.sent_at)).where(*scope))
-    verdict = reminders.policy(row, reason["kind"] if reason else None, last, datetime.now(timezone.utc))
-    return row, reminders.facts(row, workspace.name, date.today()), verdict
+    verdict = reminders.policy(row, reason["kind"] if reason else None, last, workspace.now())
+    return row, reminders.facts(row, workspace.name, workspace.today()), verdict
 
 
 @router.post("/reminder-draft")
@@ -1005,7 +1011,8 @@ async def log_reminder(payload: ReminderSent, subject=Depends(identity), db: Asy
         raise HTTPException(409, verdict["blocked"])
     db.add(PortalReminder(workspace_id=workspace.id, invoice_id=row.id, actor_scope=_actor(session, workspace),
                           channel=payload.channel, language=payload.language, body=payload.body.strip(),
-                          balance=row.amount_total - row.amount_paid, draft_source=payload.draft_source))
+                          balance=row.amount_total - row.amount_paid, draft_source=payload.draft_source,
+                          **({"sent_at": workspace.now()} if workspace.as_of else {})))
     await db.commit()
     _bump(workspace.id)
     return {"ok": True, "external_effects": False}
@@ -1032,7 +1039,7 @@ async def list_reminders(subject=Depends(identity), db: AsyncSession = Depends(g
               "draft_source": r.draft_source, "sent_at": r.sent_at.isoformat(),
               "payment": reminders.outcome(r.sent_at, paid[r.invoice_id])} for r, number, customer in rows]
     settled_window = [i for i in items
-                      if datetime.fromisoformat(i["sent_at"]) <= datetime.now(timezone.utc) - timedelta(
+                      if datetime.fromisoformat(i["sent_at"]) <= workspace.now() - timedelta(
                           days=reminders.OUTCOME_DAYS) or i["payment"]]
     return {"reminders": items, "summary": {"sent": len(items), "judged": len(settled_window),
                                             "followed_by_payment": sum(bool(i["payment"]) for i in settled_window)}}

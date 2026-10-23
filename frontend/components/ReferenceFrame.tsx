@@ -10,13 +10,15 @@ export default function ReferenceFrame({ page, portal = false }: { page: Page; p
   const [query, setQuery] = useState<string | null>(null);
 
   useEffect(() => {
+    let asOf: string | null = null; // a historical ledger's fixed date; null means today
     const sync = () => {
       const params = new URLSearchParams(window.location.search);
       params.delete("scenario");
       if (portal) params.set("portal", "1");
       if (!params.has("sort")) params.set("sort", "posting_desc");
+      if (asOf && !params.has("as_of")) params.set("as_of", asOf);
       if (!params.has("preset") && !params.has("start_date") && !params.has("end_date")) {
-        const now = new Date();
+        const now = asOf ? new Date(asOf + "T00:00:00Z") : new Date();
         const past = new Date(now);
         past.setUTCFullYear(now.getUTCFullYear() - 1);
         params.set("start_date", past.toISOString().slice(0, 10));
@@ -25,9 +27,16 @@ export default function ReferenceFrame({ page, portal = false }: { page: Page; p
       }
       setQuery("?" + params.toString());
     };
-    sync();
+    let active = true;
+    (async () => {
+      if (portal) {
+        const me = await fetch("/api/portal/me", {cache: "no-store"}).then(r => r.ok ? r.json() : null).catch(() => null);
+        asOf = me?.as_of ?? null;
+      }
+      if (active) sync();
+    })();
     window.addEventListener("popstate", sync);
-    return () => window.removeEventListener("popstate", sync);
+    return () => { active = false; window.removeEventListener("popstate", sync); };
   }, [portal]);
 
   // Turn same-origin sidebar links into real top-level Next.js navigation

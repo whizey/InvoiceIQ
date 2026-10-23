@@ -50,8 +50,11 @@ if os.environ.get("EMBEDDED_KAFKA", "true").lower() == "true" and not os.environ
     embedded_kafka = subprocess.Popen(["bash", str(ROOT / "start_kafka.sh")])
 
 subprocess.run([sys.executable, "-m", "alembic", "upgrade", "head"], check=True)
-# Idempotent: seeds the illustrative showcase once; later starts add nothing.
+# Idempotent: seeds the public workspace once; later starts add nothing unless it is stale.
 subprocess.run([sys.executable, "-m", "scripts.provision_portal_showcase"], check=True)
+# The real 2015 ledger (downloaded and checksum-verified on first start). Optional: the app runs without it.
+if subprocess.run([sys.executable, "-m", "scripts.provision_public_ledger"]).returncode != 0:
+    print("Public 2015 ledger not loaded; continuing without it", flush=True)
 
 if embedded_kafka is not None:
     try:

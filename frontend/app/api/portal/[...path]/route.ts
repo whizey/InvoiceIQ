@@ -26,7 +26,7 @@ async function handler(req: NextRequest, context: Params, method: "GET"|"POST"|"
   const body=(method==="POST" && action!=="showcase")||method==="PATCH" ? await req.text():undefined;
   if (body && body.length>(action==="import"?262144:action==="import-preview"||action==="import-file"?3500000:action==="assistant"||action==="assistant-stream"?16384:action==="transcribe"?1000000:action==="reminders"?8192:4096)) return Response.json({detail:"Payload too large"},{status:413});
   try {
-    const query=["invoices","assistant-reliability","notes","example-export"].includes(action)?req.nextUrl.search:"";
+    const query=["invoices","assistant-reliability","notes","example-export","showcase"].includes(action)?req.nextUrl.search:"";
     const upstream=await fetch(backendBase()+"/portal/"+path.map(encodeURIComponent).join("/")+query,{
       method,cache:"no-store",signal:AbortSignal.timeout(action==="assistant"||action==="assistant-stream"||action==="import-file"||action==="reminder-draft"?60000:action==="transcribe"?60000:15000),
       headers:{...(token?{Authorization:"Bearer "+token}:{}),...(body?{"Content-Type":"application/json"}:{})},
