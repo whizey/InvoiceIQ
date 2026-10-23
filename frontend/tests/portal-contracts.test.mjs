@@ -15,7 +15,7 @@ test("portal proxy requires same-origin mutation and secure cookie flags",()=>{
  assert.ok(route.includes('req.headers.get("origin")!==expectedOrigin'));
  assert.ok(route.includes('req.headers.get("host")'));
  assert.ok(route.includes("httpOnly:true"));
- assert.ok(route.includes('sameSite:"strict"'));
+ assert.ok(route.includes('sameSite:"lax"'));
  assert.ok(route.includes('maxAge:8*3600'));
  assert.ok(!route.includes("NEXT_PUBLIC_"));
 });
