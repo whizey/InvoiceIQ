@@ -2,7 +2,7 @@
 
 import {FormEvent, useEffect, useState} from "react";
 
-type Note={id:string;invoice:string|null;kind:Kind;body:string;created_at:string|null;sample:boolean};
+type Note={id:string;invoice:string|null;kind:Kind;body:string;created_at:string|null;shared:boolean};
 type Kind="customer_message"|"dispute"|"promise"|"internal";
 async function fetchNotes(invoiceId:string):Promise<Note[]>{
   const r=await fetch(`/api/portal/notes?invoice_id=${encodeURIComponent(invoiceId)}`,{cache:"no-store"});
@@ -45,7 +45,6 @@ export default function InvoiceNotes({invoiceId}:{invoiceId:string}){
     {notes?.length===0&&<p className="rp-muted">No notes on this invoice yet.</p>}
     {notes&&notes.length>0&&<ul className="notes-list">{notes.map(n=><li key={n.id}>
       <p className="notes-meta"><span className={"notes-kind k-"+n.kind}>{KIND_LABEL[n.kind]}</span>
-        {n.sample&&<span className="notes-sample" title="Illustrative sample note">Sample</span>}
         {n.created_at&&<time dateTime={n.created_at}>{new Date(n.created_at).toLocaleDateString()}</time>}</p>
       <p className="notes-body">{n.body}</p>
     </li>)}</ul>}

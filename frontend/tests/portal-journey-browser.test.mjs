@@ -22,12 +22,12 @@ test('visitor and customer journeys use isolated persisted workspaces', async ()
     const showcaseResponse=await showcaseFinancial;
     assert.equal(showcaseResponse.status(),200,await showcaseResponse.text());
     const showcaseData=await showcaseResponse.json();
-    assert.equal(showcaseData.workspace,'Kaveri Industrial Supplies (sample)');
+    assert.equal(showcaseData.workspace,'Kaveri Industrial Supplies');
     assert.equal(showcaseData.metrics.scored_open,showcaseData.metrics.open_count,
-      'Every illustrative open invoice has a genuine stored champion prediction');
+      'Every open invoice has a genuine stored champion prediction');
     assert.ok(showcaseData.metrics.invoice_count>0);
     assert.ok(Number(showcaseData.metrics.overdue_share)>20 && Number(showcaseData.metrics.overdue_share)<65,
-      `Illustrative overdue share should reflect a believable aged ledger: ${showcaseData.metrics.overdue_share}`);
+      `Overdue share should reflect a believable aged ledger: ${showcaseData.metrics.overdue_share}`);
     assert.equal(showcaseData.series.at(-1).open,showcaseData.metrics.open,
       'The plotted period-end balance must reconcile to the open receivables KPI');
     await page.frameLocator('iframe').getByText('Invoiced', {exact: true}).first().waitFor();
@@ -72,12 +72,12 @@ test('visitor and customer journeys use isolated persisted workspaces', async ()
     await page.waitForFunction(() => new URLSearchParams(location.search).get('q') === 'Account 001');
     await page.getByText(/matching invoices/).waitFor();
     await page.getByRole('button', {name: 'Review →'}).first().click();
-    await page.getByRole('textbox', {name: 'Review note'}).fill('Browser review of illustrative invoice');
+    await page.getByRole('textbox', {name: 'Review note'}).fill('Browser review of an overdue invoice');
     await page.getByRole('button', {name: 'Record decision'}).click();
     await page.getByText('Decision recorded in the audit history.').waitFor();
     await page.reload();
     assert.equal(await page.getByRole('textbox', {name: 'Search invoices'}).inputValue(), 'Account 001');
-    await page.getByText('Browser review of illustrative invoice').waitFor();
+    await page.getByText('Browser review of an overdue invoice').waitFor();
     await page.getByRole('button', {name: 'Go back to previous page'}).click();
     await page.waitForURL('**/workspace-dashboard');
     assert.deepEqual(errors, []);

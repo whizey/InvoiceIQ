@@ -18,7 +18,7 @@ In the hosted product the browser never calls these routes directly. The Next.js
 |---|---|---|---|
 | POST | `/portal/register` | none | Create a user, a workspace and an owner membership; returns a session |
 | POST | `/portal/login` | none | Sign in. Errors do not reveal whether an account exists. After 5 failed attempts the account is locked for 30 seconds, doubling up to 15 minutes (`429` with `Retry-After`) |
-| POST | `/portal/showcase` | none | Start an isolated session on the sample workspace |
+| POST | `/portal/showcase` | none | Start an isolated session on the public workspace |
 | GET | `/portal/me` | session | Current identity, workspace and role |
 | GET / PATCH | `/portal/settings` | session | Read or update display name and company |
 | DELETE | `/portal/session` | session | Revoke the current session |

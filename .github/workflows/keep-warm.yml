@@ -1,4 +1,4 @@
-name: Keep the demo warm
+name: Keep the hosted app warm
 
 # Free hosting sleeps when idle: the Hugging Face Space after a period without traffic, and Supabase pauses a
 # project after about a week. A visitor arriving then waits minutes or sees errors. Every six hours this opens a

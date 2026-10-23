@@ -71,7 +71,7 @@ export default function RecoveryCharts({view,refreshKey}:{view:RecoveryView;refr
   return <section className={view==="dashboard"?"rp":"rp rp-embedded"} id="recovery-pipeline" aria-labelledby={`rp-title-${view}`}>
     <header><p className="settings-eyebrow">{view==="dashboard"?"Recovery & approvals":"Overview"}</p>
       <h2 id={`rp-title-${view}`}>{view==="approvals"?"Decision overview":view==="cases"?"Case overview":"Recovery pipeline"}</h2>
-      <p>Derived from recorded decisions on {data?.kind==="showcase"?"illustrative showcase":"your workspace"} invoices. The latest decision per invoice sets its status.</p></header>
+      <p>Derived from recorded decisions on your workspace invoices. The latest decision per invoice sets its status.</p></header>
     {error&&<p className="portal-notice-error" role="alert">{error}</p>}
     {!data&&!error&&<p role="status" className="rp-muted">Loading recovery summary…</p>}
     {data&&<>

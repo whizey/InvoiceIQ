@@ -4,7 +4,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 STATUSES = ("APPROVE", "REJECT", "ESCALATE")
-# Illustrative history every showcase visitor sees; visitor decisions are layered on top per session.
+# Past decisions every public-workspace visitor sees; visitor decisions are layered on top per session.
 SHOWCASE_BASELINE_SCOPE = "showcase-baseline"
 WEEKS = 8
 

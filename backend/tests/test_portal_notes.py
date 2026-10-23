@@ -73,7 +73,7 @@ async def test_notes_are_workspace_scoped_validated_and_read_by_the_assistant(mo
             added = await client.post("/portal/notes", headers=headers[0], json={
                 "invoice_id": ids[0], "kind": "dispute", "body": "Customer disputes the delivery date."})
             assert added.status_code == 201, added.text
-            assert added.json()["invoice"] == "N-A" and added.json()["sample"] is False
+            assert added.json()["invoice"] == "N-A" and added.json()["shared"] is False
             unembedded = await client.post("/portal/notes", headers=headers[1], json={
                 "invoice_id": ids[1], "kind": "internal", "body": "Embedding service offline today."})
             assert unembedded.status_code == 201

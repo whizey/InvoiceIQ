@@ -345,7 +345,7 @@ def compute_portal_dashboard(invoices, payments, event_ids, q, workspace, *, tod
         "as_of": as_of, "start_date": q.start_date, "end_date": q.end_date,
         "timezone": "UTC", "workspace": workspace.name, "currency": "INR",
         "currency_verified": True,
-        "currency_note": ("Isolated illustrative INR ledger, not live customer receivables."
+        "currency_note": ("INR ledger, no currency conversion."
                           if workspace.kind == "showcase" else "Customer-imported INR amounts, no currency conversion."),
         "historical_available": True,
         "historical_reason": "As-of balances reconstructed from dated portal payments.",

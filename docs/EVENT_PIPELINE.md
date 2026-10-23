@@ -97,7 +97,7 @@ Successful replays are stamped with `replayed_at` (the row is kept for audit), s
 
 ## Reading alerts
 
-`GET /portal/alerts` returns up to 50 alerts for the workspace (and, in the sample workspace, the visitor's own scope), open ones first. The frontend `ApprovalAlerts` panel polls it every five seconds.
+`GET /portal/alerts` returns up to 50 alerts for the workspace (and, in the public workspace, the visitor's own scope), open ones first. The frontend `ApprovalAlerts` panel polls it every five seconds.
 
 ## Running it locally with a real broker
 

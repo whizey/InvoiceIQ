@@ -80,7 +80,7 @@ events awaiting their consumer, unpublished outbox events and dead letters. Afte
 `backend/scripts/provision_portal_showcase.py` deliberately refuses to run
 unless the database is named `invoiceiq_sample`, `invoiceiq_sample_test` or
 `invoiceiq_portal_test`, or exactly matches `INVOICEIQ_SHOWCASE_DATABASE` (set to
-`invoiceiq` in `render.saas.yaml`). That guard stops illustrative data reaching a real
+`invoiceiq` in `render.saas.yaml`). That guard stops seeded data reaching a real
 customer database. Choose one:
 
 1. **Portfolio/sample deployment (recommended for a submission).** One Neon
@@ -123,7 +123,7 @@ Frontend (Vercel):
    against the target `DATABASE_URL`. Check the revision first.
 4. Sample deployment only: provision the showcase, once, deliberately:
    `INVOICEIQ_PORTAL_SHOWCASE=true python -m scripts.provision_portal_showcase`
-   (it also seeds the illustrative baseline decisions; reruns are no-ops).
+   (it also seeds the baseline decisions; reruns are no-ops).
 5. Deploy the API, then the frontend with the variables above.
 6. Rotate any key that was ever pasted into a chat or ticket.
 

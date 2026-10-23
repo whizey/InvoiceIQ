@@ -17,12 +17,12 @@ from app.core.db import async_session_factory, engine
 from app.api.portal import SHOWCASE_ID
 from app.models.event_effects import ApprovalAlert
 from app.models.portal import PortalWorkspace, PortalInvoice, PortalPayment, PortalCaseEvent, PortalNote
-from app.seed import showcase_sample
+from app.seed import showcase_seed
 from app.services import note_embeddings
 from app.services.portal_recovery import SHOWCASE_BASELINE_SCOPE
 from app.services.portal_risk import score_workspace
 
-STALE_AFTER_DAYS = 30  # a sample whose newest invoice is older than this is rebuilt, so it never looks abandoned
+STALE_AFTER_DAYS = 30  # a ledger whose newest invoice is older than this is rebuilt, so it never looks abandoned
 
 
 def validate_target():
@@ -40,7 +40,7 @@ def validate_target():
 
 
 def _id(kind: str, key: str) -> uuid.UUID:
-    return uuid.uuid5(SHOWCASE_ID, f"sample-v2:{kind}:{key}")
+    return uuid.uuid5(SHOWCASE_ID, f"ledger-v2:{kind}:{key}")
 
 
 async def needs_rebuild(db, today: date) -> str | None:
@@ -51,12 +51,12 @@ async def needs_rebuild(db, today: date) -> str | None:
         return "empty"
     legacy = await db.scalar(select(func.count()).select_from(PortalInvoice).where(
         PortalInvoice.workspace_id == SHOWCASE_ID,
-        PortalInvoice.invoice_number.notlike(f"{showcase_sample.NUMBER_PREFIX}-%")))
+        PortalInvoice.invoice_number.notlike(f"{showcase_seed.NUMBER_PREFIX}-%")))
     if legacy:
-        return "earlier sample data"
+        return "earlier data"
     newest = await db.scalar(select(func.max(PortalInvoice.posting_date)).where(PortalInvoice.workspace_id == SHOWCASE_ID))
     if newest is None or newest < today - timedelta(days=STALE_AFTER_DAYS):
-        return "stale sample data"
+        return "stale data"
     return None
 
 
@@ -71,11 +71,11 @@ async def clear_showcase(db) -> None:
     await db.flush()
 
 
-async def seed_sample(db, today: date) -> dict:
-    """Write the sample business for today, score it with the verified model and embed its notes."""
-    sample = showcase_sample.build(today)
+async def seed_ledger(db, today: date) -> dict:
+    """Write the business for today, score it with the verified model and embed its notes."""
+    ledger = showcase_seed.build(today)
     ids = {}
-    for row in sample.invoices:
+    for row in ledger.invoices:
         invoice = PortalInvoice(id=_id("invoice", row["number"]), workspace_id=SHOWCASE_ID,
                                 invoice_number=row["number"], counterparty=row["account"],
                                 issue_date=row["posted"], posting_date=row["posted"], due_date=row["due"],
@@ -83,21 +83,21 @@ async def seed_sample(db, today: date) -> dict:
         db.add(invoice)
         ids[row["number"]] = invoice.id
     await db.flush()  # invoices before the rows that reference them
-    for row in sample.payments:
+    for row in ledger.payments:
         db.add(PortalPayment(id=_id("payment", row["number"]), workspace_id=SHOWCASE_ID,
                              invoice_id=ids[row["number"]], paid_on=row["paid_on"], amount=row["amount"]))
-    for index, row in enumerate(sample.decisions):
+    for index, row in enumerate(ledger.decisions):
         db.add(PortalCaseEvent(id=_id("decision", str(index)), workspace_id=SHOWCASE_ID,
                                invoice_id=ids[row["number"]], actor_scope=SHOWCASE_BASELINE_SCOPE,
                                decision=row["decision"], note=row["note"], created_at=row["at"]))
-    for index, row in enumerate(sample.notes):
+    for index, row in enumerate(ledger.notes):
         db.add(PortalNote(id=_id("note", str(index)), workspace_id=SHOWCASE_ID, invoice_id=ids[row["number"]],
                           kind=row["kind"], body=row["body"], author_scope=SHOWCASE_BASELINE_SCOPE,
                           created_at=row["at"]))
     await db.flush()
     scoring = await score_workspace(db, SHOWCASE_ID)
     embedded = await note_embeddings.backfill(db, SHOWCASE_ID)
-    return {**showcase_sample.summary(sample, today), "scored": scoring["scored"],
+    return {**showcase_seed.summary(ledger, today), "scored": scoring["scored"],
             "model_version": scoring["model_version"], "notes_embedded": embedded}
 
 
@@ -112,10 +112,10 @@ async def main(*, refresh: bool = False):
             if workspace and workspace.kind != "showcase":
                 raise RuntimeError("Existing workspace is not a showcase")
             if not workspace:
-                workspace = PortalWorkspace(id=SHOWCASE_ID, name=showcase_sample.BUSINESS, kind="showcase")
+                workspace = PortalWorkspace(id=SHOWCASE_ID, name=showcase_seed.BUSINESS, kind="showcase")
                 db.add(workspace)
                 await db.flush()
-            workspace.name = showcase_sample.BUSINESS
+            workspace.name = showcase_seed.BUSINESS
             reason = "forced refresh" if refresh else await needs_rebuild(db, today)
             if reason is None:
                 embedded = await note_embeddings.backfill(db, SHOWCASE_ID)
@@ -123,7 +123,7 @@ async def main(*, refresh: bool = False):
                 print(f"Showcase is current; {embedded} notes embedded for semantic search")
                 return
             await clear_showcase(db)
-            result = await seed_sample(db, today)
+            result = await seed_ledger(db, today)
             await db.commit()
             print(f"Showcase rebuilt ({reason}): {result['invoices']} invoices for {result['customers']} customers, "
                   f"{result['decisions']} decisions, {result['notes']} notes, {result['scored']} scored "

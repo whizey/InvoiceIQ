@@ -1,4 +1,4 @@
-"""Customer workspaces and isolated, illustrative showcase records.
+"""Customer workspaces and the isolated public workspace.
 
 Portal ledger records are deliberately separate from legacy Company/Invoice.
 No foreign key or cascade points from a showcase record into customer accounting.
@@ -104,7 +104,7 @@ class PortalPayment(Base, UUIDPrimaryKeyMixin):
 class PortalNote(Base, UUIDPrimaryKeyMixin):
     """A dated note on an invoice: a customer message, dispute, payment promise or internal remark.
 
-    Notes are free text written by people (or seeded as illustrative samples); the assistant reads them as
+    Notes are free text written by people (or seeded with the public workspace); the assistant reads them as
     untrusted data. Showcase visitors see the shared baseline plus their own, like review decisions.
     """
     __tablename__ = "portal_notes"

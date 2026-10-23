@@ -5,7 +5,7 @@
 | Piece | Host | Notes |
 |---|---|---|
 | Frontend (Next.js) | Vercel, project `invoiceiq` | Root directory `frontend`. Production domain `invoiceiq-ai.vercel.app` |
-| API (FastAPI) | Hugging Face Space `Riya1104/InvoiceIQ` | Gradio SDK shell; `app.py` migrates, seeds the sample workspace, then serves the API with uvicorn on port 7860 |
+| API (FastAPI) | Hugging Face Space `Riya1104/InvoiceIQ` | Gradio SDK shell; `app.py` migrates, seeds the public workspace, then serves the API with uvicorn on port 7860 |
 | Database | Supabase PostgreSQL via the session pooler | Free tier |
 | Models | Git LFS in the repository | Copied into the Space by the build script |
 | Event broker | Single-node Apache Kafka (KRaft) inside the same Space container | Ephemeral storage covered by the outbox and a reconciler, in-process fallback; a managed broker can be used by configuration |
@@ -46,7 +46,7 @@ flowchart LR
 ```
 
 - **Trigger:** a separate `workflow_run` watches the `CI` workflow. The deployment jobs use repository secrets and run without the production environment's manual approval gate.
-- **API job:** `scripts/build_hf_space.sh` assembles a runtime-only folder (no tests, env files or report images; binaries tracked by LFS), bundles the checksum-verified Kafka archive, and force-pushes it to the Space. A code-only redeploy of the Space takes under a minute to be running again. Hugging Face then rebuilds and restarts the Space, which migrates the database and seeds the sample workspace.
+- **API job:** `scripts/build_hf_space.sh` assembles a runtime-only folder (no tests, env files or report images; binaries tracked by LFS), bundles the checksum-verified Kafka archive, and force-pushes it to the Space. A code-only redeploy of the Space takes under a minute to be running again. Hugging Face then rebuilds and restarts the Space, which migrates the database and seeds the public workspace.
 - **Web job:** the Vercel CLI pulls the project's production settings, builds, and deploys the prebuilt output. The token is trimmed of stray whitespace.
 - **Smoke test:** waits up to ten minutes for the API health check, then verifies the home page, opens a sample session and fetches the overview, recovery summary and alerts endpoints with the same origin header a browser would send.
 
@@ -60,8 +60,8 @@ Repository secrets used: `HF_TOKEN` (a write token), `VERCEL_TOKEN`, `VERCEL_ORG
 |---|---|
 | `DATABASE_URL` | PostgreSQL URL, `postgresql+asyncpg://` form; use the pooler string and a password free of special characters |
 | `GOOGLE_API_KEY` | Gemini for the assistant, transcription and voice reasoning |
-| `INVOICEIQ_SHOWCASE_DATABASE` | Name of an approved database that may hold sample data (`postgres` on the hosted database) |
-| `INVOICEIQ_PORTAL_ENABLED`, `INVOICEIQ_PORTAL_SHOWCASE` | Enable the portal and the sample workspace (set by `app.py`) |
+| `INVOICEIQ_SHOWCASE_DATABASE` | Name of an approved database that may hold the public workspace (`postgres` on the hosted database) |
+| `INVOICEIQ_PORTAL_ENABLED`, `INVOICEIQ_PORTAL_SHOWCASE` | Enable the portal and the public workspace (set by `app.py`) |
 | `LLM_MODEL` | Default `gemini-3.6-flash`; transcription prefers `gemini-3.5-flash-lite` |
 | `KAFKA_BOOTSTRAP_SERVERS`, `KAFKA_SECURITY_PROTOCOL`, `KAFKA_SASL_MECHANISM`, `KAFKA_USERNAME`, `KAFKA_PASSWORD`, `OUTBOX_DISPATCH_ENABLED` | Optional broker connection |
 | `REDIS_URL` | Optional distributed lock |

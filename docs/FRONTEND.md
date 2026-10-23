@@ -6,7 +6,7 @@ Next.js 16 (App Router, React 19, TypeScript) in `frontend/`. The production bui
 
 | Route | What it shows |
 |---|---|
-| `/home` | Public landing page: "See the cash behind every invoice", value propositions, **Explore the product** (opens the sample workspace) and sign-up links |
+| `/home` | Public landing page: "See the cash behind every invoice", value propositions, **Explore the product** (opens the public workspace) and sign-up links |
 | `/signup`, `/login` | Account creation and sign-in |
 | `/workspace-dashboard` | The main analytics dashboard (the reference overview in an auto-sizing frame, fed by live data) |
 | `/invoices` | Invoice intelligence: search, sort, pagination, risk and drivers, CSV import for customer workspaces |
