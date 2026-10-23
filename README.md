@@ -9,7 +9,10 @@ Live at **https://invoiceiq-ai.vercel.app**. No sign-up needed to look around.
 [![CI](https://github.com/whizey/InvoiceIQ/actions/workflows/ci.yml/badge.svg)](https://github.com/whizey/InvoiceIQ/actions/workflows/ci.yml)
 [![Deploy](https://github.com/whizey/InvoiceIQ/actions/workflows/deploy.yml/badge.svg)](https://github.com/whizey/InvoiceIQ/actions/workflows/deploy.yml)
 
-![The follow-up list](docs/images/follow-ups.png)
+![Clicking through the live site: the nav, the approval queue, then filtering it by status](docs/images/demo.gif)
+
+This is the live site, not a mock-up: open "More" in the nav, go to Approvals, click a status to filter the real
+queue underneath it. Nothing in that recording is staged.
 
 ## Trying it
 
