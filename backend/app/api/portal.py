@@ -43,7 +43,7 @@ from app.services.portal_recovery import SHOWCASE_BASELINE_SCOPE, recovery_summa
 
 router = APIRouter(prefix="/portal", tags=["customer portal"])
 SHOWCASE_ID = uuid.UUID("60c111be-dde9-4a54-9dcc-f881d0d0aaa1")
-SEED_VERSION = "showcase-v1"
+SEED_VERSION = "showcase-v2"  # Kaveri Industrial Supplies, app/seed/showcase_sample.py
 
 # Read cache; any write to a workspace bumps its version, so views never go stale. The TTL only bounds memory and
 # the date rollover, so it can be generous.
