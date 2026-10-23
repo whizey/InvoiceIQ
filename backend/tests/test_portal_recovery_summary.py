@@ -80,3 +80,13 @@ async def test_invoke_first_skips_failed_and_missing_clients():
 
     assert (await _invoke_first([None, Boom(), Fine()], [], 5)).content == "ok"
     assert await _invoke_first([Boom(), None], [], 5) is None
+
+
+def test_paid_invoices_leave_the_status_counts_and_are_reported_as_paid_since_the_decision():
+    open_one, settled = invoice(date(2026, 9, 1), 100, 0), invoice(date(2026, 9, 1), 400, 400)
+    overdue_undecided = invoice(date(2026, 9, 5), 50, 0)
+    kpis = recovery_summary([open_one, settled, overdue_undecided],
+                            [event(open_one, "APPROVE", 2), event(settled, "APPROVE", 5)], TODAY)["kpis"]
+    assert kpis["approved"] == 1 and kpis["paid_since_decision"] == 1 and kpis["paid_since_amount"] == "400"
+    # every overdue invoice still owed is either awaiting review or carries a decision
+    assert kpis["overdue_open"] == kpis["awaiting_review"] + kpis["approved"] + kpis["escalated"] + kpis["rejected"]

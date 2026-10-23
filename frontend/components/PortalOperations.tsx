@@ -16,6 +16,9 @@ type Event={id:string;invoice_id:string;decision:string;note:string;created_at:s
 type Overview={workspace:string;kind:"showcase"|"customer";provenance:string;actions:Event[]};
 type InvoicePage={invoices:Invoice[];total:number;page:number;page_size:number};
 type Section="invoices"|"cases"|"approvals";
+type ListStatus="all"|"overdue"|"awaiting"|"escalated";
+const STATUS_WORDS:Record<ListStatus,string>={all:"invoices",overdue:"overdue invoices",awaiting:"overdue invoices awaiting review",escalated:"escalated invoices"};
+const PICK:Record<string,ListStatus>={"Awaiting review":"awaiting",Escalated:"escalated"};
 const rupees=(s:string)=>"₹"+Number(s).toLocaleString("en-IN",{maximumFractionDigits:2});
 
 export default function PortalOperations({section,initialFilters}:{section:Section;initialFilters:PortalFilters}){
@@ -28,6 +31,7 @@ export default function PortalOperations({section,initialFilters}:{section:Secti
   const [query,setQuery]=useState(initialFilters.q);
   const [page,setPage]=useState(initialFilters.page);
   const [sort,setSort]=useState(initialFilters.sort);
+  const [status,setStatus]=useState<ListStatus>(section==="cases"?"awaiting":section==="approvals"?"escalated":"all");
   const [reload,setReload]=useState(0);
   const [success,setSuccess]=useState("");
   const [selected,setSelected]=useState<Invoice|null>(null);
@@ -61,7 +65,7 @@ export default function PortalOperations({section,initialFilters}:{section:Secti
     const controller=new AbortController();
     const timer=window.setTimeout(async()=>{
       try{
-        const params=new URLSearchParams({q:query,page:String(page),page_size:"25",sort});
+        const params=new URLSearchParams({q:query,page:String(page),page_size:"25",sort,status});
         const response=await fetch("/api/portal/invoices?"+params,{cache:"no-store",signal:controller.signal});
         const payload=await response.json();
         if(!response.ok)throw new Error(payload.detail||"Invoices unavailable");
@@ -69,7 +73,7 @@ export default function PortalOperations({section,initialFilters}:{section:Secti
       }catch(e){if(!controller.signal.aborted)setError(e instanceof Error?e.message:"Invoices unavailable")}
     },query?250:0);
     return()=>{window.clearTimeout(timer);controller.abort()};
-  },[query,page,sort,reload]);
+  },[query,page,sort,status,reload]);
   const invoices=invoicePage?.invoices||[];
 
   async function recordDecision(){
@@ -99,23 +103,29 @@ export default function PortalOperations({section,initialFilters}:{section:Secti
       {error&&<div role="alert" style={{padding:16,background:"#fff0ee",borderRadius:8,color:"#922b1e"}}>{error} <button type="button" onClick={()=>setReload(value=>value+1)}>Retry invoices</button></div>}
       {success&&<p role="status" style={{padding:16,background:"#eff7ef",borderRadius:8,color:"#215a27"}}>{success}</p>}
       {data&&section!=="invoices"&&<ApprovalAlerts refreshKey={data}/>}
-      {data&&section!=="invoices"&&<RecoveryCharts view={section} refreshKey={data}/>}
+      {data&&section!=="invoices"&&<RecoveryCharts view={section} refreshKey={data}
+        onPick={label=>{const next=PICK[label]??"overdue";setInvoicePage(null);setStatus(next);setPage(1);
+          document.getElementById("invoice-list")?.scrollIntoView({behavior:"smooth"})}}/>}
       {data&&<>
         {section==="invoices"&&<LedgerImport canImport={data.kind==="customer"}
           onImported={()=>{void load();setReload(value=>value+1)}}/>}
         <div className="portal-operations-grid">
-          <section style={panel}>
+          <section style={panel} id="invoice-list">
             <div style={{display:"flex",gap:12,alignItems:"center",justifyContent:"space-between",flexWrap:"wrap"}}>
               <h2 style={{fontSize:19,margin:0}}>{section==="cases"?"Invoices for review":section==="approvals"?"Review pending invoices":"Invoice register"}</h2>
               <input aria-label="Search invoices" placeholder="Search invoice or account" value={query} onChange={e=>{setInvoicePage(null);setQuery(e.target.value);setPage(1)}}
                 style={{padding:11,border:"1px solid #ddd",borderRadius:7,minWidth:215}}/>
+              <label style={{fontSize:12}}>Show <select aria-label="Show invoices" value={status} onChange={e=>{setInvoicePage(null);setStatus(e.target.value as ListStatus);setPage(1)}} style={{padding:10,marginLeft:6,border:"1px solid #ddd",borderRadius:7}}>
+                <option value="all">All invoices</option><option value="overdue">Overdue</option>
+                <option value="awaiting">Awaiting review</option><option value="escalated">Escalated</option>
+              </select></label>
               <label style={{fontSize:12}}>Sort invoices <select aria-label="Sort invoices" value={sort} onChange={e=>{setInvoicePage(null);setSort(e.target.value);setPage(1)}} style={{padding:10,marginLeft:6,border:"1px solid #ddd",borderRadius:7}}>
                 <option value="posting_desc">Newest posting</option><option value="posting_asc">Oldest posting</option>
                 <option value="due_asc">Earliest due</option><option value="due_desc">Latest due</option>
                 <option value="number_asc">Invoice number</option>
               </select></label>
             </div>
-            <p style={{fontSize:12,color:"#777"}}>Showing {invoices.length} of {invoicePage?.total??0} matching invoices · INR</p>
+            <p style={{fontSize:12,color:"#777"}}>Showing {invoices.length} of {invoicePage?.total??0} {STATUS_WORDS[status]}{query?" matching the search":""} · INR</p>
             {!invoicePage&&!error&&<p role="status">Loading invoices…</p>}
             <div style={{overflowX:"auto"}}><table className="portal-invoice-table" style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
               <thead><tr>{([["Invoice",null],["Customer",null],["Due date",null],["Still owed","owed"],["Why it's late","late"],["Late-payment risk","risk"],["Action",null]] as const).map(([s,k])=>
@@ -130,7 +140,7 @@ export default function PortalOperations({section,initialFilters}:{section:Secti
                   Review →</button></td>
               </tr>)}</tbody>
             </table></div>
-            {invoicePage?.total===0&&<p style={{padding:20,color:"#666"}}>{query?"No invoices match this search.":"No invoices yet. Import a CSV to begin."}</p>}
+            {invoicePage?.total===0&&<p style={{padding:20,color:"#666"}}>{query?"No invoices match this search.":status==="all"?"No invoices yet. Import a Tally or Zoho Books export to begin.":`No ${STATUS_WORDS[status]}.`}</p>}
             {invoicePage&&invoicePage.total>invoicePage.page_size&&<div style={{display:"flex",alignItems:"center",gap:12,justifyContent:"flex-end",marginTop:16}}>
               <button disabled={page<=1} onClick={()=>{setInvoicePage(null);setPage(value=>value-1)}}>Previous</button>
               <span>Page {page} of {Math.ceil(invoicePage.total/invoicePage.page_size)}</span>

@@ -49,7 +49,7 @@ export default function PortalNavigation(){
       </button>
       <Link href="/home" style={{textDecoration:"none",color:"#161616",fontWeight:800,letterSpacing:"-.04em"}}>▣ InvoiceIQ</Link>
     </div>
-    <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+    <div className="pn-links" style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
       {destinations.map(link=><Link key={link.href} href={link.href}
         aria-current={pathname===link.href?"page":undefined}
         style={{padding:"8px 11px",borderRadius:7,fontSize:13,textDecoration:"none",
