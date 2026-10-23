@@ -51,6 +51,11 @@ says so. That workspace is a generated ledger in which each customer has a consi
 exactly what a per-customer average captures. This is the behaviour we want: the comparison decides, not a preference
 for the fancier method.
 
+**On real invoices in the product.** The second public workspace holds 1,998 real, anonymised invoices for 34
+customers from the same public dataset, viewed as of 30 Nov 2015. There the model wins (AUC 0.87 vs 0.61) and is
+used. That 0.87 is optimistic: those invoices fall inside the period the model was trained on, and the page says so.
+The fair figure is the unseen test split above.
+
 ## Calibration, honestly
 
 A ranking can be good while its probabilities are wrong. On the same public test split:
@@ -76,7 +81,9 @@ kept separately for low-, medium- and high-risk invoices when each has enough hi
 still waiting, not as never paying.
 
 Each forecast is checked against the past. Re-running it from the start of each of the last six four-week periods,
-using only what was known then, actual collections came to **92–126% of the forecast** on the demo workspace.
+using only what was known then, actual collections came to **92–126% of the forecast** on the demo workspace,
+but **52–181%** on the real 2015 ledger. Real payments are likely lumpier than a generated ledger's (customers
+often clear several invoices at once), so on real data the range is wide, and the page shows it rather than hiding it.
 
 ## What failed or surprised us
 

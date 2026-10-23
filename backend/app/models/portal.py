@@ -4,7 +4,7 @@ Portal ledger records are deliberately separate from legacy Company/Invoice.
 No foreign key or cascade points from a showcase record into customer accounting.
 """
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, time, timezone
 from decimal import Decimal
 
 from sqlalchemy import Date, DateTime, ForeignKey, Index, LargeBinary, Numeric, String, UniqueConstraint, func
@@ -18,6 +18,15 @@ class PortalWorkspace(Base, UUIDPrimaryKeyMixin, CreatedAtMixin):
 
     name: Mapped[str] = mapped_column(String(160), nullable=False)
     kind: Mapped[str] = mapped_column(String(16), nullable=False)  # customer | showcase
+    # A historical ledger is viewed as of a fixed date (the public 2016 dataset); None means today.
+    as_of: Mapped[date | None] = mapped_column(Date)
+
+    def today(self) -> date:
+        return self.as_of or date.today()
+
+    def now(self) -> datetime:
+        """Current time, or the end of the as-of business day for a historical ledger."""
+        return datetime.combine(self.as_of, time(18), tzinfo=timezone.utc) if self.as_of else datetime.now(timezone.utc)
 
 
 class PortalUser(Base, UUIDPrimaryKeyMixin, CreatedAtMixin):

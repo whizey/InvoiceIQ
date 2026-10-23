@@ -211,7 +211,8 @@ async def build_portal_dashboard(db, q, subject, *, export: bool = False):
     event_ids = set((await db.scalars(select(PortalCaseEvent.invoice_id).where(
         PortalCaseEvent.workspace_id == workspace.id,
         PortalCaseEvent.actor_scope.in_((actor, SHOWCASE_BASELINE_SCOPE) if workspace.kind == "showcase" else (actor,))))).all())
-    return PreservedDashboard(**compute_portal_dashboard(invoices, payments, event_ids, q, workspace, export=export))
+    return PreservedDashboard(**compute_portal_dashboard(invoices, payments, event_ids, q, workspace,
+                                                         today=workspace.today(), export=export))
 
 
 def compute_portal_dashboard(invoices, payments, event_ids, q, workspace, *, today: date | None = None,

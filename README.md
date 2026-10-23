@@ -15,7 +15,7 @@
 
 </div>
 
-> The public workspace is **Kaveri Industrial Supplies**, a fictional distributor with about 700 invoices across 40 customers over the past year. The models were developed on two public datasets: a B2B invoice-payment dataset for the late-payment model and the BPI Challenge 2019 purchase-to-pay event log for the survival models. Open the public workspace from the home page; no sign-up is needed. InvoiceIQ never moves money, and its forecasts are predictions, not guarantees.
+> There are two public workspaces. **Kaveri Industrial Supplies** is a fictional distributor with about 700 invoices across 40 customers over the past year. The **public B2B ledger** holds 1,998 real, anonymised invoices for 34 customers from a public dataset, viewed as of 30 Nov 2015, so every number in it is an observation. The models were developed on two public datasets: a B2B invoice-payment dataset for the late-payment model and the BPI Challenge 2019 purchase-to-pay event log for the survival models. Open the public workspace from the home page; no sign-up is needed. InvoiceIQ never moves money, and its forecasts are predictions, not guarantees.
 
 ### At a glance
 
@@ -62,6 +62,8 @@ InvoiceIQ answers exactly those. Upload the export you already have; get a ranke
 3. **Remind:** draft a WhatsApp or email reminder in English or Hinglish, edit it, open it in WhatsApp, then mark it sent. A second reminder within three days is refused, as is any reminder on a disputed invoice.
 4. **Invoices:** upload a Tally or Zoho Books export (or download an example) to see the import preview: columns detected, rows ready, rows skipped and why.
 5. **Model:** the model against the simple per-customer average, on this workspace and on public data, with calibration.
+
+Choose **See it on real 2015 data** instead to open the same screens on real, anonymised invoices as of 30 Nov 2015. There the model beats the simple average and is used; on Kaveri the simple average wins.
 
 Want your own data instead? **Create workspace** and import your Tally or Zoho Books export.
 
