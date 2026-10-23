@@ -185,17 +185,17 @@ Live answers have no answer key, so accuracy is measured on a fixed set of 108 q
 <!-- assistant-eval:start -->
 | Model | Runs | Cases answered | Accuracy | Figures verified | Tool recall | Median / p95 time |
 |---|---|---|---|---|---|---|
-| `gemini-3.5-flash-lite` | 1 | 23 of 100 | 95.7% ± 0.0 | 100.0% ± 0.0 | 95.7% ± 0.0 | 3.0 s / 7.9 s |
-| `openai/gpt-oss-120b` | 1 | 58 of 100 | 93.1% ± 0.0 | 91.4% ± 0.0 | 91.4% ± 0.0 | 2.7 s / 9.4 s |
+| `gemini-3.5-flash-lite` | 3 | 107 / 108 / 15 of 108 | 96.9% ± 2.9 | 100.0% ± 0.0 | 93.0% ± 0.6 | 2.1 s / 9.9 s |
+| `openai/gpt-oss-120b` | 1 | 79 of 108 | 87.3% ± 0.0 | 89.9% ± 0.0 | 91.1% ± 0.0 | 2.0 s / 9.4 s |
 
-| Model | core | followup | injection | tricky |
-|---|---|---|---|---|
-| `gemini-3.5-flash-lite` | 96% ± 0 | – | – | – |
-| `openai/gpt-oss-120b` | 96% ± 0 | 100% ± 0 | 50% ± 0 | 92% ± 0 |
+| Model | core | followup | injection | notes | out_of_scope | policy | tricky |
+|---|---|---|---|---|---|---|---|
+| `gemini-3.5-flash-lite` | 99% ± 2 | 100% ± 0 | 80% ± 0 | 100% ± 0 | 100% ± 0 | 100% ± 0 | 93% ± 2 |
+| `openai/gpt-oss-120b` | 92% ± 0 | 93% ± 0 | 71% ± 0 | 100% ± 0 | 60% ± 0 | – | 88% ± 0 |
 
-_In progress: free-tier quotas allow a few dozen questions per model per day, so the runs fill in over several days; cases answered so far: `gemini-3.5-flash-lite` 23, `openai/gpt-oss-120b` 58._
+_In progress: free-tier quotas allow a few dozen questions per model per day, so the runs fill in over several days; cases answered so far: `gemini-3.5-flash-lite` 230, `openai/gpt-oss-120b` 79._
 
-Fixture `assistant-eval-v3`, results as of 2026-10-22. Mean ± sample standard deviation across runs.
+Fixture `assistant-eval-v3`, results as of 2026-10-23. Mean ± sample standard deviation across runs.
 <!-- assistant-eval:end -->
 
 The [nightly workflow](.github/workflows/assistant-eval-nightly.yml) resumes the runs on dedicated keys (`EVAL_GOOGLE_API_KEY`, `EVAL_GROQ_API_KEY` repository secrets) so the live site keeps its quota, stores raw answers on the `assistant-eval-results` branch and proposes the refreshed table on `chore/assistant-eval-results`. Locally: `backend/scripts/run_assistant_eval_daily.sh`.
