@@ -4,7 +4,7 @@ sqlalchemy[asyncio]==2.0.52
 asyncpg==0.31.0
 pydantic==2.13.5
 pydantic-settings==2.15.0
-python-dotenv==1.2.2
+python-dotenv==1.2.4
 alembic==1.19.1
 xgboost==3.4.1
 lightgbm==4.6.0
