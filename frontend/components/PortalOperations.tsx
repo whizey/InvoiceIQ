@@ -125,8 +125,9 @@ export default function PortalOperations({section,initialFilters}:{section:Secti
                 <option value="number_asc">Invoice number</option>
               </select></label>
             </div>
-            <p style={{fontSize:12,color:"#777"}}>Showing {invoices.length} of {invoicePage?.total??0} {STATUS_WORDS[status]}{query?" matching the search":""} · INR</p>
-            {!invoicePage&&!error&&<p role="status">Loading invoices…</p>}
+            <p style={{fontSize:12,color:"#777"}} role={invoicePage?undefined:"status"}>{invoicePage
+              ?`Showing ${invoices.length} of ${invoicePage.total} ${STATUS_WORDS[status]}${query?" matching the search":""} · INR`
+              :`Loading ${STATUS_WORDS[status]}…`}</p>
             <div style={{overflowX:"auto"}}><table className="portal-invoice-table" style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
               <thead><tr>{([["Invoice",null],["Customer",null],["Due date",null],["Still owed","owed"],["Why it's late","late"],["Late-payment risk","risk"],["Action",null]] as const).map(([s,k])=>
                 <th key={s} style={{textAlign:"left",padding:"14px 8px",borderBottom:"1px solid #ddd"}}>{k?<Term k={k}>{s}</Term>:s}</th>)}</tr></thead>
