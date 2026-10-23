@@ -53,3 +53,6 @@ def disable_external_llm(monkeypatch):
     monkeypatch.setattr(settings, "resend_api_key", None)
     monkeypatch.setattr(settings, "resend_from", None)
     monkeypatch.setattr(settings, "sarvam_api_key", None)
+    monkeypatch.setattr(settings, "zoho_client_id", None)
+    monkeypatch.setattr(settings, "zoho_client_secret", None)
+    monkeypatch.setattr(settings, "zoho_redirect_uri", None)

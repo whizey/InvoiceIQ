@@ -16,6 +16,7 @@ RISK_SCORED = "risk.scored"
 ACTION_PROPOSED = "action.proposed"
 REVIEW_REQUESTED = "review.requested"
 REVIEW_RESOLVED = "review.resolved"
+INVOICE_SYNCED = "invoice.synced"
 
 ALL_TOPICS = [
     INVOICE_OVERDUE,
@@ -29,6 +30,7 @@ ALL_TOPICS = [
     ACTION_PROPOSED,
     REVIEW_REQUESTED,
     REVIEW_RESOLVED,
+    INVOICE_SYNCED,
 ]
 
 

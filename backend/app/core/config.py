@@ -117,6 +117,17 @@ class Settings(BaseSettings):
     # calls run as a fully simulated (text-only, no audio) turn sequence.
     sarvam_api_key: str | None = None
 
+    # Zoho Books live sync (see app/services/zoho_sync.py). If the client id/secret are unset,
+    # /portal/integrations/zoho reports "not configured" and connect is refused -- no Zoho
+    # account required to run the app. The domains vary by data centre (.com/.in/.eu/.com.au/.jp).
+    zoho_client_id: str | None = None
+    zoho_client_secret: str | None = None
+    zoho_accounts_domain: str = "https://accounts.zoho.com"
+    zoho_api_domain: str = "https://www.zohoapis.com"
+    # Where Zoho redirects the browser after authorizing, and where we send it back to afterwards.
+    zoho_redirect_uri: str | None = None
+    frontend_public_url: str = "https://invoiceiq-ai.vercel.app"
+
     @field_validator(
         "google_api_key",
         "openai_api_key",
@@ -131,6 +142,9 @@ class Settings(BaseSettings):
         "resend_api_key",
         "resend_from",
         "sarvam_api_key",
+        "zoho_client_id",
+        "zoho_client_secret",
+        "zoho_redirect_uri",
         mode="before",
     )
     @classmethod

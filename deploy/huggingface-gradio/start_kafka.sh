@@ -15,7 +15,7 @@ EXPECTED_SHA512="5324c1f44d4c84ea469712c2cc3d2d15545c3716edbb5353722df9c661fcc78
 # A copy bundled with the deploy (stored with Git LFS) avoids the slow public archive on every restart.
 BUNDLED="$(cd "$(dirname "$0")" && pwd)/vendor/${ARCHIVE}"
 HOME_DIR="$BASE/kafka_2.13-${VERSION}"
-TOPICS=(risk.scored review.requested review.resolved risk.scored.dlq review.requested.dlq review.resolved.dlq)
+TOPICS=(risk.scored review.requested review.resolved invoice.synced risk.scored.dlq review.requested.dlq review.resolved.dlq invoice.synced.dlq)
 
 mkdir -p "$BASE"
 if [ ! -x "$HOME_DIR/bin/kafka-server-start.sh" ]; then
