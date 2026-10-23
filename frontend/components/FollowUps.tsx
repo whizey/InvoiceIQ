@@ -13,7 +13,7 @@ type Item={id:string;number:string;counterparty:string;due_date:string;balance:s
 type Band={band:string;invoices:number;predicted:number;actual:number};
 type Scorer={used:"model"|"baseline";model_auc:number|null;baseline_auc:number|null;evaluated:number;
   verdict:string;calibration:Band[];calibration_note:string|null};
-type FollowUpData={as_of:string;workspace:string;generated:boolean;scorer:Scorer;cash:Cash;
+type FollowUpData={as_of:string;workspace:string;generated:boolean;historical:boolean;scorer:Scorer;cash:Cash;
   totals:{to_chase:number;overdue_amount:string;on_hold:number;due_soon_amount:string};
   chase:Item[];on_hold:Item[];due_soon:Item[]};
 
@@ -24,6 +24,7 @@ type Sent={id:string;invoice_id:string;invoice:string;customer:string;channel:st
   payment:{paid_on:string;amount:string;days_after:number}|null};
 type SentLog={reminders:Sent[];summary:{sent:number;judged:number;followed_by_payment:number}};
 const shortDate=(iso:string)=>new Date(iso).toLocaleDateString("en-IN",{day:"numeric",month:"short"});
+const longDate=(iso:string)=>new Date(iso+"T00:00:00Z").toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric",timeZone:"UTC"});
 
 /** The screen people open every morning: who to chase first, and why. */
 export default function FollowUps(){
@@ -65,7 +66,7 @@ export default function FollowUps(){
     <PortalNavigation/>
     <main className="fu-main">
       <p className="settings-eyebrow">{data?.workspace||"Workspace"} / Follow-ups</p>
-      <h1 className="fu-title">Who to chase today</h1>
+      <h1 className="fu-title">{data&&data.historical?`Who to chase, as of ${longDate(data.as_of)}`:"Who to chase today"}</h1>
       {data&&<p className="fu-sub">
         <strong>{data.totals.to_chase}</strong> overdue invoices, <strong>{rupees(data.totals.overdue_amount)}</strong> to collect.
         Ranked by amount × chance of paying late × days overdue. As of {data.as_of}.
@@ -77,7 +78,7 @@ export default function FollowUps(){
       {data&&<div className="fu-grid">
         <section aria-labelledby="fu-chase" className="fu-panel">
           <h2 id="fu-chase" className="fu-h2">Chase first</h2>
-          {data.chase.length===0&&<p className="fu-muted">Nothing overdue. Nobody to chase today.</p>}
+          {data.chase.length===0&&<p className="fu-muted">Nothing overdue. Nobody to chase{data.historical?"":" today"}.</p>}
           <ol className="fu-list">{chase.map((item,index)=><li key={item.id} className="fu-item">
             <span className="fu-rank" aria-hidden="true">{index+1}</span>
             <div className="fu-body">
@@ -99,7 +100,7 @@ export default function FollowUps(){
         </section>
         <aside className="fu-aside">
           <section aria-labelledby="fu-soon" className="fu-panel">
-            <h2 id="fu-soon" className="fu-h2">Due this week</h2>
+            <h2 id="fu-soon" className="fu-h2">{data.historical?`Due in the week after ${longDate(data.as_of)}`:"Due this week"}</h2>
             {data.due_soon.length===0?<p className="fu-muted">Nothing falls due in the next 7 days.</p>:
               <ul className="fu-mini">{data.due_soon.slice(0,8).map(item=><li key={item.id}>
                 <strong>{item.counterparty}</strong><span>{item.summary}</span><em>{pct(item.chance_late)} likely late</em></li>)}</ul>}
