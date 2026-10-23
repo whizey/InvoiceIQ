@@ -44,7 +44,7 @@ def test_templates_in_both_languages_carry_only_the_facts():
 @pytest.mark.asyncio
 async def test_a_draft_with_an_invented_number_is_rejected_then_the_retry_is_used():
     facts = reminders.facts(invoice(), "Kaveri", TODAY)
-    model = Scripted("Please pay ₹1,50,000 by Friday, or 18% interest applies.",
+    model = Scripted("Please pay ₹1,50,000 on invoice KIS-2026-0538 by Friday, or 18% interest applies.",
                      "Dear team, ₹1,45,000 on invoice KIS-2026-0538 is 45 days overdue. When can we expect it?")
     result = await reminders.draft(facts, "whatsapp", "english", [(model, "test-model")])
     assert result["source"] == "test-model" and "45 days" in result["body"]
@@ -57,6 +57,24 @@ async def test_falls_back_to_the_template_when_every_draft_strays():
     model = Scripted("Pay ₹2 lakh now.", "Pay within 7 days.")
     result = await reminders.draft(facts, "email", "hinglish", [(model, "test-model")])
     assert result["source"] == "template" and result["body"].startswith("Subject:")
+
+
+@pytest.mark.asyncio
+async def test_a_draft_cut_off_mid_sentence_is_never_offered():
+    facts = reminders.facts(invoice(), "Kaveri", TODAY)
+    cut = SimpleNamespace(content="Dear team, invoice KIS-2026-0538 (dated 27 Jul 2026",
+                          response_metadata={"finish_reason": "MAX_TOKENS"})
+    no_number = SimpleNamespace(content="Dear team, please pay soon.", response_metadata={})
+
+    class Replies:
+        def __init__(self, *items):
+            self.items = list(items)
+
+        async def ainvoke(self, messages):
+            return self.items.pop(0)
+
+    result = await reminders.draft(facts, "whatsapp", "english", [(Replies(cut, no_number), "thinking-model")])
+    assert result["source"] == "template" and result["rejected"] == ["incomplete draft", "incomplete draft"]
 
 
 def test_policy_disputes_cool_off_and_escalation():
