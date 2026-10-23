@@ -22,7 +22,7 @@ httpx==0.28.1
 python-multipart==0.0.31
 openpyxl==3.1.5  # reads Excel exports from Tally and Zoho Books
 sentry-sdk==2.70.0  # optional error tracking, active only when SENTRY_DSN is set
-shap==0.52.0
+shap==0.54.1
 
 # Optional metrics endpoint is disabled until METRICS_ENABLED=true.
 prometheus-client==0.23.1
