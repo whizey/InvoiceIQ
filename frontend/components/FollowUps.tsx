@@ -13,7 +13,7 @@ type Item={id:string;number:string;counterparty:string;due_date:string;balance:s
 type Band={band:string;invoices:number;predicted:number;actual:number};
 type Scorer={used:"model"|"baseline";model_auc:number|null;baseline_auc:number|null;evaluated:number;
   verdict:string;calibration:Band[];calibration_note:string|null};
-type FollowUpData={as_of:string;workspace:string;scorer:Scorer;cash:Cash;
+type FollowUpData={as_of:string;workspace:string;generated:boolean;scorer:Scorer;cash:Cash;
   totals:{to_chase:number;overdue_amount:string;on_hold:number;due_soon_amount:string};
   chase:Item[];on_hold:Item[];due_soon:Item[]};
 
@@ -73,7 +73,7 @@ export default function FollowUps(){
       {error&&<p role="alert" className="portal-notice-error">{error}</p>}
       {!data&&!error&&<div role="status" aria-label="Loading follow-ups" className="ops-skeleton">
         <div className="sk sk-panel">{Array.from({length:8},(_,i)=><span key={i} className="sk-line"/>)}</div></div>}
-      {data&&<CashForecast cash={data.cash}/>}
+      {data&&<CashForecast cash={data.cash} generated={data.generated}/>}
       {data&&<div className="fu-grid">
         <section aria-labelledby="fu-chase" className="fu-panel">
           <h2 id="fu-chase" className="fu-h2">Chase first</h2>

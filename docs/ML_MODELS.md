@@ -7,17 +7,17 @@ Everything here is reported with its limitations. Reports live in `backend/app/m
 | Model | Purpose | Family | Where it is used |
 |---|---|---|---|
 | **B2B late-payment champion** (`b2b_v2`) | Probability that an invoice misses its adjusted due date | LightGBM | Invoice intelligence, portfolio scoring, the assistant's facts |
-| **BPI survival models** | Probability a purchase-to-pay item clears within horizons (a process target, not customer payment) | Cox-style survival, XGBoost AFT challenger | `/ml/process-survival/*` |
-| **Recovery risk model** | Early scoring of recovery cases, trained on synthetic data | XGBoost | Legacy recovery workflow; labelled as not production evidence |
+| BPI survival models | Probability a purchase-to-pay item clears within horizons (a process target, not customer payment) | Cox-style survival, XGBoost AFT challenger | `/ml/process-survival/*` |
+| Recovery risk model | Early scoring of recovery cases, trained on synthetic data | XGBoost | Legacy recovery workflow; labelled as not production evidence |
 
 ## The B2B late-payment champion
 
-- **Question it answers:** "Will this invoice miss its adjusted due date?"
-- **Data:** a public B2B invoice-payment dataset of 45,839 rows. Its SHA-256 checksum is verified in CI before the tests run.
-- **Posting-time features only.** Only information available before an invoice's posting date can enter its features, which prevents future payments leaking into a score.
-- **14 numeric features** in the served schema: `amount`, `payment_term`, `prior_open_invoice_count`, `has_resolved_history`, `historical_late_rate`, `historical_avg_days_late`, `amount_vs_historical_avg_ratio`, `days_since_previous_invoice`, `recent_5_late_rate`, `recent_5_avg_days_late`, `recent_late_streak`, `recent_on_time_streak`, `recent_5_late_rate_delta`, `recent_5_avg_days_late_delta`. Identifiers, region, city, zipcode and payment-method text are excluded on purpose.
-- **Training set:** 34,437 rows (late-payment rate about 35%).
-- **Model version:** `b2b_v2:5a8417263da99809`.
+- Question it answers: "Will this invoice miss its adjusted due date?"
+- Data: a public B2B invoice-payment dataset of 45,839 rows. Its SHA-256 checksum is verified in CI before the tests run.
+- Posting-time features only. Only information available before an invoice's posting date can enter its features, which prevents future payments leaking into a score.
+- 14 numeric features in the served schema: `amount`, `payment_term`, `prior_open_invoice_count`, `has_resolved_history`, `historical_late_rate`, `historical_avg_days_late`, `amount_vs_historical_avg_ratio`, `days_since_previous_invoice`, `recent_5_late_rate`, `recent_5_avg_days_late`, `recent_late_streak`, `recent_on_time_streak`, `recent_5_late_rate_delta`, `recent_5_avg_days_late_delta`. Identifiers, region, city, zipcode and payment-method text are excluded on purpose.
+- Training set: 34,437 rows (late-payment rate about 35%).
+- Model version: `b2b_v2:5a8417263da99809`.
 
 ### Reported performance (development validation)
 
@@ -29,12 +29,12 @@ Everything here is reported with its limitations. Reports live in `backend/app/m
 
 Temporal backtest: 4 folds, none below random, median ROC-AUC 0.666.
 
-**Calibration:** a Platt calibration was evaluated and **not accepted**, so the model serves its raw probabilities. Treat them as ranking scores, not exact probabilities.
+Calibration: a Platt calibration was tried and not accepted, so the model serves raw probabilities. Treat them as a ranking, not exact odds.
 
 **Evidence status:** the model was selected on the development split and a temporal backtest. The frozen model was then scored once on the chronological test split, with no refit or threshold tuning. That split had been examined during earlier development, so the test figures are retrospective held-out evidence rather than a blind test (see `docs/evaluations/model-risk-v1.json`). Explainability cohort coverage and prospective production performance are the next validation steps, tracked in the evaluation JSON.
 
 ### Explanations
-Each score can include native **TreeSHAP** contributions, so the product can show which features pushed a particular invoice up or down.
+Each score can include TreeSHAP contributions, so the product can show which features pushed a particular invoice up or down.
 
 ### Safety and integrity
 - Artifacts (model, calibrator, manifest, contracts) are versioned and fingerprinted. A runtime-integrity check verifies hashes before serving; `/health/ready` fails if the primary model is unavailable.
@@ -43,7 +43,7 @@ Each score can include native **TreeSHAP** contributions, so the product can sho
 
 ## Survival models (purchase-to-pay)
 
-These estimate a **process-clearance** target from the public BPI Challenge 2019 purchase-to-pay event log (about 730 MB; used offline, not downloaded or checksummed in CI). They are benchmarked (Coxnet, XGBoost AFT and others), backtested over time, and compared in `bpi_survival/MODEL_COMPARISON.md`. A recovery-policy backtest evaluates how a policy would have performed. **Their probabilities are not customer payment or collection estimates** and must not be presented as such.
+These estimate a process-clearance target from the public BPI Challenge 2019 purchase-to-pay event log (about 730 MB; used offline, not downloaded or checksummed in CI). They are benchmarked (Coxnet, XGBoost AFT and others), backtested over time, and compared in `bpi_survival/MODEL_COMPARISON.md`. A recovery-policy backtest evaluates how a policy would have performed. Their probabilities are not customer payment or collection estimates and shouldn't be presented as such.
 
 ## Offline tooling
 
@@ -59,6 +59,16 @@ These estimate a **process-clearance** target from the public BPI Challenge 2019
 
 Documentation for the data and features: `backend/docs/DATASET_CARD.md`, `FEATURE_PROVENANCE.md` and `CUSTOMER_HOLDOUT_PROTOCOL.md`.
 
-## One-line summary
+## Against a simple baseline
 
-"A LightGBM model scores each invoice's risk of paying late, using only information available when the invoice was posted, with per-invoice TreeSHAP explanations. Development-validation ROC-AUC is about 0.71, with a stable four-fold temporal backtest."
+The product's default score isn't this model: it's each customer's late share over its last few settled invoices.
+A workspace only switches to this model when it ranks that workspace's own recent history better. On the
+chronological test split above (invoices the model never trained on):
+
+| | Model | Simple average |
+|---|---|---|
+| ROC-AUC | 0.706 | 0.520 |
+| PR-AUC | 0.636 | 0.470 |
+
+`python -m app.ml.baseline_comparison` reproduces this. See [CASE_STUDY.md](CASE_STUDY.md) for how and why the
+switch is made.

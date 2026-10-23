@@ -6,19 +6,19 @@ the legacy read-only `render.yaml` has been removed.
 
 ## Free path (Hugging Face Space + Supabase + Vercel; no card)
 
-1. **Database:** create a free Supabase project dedicated to this app and copy its *Session pooler*
+1. Database: create a free Supabase project dedicated to this app and copy its *Session pooler*
    connection string (port 5432). The seeding script only accepts approved database names; Supabase's
    is `postgres`, so set the Space variable `INVOICEIQ_SHOWCASE_DATABASE=postgres` on purpose.
-2. **API:** create a new Hugging Face Space. Use SDK **Gradio** (template Blank): the Docker SDK is paid
+2. API: create a new Hugging Face Space. Use SDK **Gradio** (template Blank): the Docker SDK is paid
    for new accounts, and the Gradio build simply runs our FastAPI server from `app.py`. Hardware: CPU basic if
    selectable, otherwise the free option offered. In its settings add the
    secrets `DATABASE_URL` and `GOOGLE_API_KEY` and the variable `INVOICEIQ_SHOWCASE_DATABASE`.
-3. **Push the code:** from the repo run `git lfs pull && scripts/build_hf_space.sh` (add `docker` as a second argument for the Docker SDK), then in the printed
+3. Push the code: from the repo run `git lfs pull && scripts/build_hf_space.sh` (add `docker` as a second argument for the Docker SDK), then in the printed
    folder: `git remote add space https://huggingface.co/spaces/<you>/invoiceiq && git push space main`
    (use a Hugging Face access token with write access as the password).
 4. The Space builds, migrates the database, seeds the showcase and serves the API at
    `https://<you>-invoiceiq.hf.space`. Check `/health`.
-5. **Frontend:** in the Vercel project `invoiceiq`, set `INVOICEIQ_API_URL` to that URL and
+5. Frontend: in the Vercel project `invoiceiq`, set `INVOICEIQ_API_URL` to that URL and
    `INVOICEIQ_PORTAL_ENABLED=true`, then redeploy to production.
 
 Free Spaces sleep after about two days without traffic and wake on the next request (the first
@@ -83,10 +83,10 @@ unless the database is named `invoiceiq_sample`, `invoiceiq_sample_test` or
 `invoiceiq` in `render.saas.yaml`). That guard stops seeded data reaching a real
 customer database. Choose one:
 
-1. **Portfolio/sample deployment (recommended for a submission).** One Neon
+1. Portfolio/sample deployment (recommended for a submission). One Neon
    database named `invoiceiq`. Showcase and sample sign-ups live together;
    say clearly that accounts are for evaluation only. No real customer data.
-2. **Production with real customers.** A separate database with no showcase
+2. Production with real customers. A separate database with no showcase
    (`INVOICEIQ_PORTAL_SHOWCASE=false`), plus a second sample deployment as in (1).
    The visitor "Explore the product" flow needs the showcase, so it runs only on
    the sample deployment.
