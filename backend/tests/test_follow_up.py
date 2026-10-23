@@ -89,6 +89,27 @@ async def test_follow_up_list_on_the_public_ledger(monkeypatch):
             assert all(0 <= i["days_overdue"] + 7 and i["days_overdue"] <= 0 for i in result["due_soon"])
             assert result["scorer"]["used"] in {"model", "baseline"} and result["scorer"]["verdict"]
             assert chase[0]["summary"].startswith("₹")
+            assert result["generated"] is True and result["historical"] is False
+            await db.rollback()
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_a_workspace_frozen_at_a_fixed_date_is_marked_historical_not_generated(monkeypatch):
+    """The real 2015 ledger: as_of is set, so the page shouldn't claim 'today'."""
+    await engine.dispose()
+    workspace_id = uuid.uuid4()
+    monkeypatch.setattr(provision, "SHOWCASE_ID", workspace_id)
+    frozen = date(2015, 11, 30)
+    try:
+        async with async_session_factory() as db:
+            workspace = PortalWorkspace(id=workspace_id, name="Real ledger", kind="showcase", as_of=frozen)
+            db.add(workspace)
+            await db.flush()
+            result = await portal._follow_ups(db, SimpleNamespace(token_digest="t"), workspace)
+            assert result["as_of"] == str(frozen)
+            assert result["generated"] is False and result["historical"] is True
             await db.rollback()
     finally:
         await engine.dispose()
