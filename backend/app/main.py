@@ -6,11 +6,12 @@ from contextlib import asynccontextmanager
 from app.core.scoped_reads import ScopedFinancialReadMiddleware
 from fastapi import FastAPI, Request
 
-from app.core.observability import configure_langsmith, configure_logging
+from app.core.observability import configure_error_tracking, configure_langsmith, configure_logging
 from app.core.server_timing import ServerTimingMiddleware
 
 configure_logging()
 configure_langsmith()
+configure_error_tracking()
 
 from app.api.companies import router as companies_router  # noqa: E402
 from app.api.dashboard import router as dashboard_router  # noqa: E402

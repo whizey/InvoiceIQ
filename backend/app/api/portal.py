@@ -19,7 +19,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, model_validator
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
@@ -957,7 +957,7 @@ async def _reminder_case(db, session, workspace, invoice_id):
     reason = (await _late_reasons(db, session, workspace, [row])).get(row.id)
     scope = [PortalReminder.workspace_id == workspace.id, PortalReminder.invoice_id == row.id]
     if workspace.kind == "showcase":
-        scope.append(PortalReminder.actor_scope == session.token_digest)
+        scope.append(PortalReminder.actor_scope.in_((session.token_digest, SHOWCASE_BASELINE_SCOPE)))
     last = await db.scalar(select(func.max(PortalReminder.sent_at)).where(*scope))
     verdict = reminders.policy(row, reason["kind"] if reason else None, last, datetime.now(timezone.utc))
     return row, reminders.facts(row, workspace.name, date.today()), verdict
@@ -996,11 +996,12 @@ async def log_reminder(payload: ReminderSent, subject=Depends(identity), db: Asy
 
 @router.get("/reminders")
 async def list_reminders(subject=Depends(identity), db: AsyncSession = Depends(get_db)):
-    """Reminders sent, newest first, each with the payment that followed it (if one did)."""
+    """Reminders sent, newest first, each with the payment that followed it (if one did). Public-workspace
+    visitors see the shared history plus their own."""
     session, workspace = subject
     scope = [PortalReminder.workspace_id == workspace.id]
-    if workspace.kind == "showcase":
-        scope.append(PortalReminder.actor_scope == session.token_digest)
+    if workspace.kind == "showcase":  # the shared history plus this visitor's own
+        scope.append(PortalReminder.actor_scope.in_((session.token_digest, SHOWCASE_BASELINE_SCOPE)))
     rows = (await db.execute(select(PortalReminder, PortalInvoice.invoice_number, PortalInvoice.counterparty)
                              .join(PortalInvoice, PortalInvoice.id == PortalReminder.invoice_id)
                              .where(*scope).order_by(PortalReminder.sent_at.desc()).limit(200))).all()
@@ -1018,6 +1019,61 @@ async def list_reminders(subject=Depends(identity), db: AsyncSession = Depends(g
                           days=reminders.OUTCOME_DAYS) or i["payment"]]
     return {"reminders": items, "summary": {"sent": len(items), "judged": len(settled_window),
                                             "followed_by_payment": sum(bool(i["payment"]) for i in settled_window)}}
+
+
+class EraseRequest(BaseModel):
+    scope: str = Field(pattern="^(data|account)$")
+    confirm: str = Field(max_length=160)
+    password: str = Field(default="", max_length=256)
+
+
+async def erase_workspace_data(db, workspace_id) -> int:
+    """Delete everything a workspace imported or produced, including copies inside event payloads and traces.
+    Returns the number of invoices removed; notes, payments, decisions and reminders go with them."""
+    from app.models.event_effects import CaseRiskLatest, DeadLetterEvent
+    from app.services.assistant_tracing import assistant_traces
+
+    invoice_ids = select(PortalInvoice.id).where(PortalInvoice.workspace_id == workspace_id)
+    count = await db.scalar(select(func.count()).select_from(PortalInvoice).where(
+        PortalInvoice.workspace_id == workspace_id)) or 0
+    key = str(workspace_id)
+    await db.execute(delete(CaseRiskLatest).where(CaseRiskLatest.case_id.in_(invoice_ids)))
+    await db.execute(delete(ApprovalAlert).where(ApprovalAlert.workspace_id == workspace_id))
+    await db.execute(delete(OutboxEvent).where(OutboxEvent.payload["data"]["workspace_id"].astext == key))
+    await db.execute(delete(DeadLetterEvent).where(DeadLetterEvent.payload["data"]["workspace_id"].astext == key))
+    await db.execute(delete(assistant_traces).where(assistant_traces.c.workspace_id == workspace_id))
+    for model in (PortalReminder, PortalNote, PortalCaseEvent, PortalPayment, PortalInvoice):
+        await db.execute(delete(model).where(model.workspace_id == workspace_id))
+    return count
+
+
+@router.post("/erase")
+async def erase(payload: EraseRequest, subject=Depends(identity), db: AsyncSession = Depends(get_db)):
+    """Owner only: delete all workspace data, or the account and workspace. Confirmed by the company name,
+    and for the account also the password. Immediate and permanent."""
+    session, workspace = subject
+    if workspace.kind != "customer":
+        raise HTTPException(403, "Only a company workspace can be deleted")
+    member = await db.scalar(select(PortalMembership).where(
+        PortalMembership.user_id == session.user_id, PortalMembership.workspace_id == workspace.id))
+    if member is None or member.role != "owner":
+        raise HTTPException(403, "Only the workspace owner can delete its data")
+    if payload.confirm != workspace.name:
+        raise HTTPException(422, "Type the company name exactly to confirm")
+    user = await db.get(PortalUser, session.user_id)
+    if payload.scope == "account" and not verify_password(payload.password, user.password_hash):
+        raise HTTPException(403, "Password is incorrect")
+    removed = await erase_workspace_data(db, workspace.id)
+    if payload.scope == "account":
+        await db.delete(workspace)  # memberships and sessions cascade
+        others = await db.scalar(select(func.count()).select_from(PortalMembership).where(
+            PortalMembership.user_id == user.id, PortalMembership.workspace_id != workspace.id))
+        if not others:
+            await db.delete(user)
+    await db.commit()
+    _bump(workspace.id)
+    _identity_cache.clear()  # cached sessions of a deleted account must not outlive it
+    return {"ok": True, "scope": payload.scope, "invoices": removed}
 
 
 class LedgerFile(BaseModel):

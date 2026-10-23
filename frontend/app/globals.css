@@ -315,3 +315,14 @@ button.fu-review{cursor:pointer;font:inherit;font-size:13px}
 .rm-actions button,.rm-send{border:1px solid #ddd;background:#fff;border-radius:7px;padding:8px 12px;font-size:13px;cursor:pointer;color:#171717;text-decoration:none}
 .rm-send{background:#171717;color:#fff;border-color:#171717}
 
+/* Privacy page */
+.pv{max-width:760px;margin:0 auto;padding:40px 16px 64px;font-family:Arial,sans-serif;color:#171717;line-height:1.6}
+.pv h1{font-size:clamp(30px,5vw,42px);letter-spacing:-.04em;margin:8px 0}
+.pv h2{font-size:18px;margin:28px 0 8px}
+.pv-lead{font-size:16px;color:#4a4a48}
+.pv ul{padding-left:20px}.pv li{margin-bottom:6px}
+.pv a{color:#171717}
+.settings-danger{border-color:#e7b4ad}
+.settings-danger button{background:#922b1e;border-color:#922b1e;color:#fff}
+.settings-danger button:disabled{opacity:.45}
+

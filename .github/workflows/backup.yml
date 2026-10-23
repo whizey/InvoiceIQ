@@ -1,0 +1,51 @@
+name: Nightly database backup
+
+# A compressed pg_dump of the hosted database, encrypted with a passphrase before it leaves the runner and kept as a
+# workflow artifact for seven days (the retention the privacy page states). Restore: download the artifact, then
+#   gpg --decrypt invoiceiq.dump.gpg > invoiceiq.dump && pg_restore --clean --no-owner -d "$DATABASE_URL" invoiceiq.dump
+# Needs repository secrets BACKUP_DATABASE_URL (a session-mode connection string) and BACKUP_PASSPHRASE; without
+# them the job says so and stops.
+
+on:
+  schedule:
+    - cron: '41 21 * * *'  # 03:11 IST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+    steps:
+      - name: Check configuration
+        id: config
+        run: |
+          if [ -z "$BACKUP_DATABASE_URL" ] || [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "Backups are not configured: add BACKUP_DATABASE_URL and BACKUP_PASSPHRASE repository secrets."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Dump and encrypt
+        if: steps.config.outputs.ready == 'true'
+        run: |
+          url="${BACKUP_DATABASE_URL/+asyncpg/}"
+          docker run --rm -e URL="$url" postgres:17 sh -c 'pg_dump --format=custom --no-owner --no-privileges "$URL"' > invoiceiq.dump
+          test -s invoiceiq.dump
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$BACKUP_PASSPHRASE" --symmetric --cipher-algo AES256 \
+            --output invoiceiq.dump.gpg invoiceiq.dump
+          shred -u invoiceiq.dump
+          ls -lh invoiceiq.dump.gpg
+      - name: Keep for seven days
+        if: steps.config.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: invoiceiq-db-${{ github.run_id }}
+          path: invoiceiq.dump.gpg
+          retention-days: 7
+          if-no-files-found: error

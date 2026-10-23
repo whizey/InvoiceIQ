@@ -227,3 +227,35 @@ def tally_export(ledger: Ledger, today: date) -> str:
                          f"{i['due'].day}-{i['due'].strftime('%b-%y')}", max((today - i["due"]).days, 0)])
     writer.writerow(["", "", "Grand Total", "", f"{pending_total:,.2f} Dr", "", ""])
     return out.getvalue()
+
+
+def reminder_history(ledger: Ledger, today: date, seed: int = SEED) -> list[dict]:
+    """Reminders a credit controller would have sent over the past year, written with the product's templates.
+
+    Sent one to three weeks after the due date on invoices that went late, never in the last four days (so a
+    visitor can still try the drafter). Whether a payment followed is not decided here: it is read from the
+    ledger's own payments, exactly as for reminders people log themselves.
+    """
+    from types import SimpleNamespace
+
+    from app.services import reminders
+
+    rng = random.Random(seed + 1)
+    paid_on = {p["number"]: p["paid_on"] for p in ledger.payments}
+    history = []
+    for i in ledger.invoices:
+        late_by = ((paid_on.get(i["number"]) or today) - i["due"]).days
+        if i["disputed"] or late_by < 10 or rng.random() > 0.3:
+            continue
+        sent = i["due"] + timedelta(days=rng.randint(7, min(21, late_by)))
+        if sent > today - timedelta(days=4):
+            continue
+        paid_before = i["paid"] if i["number"] in paid_on and paid_on[i["number"]] < sent else Decimal(0)
+        row = SimpleNamespace(counterparty=i["account"], invoice_number=i["number"], posting_date=i["posted"],
+                              due_date=i["due"], amount_total=i["total"], amount_paid=paid_before)
+        channel = rng.choice(("whatsapp", "whatsapp", "email"))
+        language = "hinglish" if i["habit"] in {"struggling", "slow"} and rng.random() < 0.5 else "english"
+        history.append({"number": i["number"], "channel": channel, "language": language,
+                        "body": reminders.template(reminders.facts(row, BUSINESS, sent), channel, language),
+                        "balance": i["total"] - paid_before, "at": _when(sent, rng)})
+    return sorted(history, key=lambda r: r["at"])
