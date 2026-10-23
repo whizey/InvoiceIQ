@@ -1,8 +1,8 @@
 # API reference
 
-Base URL (hosted): `https://riya1104-invoiceiq.hf.space`. Interactive OpenAPI documentation is served by FastAPI at `/docs` when enabled for the environment.
+Hosted at `https://riya1104-invoiceiq.hf.space`. FastAPI's `/docs` page is on when the environment allows it.
 
-In the hosted product the browser never calls these routes directly. The Next.js app proxies the allow-listed `/api/portal/*` subset and forwards the session token. Authenticated routes expect `Authorization: Bearer iqp_...`.
+The browser doesn't call these directly; the Next.js app forwards an allow-listed set as `/api/portal/*`. Authenticated routes take `Authorization: Bearer iqp_...`.
 
 ## Health
 
@@ -12,31 +12,40 @@ In the hosted product the browser never calls these routes directly. The Next.js
 | GET | `/health/db` | Database reachable |
 | GET | `/health/ready` | Database and primary model available |
 
-## Customer portal (`/portal`)
+## Portal (`/portal`)
 
-| Method | Path | Auth | Purpose |
+| Method | Path | Who | What it does |
 |---|---|---|---|
-| POST | `/portal/register` | none | Create a user, a workspace and an owner membership; returns a session |
-| POST | `/portal/login` | none | Sign in. Errors do not reveal whether an account exists. After 5 failed attempts the account is locked for 30 seconds, doubling up to 15 minutes (`429` with `Retry-After`) |
-| POST | `/portal/showcase` | none | Start an isolated session on the public workspace |
-| GET | `/portal/me` | session | Current identity, workspace and role |
-| GET / PATCH | `/portal/settings` | session | Read or update display name and company |
-| DELETE | `/portal/session` | session | Revoke the current session |
-| GET | `/portal/overview` | session | Headline totals, first 100 invoices, recent actions |
-| GET | `/portal/invoices` | session | Search, sort and paginate invoices (`q`, `page`, `page_size`, `sort`) |
-| POST | `/portal/import` | owner/admin | Import up to 250 invoices as JSON |
-| POST | `/portal/decisions` | owner/admin/reviewer | Record `APPROVE`, `REJECT`, `ESCALATE` or `RESET` with a reason |
-| GET | `/portal/alerts` | session | Approval alerts for the current scope |
-| GET | `/portal/recovery-summary` | session | Recovery KPIs, status breakdown, weekly decisions |
-| GET | `/portal/dashboard` | session | Dashboard data for the selected period and filters |
-| GET | `/portal/export` | session | The same selection as CSV |
-| GET | `/portal/intelligence` | session | Scored invoices and portfolio view |
-| GET | `/portal/intelligence/{invoice_id}` | session | One invoice's risk and its drivers |
-| POST | `/portal/score` | owner/admin | Score up to 2,000 invoices at posting time |
-| POST | `/portal/assistant` | session | Grounded plain-language answer; 8 requests per minute |
-| POST | `/portal/transcribe` | session | Audio to text |
+| POST | `/portal/register` | anyone | Creates a user, a workspace and an owner membership, and returns a session |
+| POST | `/portal/login` | anyone | Signs in. Doesn't say whether the email exists. Five failures lock the account for 30 s, doubling to 15 min (`429` with `Retry-After`) |
+| POST | `/portal/showcase?ledger=kaveri\|public-2016` | anyone | A visitor session on one of the public workspaces |
+| GET | `/portal/me` | session | Who you are, your workspace and role, and the workspace's `as_of` date if it has one |
+| GET, PATCH | `/portal/settings` | session | Name, company, password |
+| DELETE | `/portal/session` | session | Sign out |
+| POST | `/portal/erase` | owner | Deletes all workspace data (`scope=data`) or the account too (`scope=account`, needs the password) |
+| GET | `/portal/follow-ups` | session | Ranked chase list, due this week, disputed, cash forecast and the model comparison |
+| GET | `/portal/invoices` | session | `q`, `page`, `page_size`, `sort`, and `status` (`all`, `overdue`, `awaiting`, `escalated`) |
+| GET | `/portal/overview` | session | Totals, the first 100 invoices and recent decisions |
+| POST | `/portal/import-preview` | session | What a Tally or Zoho export would import; writes nothing |
+| POST | `/portal/import-file` | owner, admin | Imports the ready rows and scores the workspace |
+| GET | `/portal/example-export?format=zoho\|tally` | session | An example export to try the importer with |
+| POST | `/portal/import` | owner, admin | Older JSON import, 250 rows |
+| POST | `/portal/decisions` | reviewer and up | `APPROVE`, `REJECT`, `ESCALATE` or `RESET` with a reason |
+| GET, POST | `/portal/notes` | session (POST: reviewer and up) | Notes on an invoice |
+| POST | `/portal/reminder-draft` | reviewer and up | Checks the reminder rules, then drafts a message |
+| GET, POST | `/portal/reminders` | session (POST: reviewer and up) | Reminders sent, with the payment that followed; POST logs one |
+| GET | `/portal/alerts` | session | Approval alerts |
+| GET | `/portal/recovery-summary` | session | Review counts, amounts and decisions per week |
+| GET | `/portal/dashboard`, `/portal/export` | session | Dashboard data for a period, or the same as CSV |
+| GET | `/portal/intelligence`, `/portal/intelligence/{id}` | session | Scores, and one invoice's drivers |
+| POST | `/portal/score` | owner, admin | Scores up to 2,000 invoices |
+| POST | `/portal/assistant`, `/portal/assistant-stream` | session | An answer, or progress events then the answer; 8 a minute |
+| GET | `/portal/assistant-reliability`, `/portal/assistant-traces` | session | What the reliability page shows |
+| POST | `/portal/transcribe` | session | Audio to text for the assistant's microphone button |
 
-Typical errors: `401` missing or expired session, `403` role or scope not allowed, `404` invoice not in this workspace, `409` duplicate invoice number on import, `422` validation, `429` sign-in lockout, or the assistant or transcription limit reached, `503` assistant model unavailable.
+Common errors: `401` no or expired session, `403` not allowed for your role or workspace, `404` not in your
+workspace, `409` duplicate invoice or a reminder inside the three-day window, `422` bad input, `429` rate limited,
+`503` model unavailable.
 
 ## Recovery workflow (legacy single-company surface)
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+- Follow-ups: a ranked chase list (amount × chance of paying late × days overdue) with a one-line reason per invoice, now the landing page.
+- A per-customer baseline score, used instead of the ML model unless the model beats it on that workspace's own history; both are shown with calibration on the Model page.
+- A weekly cash forecast with a range, checked against its own track record.
+- Importing Tally and Zoho Books exports (CSV or Excel), with a preview of what will be skipped and why.
+- Reminder drafts (email or WhatsApp, English or Hinglish) that can only use facts from the invoice; a sent-reminder log that tracks whether a payment followed.
+- A second public workspace built from real, anonymised invoices in a public dataset.
+- Delete my data, a privacy page, optional Sentry error tracking, nightly encrypted backups.
+
 ## 1.0.0
 ### Product
 - Multi-tenant portal: sign-up, CSV import, invoice list, scoring, review decisions, dashboard with six KPIs.

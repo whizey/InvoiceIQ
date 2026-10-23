@@ -12,16 +12,16 @@ reminder that sours the relationship. Nobody knows how much cash will actually a
 
 ## What the product does
 
-1. **Data in.** Upload the export you already have: Zoho Books' invoice export or Tally's Bills Receivable report,
+1. Data in. Upload the export you already have: Zoho Books' invoice export or Tally's Bills Receivable report,
    CSV or Excel. The importer finds the header (Tally puts the company name and period above it), reads Indian dates
    and "Dr/Cr" amounts, maps columns automatically or by hand, and previews the result: rows ready, rows skipped and
    why ("12 rows skipped: missing due date"). Nothing is saved until you confirm.
-2. **A ranked follow-up list.** Overdue invoices ordered by *amount × chance of paying late × days overdue*, each with
+2. A ranked follow-up list. Overdue invoices ordered by *amount × chance of paying late × days overdue*, each with
    one line of reason from the evidence: a dispute, a part payment, what the customer said or promised, or how late
    they usually pay ("₹69k, 51 days overdue, usually pays 46 days late"). Disputed invoices are held out.
-3. **A cash forecast.** Expected collections for each of the next eight weeks, with a range, and how the same forecast
+3. A cash forecast. Expected collections for each of the next eight weeks, with a range, and how the same forecast
    did over recent weeks.
-4. **A reminder drafter.** A WhatsApp or email message in English or Hinglish, drafted from the invoice's facts, that a
+4. A reminder drafter. A WhatsApp or email message in English or Hinglish, drafted from the invoice's facts, that a
    person edits and sends. The system logs it and checks whether a payment followed.
 
 ## Baseline first; the model has to earn its place
@@ -39,8 +39,8 @@ are shown on the Model page either way.
 
 | | Model | Simple average |
 |---|---|---|
-| ROC-AUC | **0.706** | 0.520 |
-| PR-AUC | **0.636** | 0.470 |
+| ROC-AUC | 0.706 | 0.520 |
+| PR-AUC | 0.636 | 0.470 |
 
 The simple average barely beats a coin flip here. A likely reason is that many customers in this dataset pay late
 often, so their recent late share is similar and separates little, while the model also uses trend, streaks and the
@@ -87,17 +87,17 @@ often clear several invoices at once), so on real data the range is wide, and th
 
 ## What failed or surprised us
 
-- **The first forecast range was far too narrow.** Treating invoices as independent gave an 80% range that missed the
+- The first forecast range was far too narrow. Treating invoices as independent gave an 80% range that missed the
   actual outcome in three of six past periods: payments move together (month-end runs, a customer's cash crunch).
   The range is now widened to cover the forecast's own track record.
-- **The validation split flattered the model.** Scored on it, the model reached 0.954 AUC, because the served model
+- The validation split flattered the model. Scored on it, the model reached 0.954 AUC, because the served model
   had been refit on data that includes those rows. Only the chronological test split is reported.
-- **Tally does not export payment dates for part-paid bills.** The importer dates those payments on the due date and
+- Tally does not export payment dates for part-paid bills. The importer dates those payments on the due date and
   says so in the preview, because otherwise every part payment would look on time.
-- **Language models invent numbers.** Asked for a reminder, they occasionally add an interest rate, a deadline or a
+- Language models invent numbers. Asked for a reminder, they occasionally add an interest rate, a deadline or a
   rounded amount. Any draft with a figure that is not in the case is rejected; after one retry the fixed template is
   used. Nothing reaches a customer without a person editing and sending it.
-- **Kafka was more than a small team needs.** The event pipeline still runs on Kafka in the hosted demo, but a
+- Kafka was more than a small team needs. The event pipeline still runs on Kafka in the hosted demo, but a
   PostgreSQL outbox with an in-process worker covers the same guarantees and is the default.
 
 ## Rules the system enforces

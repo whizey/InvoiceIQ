@@ -1,61 +1,66 @@
 # Frontend
 
-Next.js 16 (App Router, React 19, TypeScript) in `frontend/`. The production build uses webpack (`next build --webpack`).
+Next.js 16 (App Router), React 19 and TypeScript, in `frontend/`. Production builds use webpack
+(`next build --webpack`).
 
 ## Pages
 
-| Route | What it shows |
+| Route | What's there |
 |---|---|
-| `/home` | Public landing page: "See the cash behind every invoice", value propositions, **Explore the product** (opens the public workspace) and sign-up links |
-| `/signup`, `/login` | Account creation and sign-in |
-| `/workspace-dashboard` | The main analytics dashboard (the reference overview in an auto-sizing frame, fed by live data) |
-| `/invoices` | Invoice intelligence: search, sort, pagination, risk and drivers, CSV import for customer workspaces |
-| `/cases` | Recovery reviews: charts plus the invoice review table, with an **Approval alerts** panel |
-| `/approvals` | Approval queue: charts, alerts panel and decision form |
-| `/assistant` | Dedicated AI assistant page with voice input and read-aloud |
-| `/settings` | Display name, company, sign out |
-| `/ml` | Redirects to the dashboard (the model-intelligence page was retired) |
-| `/` | Redirects to `/home` when the portal is enabled |
+| `/home` | Landing page with the two ways into the public workspaces, plus sign-up and sign-in |
+| `/follow-ups` | Where you land: cash forecast, the ranked chase list with reasons, due this week, disputed invoices, reminders sent |
+| `/workspace-dashboard` | The receivables dashboard (the reference overview in a frame) and the recovery panel |
+| `/invoices` | Import from Tally or Zoho, the invoice table with reasons and risk, notes and decisions |
+| `/cases`, `/approvals` | Review and approval queues; clicking a status bar filters the list |
+| `/assistant`, `/assistant/reliability` | The assistant and its reliability page |
+| `/model` | Model vs simple average on this workspace and on public data, with calibration |
+| `/settings` | Profile, password, and deleting the workspace's data or the account |
+| `/privacy` | What's stored and where |
+| `/signup`, `/login` | Accounts |
 
-Pages that need a session redirect to `/home` when none exists.
+`/ml` redirects to `/model`. Pages that need a session send you to `/home` without one.
 
-## Key components
+## Components worth knowing
 
-| Component | Role |
-|---|---|
-| `ReferenceFrame` | Embeds the preserved reference dashboard pages (`public/reference/*`) in an iframe that auto-sizes to its content and hides its own sidebar on narrow screens, so the app's navigation is used |
-| `PortalNavigation` | Top-level navigation across Overview, Invoices, Cases, Approvals, Assistant and Settings |
-| `PortalOperations` | The invoices, cases and approvals views: table, search, sort, paging, decision form, CSV import |
-| `RecoveryCharts` | Recovery KPIs and charts (status mix, weekly decisions, exposure) for the cases and approvals views, populated for every control combination |
-| `ApprovalAlerts` | Lists alerts raised by escalations and closed by decisions; refreshes every 5 seconds so events arriving through a broker appear shortly after |
-| `AssistantChat` | Chat UI with suggested questions, history, speech input and read-aloud |
-| `PortalIntelligence` | Model scores and drivers per invoice |
-| `ExploreShowcaseButton` | Starts a sample-workspace session |
-| `AccountForm`, `AccountSettings` | Sign-up, sign-in and settings forms |
+- `FollowUps`, `CashForecast` and `ReminderPanel` make up the follow-up page. The forecast chart is plain SVG sized to
+  its container, with a table view for screen readers.
+- `LedgerImport` reads the file in the browser, sends it base64-encoded for a preview, lets you remap columns and then
+  imports. On a public workspace the final step links to sign-up instead.
+- `PortalOperations` is the invoices, cases and approvals views. `RecoveryCharts` sits above the cases and approvals
+  lists.
+- `ModelEvidence` is the model page. The public-data numbers come from `lib/evidence/baseline-vs-model.json`, which
+  `python -m app.ml.baseline_comparison` writes.
+- `ReferenceFrame` embeds the dashboard pages from `public/reference/` and passes the workspace's as-of date for the
+  2015 ledger.
+- `Term` shows a plain-language explanation of a finance term on hover or focus (`lib/glossary.ts`).
 
-`lib/speech.ts` wraps the browser's Web Speech API with friendly error messages and falls back to recording audio with MediaRecorder and transcribing it on the server. `lib/invoice-csv.mjs` parses and validates the import CSV in the browser before upload.
+## The dashboard frame
 
-## The reference dashboard
+The overview, invoices, cases and approvals designs exist as static HTML in `public/reference/`, and
+`dashboard-data.js` fills them from the API. Tests hash their stylesheets and check headings and KPI labels so the
+layout doesn't drift by accident.
 
-The overview, invoices, cases and approvals pages preserve a reviewed visual design as static HTML, CSS and JavaScript in `public/reference/`. `dashboard-data.js` and the overview script draw the charts from live data: invoiced vs collected, aging schedule, balance bridge, recovery pipeline, where the overdue money sits, daily collections and what comes due next. The headline KPI cards show prior-period comparisons, and the date and period controls re-query the backend, so every chart and KPI is populated for every selection. Automated tests hash the stylesheets and check headings, KPI labels and table columns, so the design cannot drift unnoticed. The "late-payment" chart and the ML-intelligence page were removed on purpose.
+## The API proxy
 
-## The server-side proxy
+The browser only ever calls the Next.js app. `app/api/portal/[...path]/route.ts` forwards a fixed list of portal
+paths to the API and returns 404 for anything else. It also:
 
-The browser calls only the Next.js app. Key files:
+- rejects any non-GET request whose `Origin` isn't the site itself,
+- keeps the session token in an HTTP-only, `SameSite=Strict` cookie (`invoiceiq_portal_session`, 8 hours) and never
+  hands it to JavaScript,
+- caps request sizes (3.5 MB for imports, 16 KB for the assistant, 4 KB for most things) and sets timeouts (60 s for
+  the assistant, imports and drafts, 15 s otherwise).
 
-- `app/api/portal/[...path]/route.ts` is the portal proxy.
-  - **Allow-list:** only named `GET` paths (`me`, `overview`, `invoices`, `settings`, `intelligence`, `recovery-summary`, `alerts`) and `POST` paths (`register`, `login`, `showcase`, `decisions`, `import`, `score`, `assistant`, `transcribe`), plus `PATCH settings` and `DELETE session`. Anything else is a 404.
-  - **Origin check:** every non-GET request must have an `Origin` equal to the site's own origin, or it is rejected with 403.
-  - **Session cookie:** on register, login or showcase, the API token is placed in an HTTP-only, `SameSite=Strict`, `Secure` (on HTTPS) cookie named `invoiceiq_portal_session`, valid for 8 hours. The token is never returned to JavaScript.
-  - **Limits:** payload caps (import 256 KB, assistant 16 KB, transcription about 1 MB, others 4 KB) and upstream timeouts (assistant 30 s, transcription 60 s, others 15 s). Responses are marked `no-store`.
-- `app/api/finance/[...path]/route.ts` serves the dashboard iframe: with a portal session it forwards `overview` to the portal dashboard and `export` to the CSV export, and blocks everything else.
-- `app/api/sample/ready` is a readiness probe.
-- Other proxy folders (`reviewer`, `workspace`, `session`, `review-requests`) serve the legacy single-company surface.
+`app/api/finance/[...path]/route.ts` serves data to the dashboard frame. The other proxy folders belong to the older
+single-company API.
 
-## Responsive behaviour and accessibility
+## Phones
 
-The layout works at phone width with no horizontal page scroll; tables collapse into labelled rows (`data-label`). Status messages use `role="status"` and errors `role="alert"`. Inputs have accessible labels. Voice input degrades gracefully with explicit messages when the microphone or network is unavailable.
+Every page fits a 390px-wide screen without sideways scrolling: tables turn into labelled rows, the navigation
+scrolls in one line, and term explanations open at the bottom of the screen.
 
-## Frontend testing
+## Tests
 
-Node's built-in test runner covers the dashboard inventory, portal contracts, CSV import, navigation, financial consistency and scenario data. Playwright journeys exercise sign-up, import, decisions and the dashboard in Chromium against a production build. See [TESTING.md](TESTING.md).
+The Node test runner covers the dashboard inventory, proxy contracts, CSV parsing, navigation and money formatting.
+Playwright journeys run sign-up, import, decisions and the dashboard against a production build. See
+[TESTING.md](TESTING.md).

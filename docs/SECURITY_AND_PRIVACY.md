@@ -1,63 +1,75 @@
 # Security and privacy
 
-## Trust boundaries
+The short version for users is on the [privacy page](https://invoiceiq-ai.vercel.app/privacy). This is the
+engineering side.
 
-1. **Browser to Next.js:** the only thing the browser talks to. It never receives the API token or database access.
-2. **Next.js to FastAPI:** the proxy allow-lists paths, enforces same-origin on writes, and forwards the session as a bearer token.
-3. **FastAPI to PostgreSQL:** every portal query is filtered by workspace.
-4. **FastAPI to third parties:** Gemini (assistant, transcription, voice reasoning), Sarvam (speech), and optionally Resend (email). All are optional and auto-fall back when unconfigured.
+## Boundaries
 
-## Authentication and sessions
+1. The browser only talks to the Next.js app. It never gets the API token and can't reach the database.
+2. The Next.js proxy forwards an allow-listed set of paths, refuses cross-origin writes, and passes the session on as
+   a bearer token.
+3. Every portal query in the API is filtered by the caller's workspace.
+4. Outside services, all optional: Gemini and Groq (assistant answers, reminder drafts, note embeddings,
+   transcription), LangSmith (traces), Sentry (error reports) and Resend (email in the older workflow).
 
-- Passwords: scrypt with a random salt, constant-time comparison, minimum 12 characters.
-- Session tokens: random, prefixed `iqp_`, stored only as a SHA-256 digest, valid 8 hours, revocable.
-- The browser holds the token in an HTTP-only, `SameSite=Strict` cookie, `Secure` over HTTPS.
-- Login errors are identical for an unknown email and a wrong password.
-- **Sign-in throttling:** five failed attempts lock the account for 30 seconds, doubling on each further failure up to 15 minutes, and a success clears the streak. The limiter is keyed by normalised email, not IP (behind the web proxy every visitor shares one source address, and a forwarded address can be spoofed). Unknown emails are throttled identically so the response never reveals whether an account exists, and locked attempts are refused before any password hashing runs. State is per API process.
+## Accounts and sessions
 
-## Authorization and isolation
+- Passwords: scrypt with a random salt, compared in constant time, 12 characters minimum.
+- Session tokens are random, start with `iqp_`, are stored only as a SHA-256 digest, last 8 hours and can be revoked.
+- The browser keeps the token in an HTTP-only, `SameSite=Strict` cookie (`Secure` over HTTPS).
+- A wrong password and an unknown email get the same response.
+- Five failed sign-ins lock the account for 30 seconds, doubling up to 15 minutes; a success resets it. It's keyed by
+  email, not IP, because behind the proxy every visitor shares an address and forwarded headers can be faked. Locked
+  attempts are refused before any hashing. The state is per API process.
 
-- A single `identity` dependency resolves the session, workspace and membership; customer workspaces require an active membership.
-- Roles gate sensitive actions: owner or admin to import and score; owner, admin or reviewer to record decisions.
-- Sample-workspace sessions cannot carry a user, cannot be used on a customer workspace, and keep decisions private through a per-session scope.
-- A guard denies the older single-company API on a public portal, so portal identities never reach it.
+## Who can do what
 
-## Input handling
+- The `identity` dependency resolves the session, workspace and membership for every request.
+- Owner or admin to import and score, reviewer or above for decisions, notes and reminders, owner only to delete data.
+- Public-workspace sessions can't belong to a user or touch a company workspace, and what a visitor writes is only
+  visible to that visitor.
+- A middleware blocks the older single-company API on the public deployment.
 
-- Request bodies are size-limited at the proxy and in the API (1 MB, with a larger limit for voice turns).
-- CSV import is validated server-side; exported CSV neutralises spreadsheet-formula injection.
-- Search terms escape SQL wildcards.
-- The assistant and voice agents screen input for prompt-injection phrases, cap context size and validate model output against a schema. The deterministic policy engine, not the model, is the security boundary for actions.
+## Input
 
-## Controls on automated actions
+- Request sizes are capped at the proxy and in the API.
+- Imports are validated row by row on the server; CSV exports neutralise spreadsheet formulas.
+- Search terms can't inject wildcards.
+- Notes reach the assistant as data, and any note that looks like an instruction to it is withheld. Reminder drafts
+  are rejected if they contain a number that isn't in the invoice.
 
-- High-value reminders require human approval; nothing is sent until approved.
-- Escalated cases stop automated reminders; voice calls are human-triggered only.
-- Reminder email can only go to one configured sample address; there is no code path to any other recipient.
-- The payment endpoint is a simulation and never moves money.
+## What the system won't do on its own
 
-## Data safety
+- It never contacts customers. Reminders are drafted, and a person sends them from their own email or WhatsApp.
+- No reminder on a disputed invoice or within three days of the last one; large or very late balances are flagged
+  for a manager.
+- In the older workflow, high-value actions wait for a person, and email can only go to one configured address.
+- Nothing moves money.
 
-- Sample-data tooling refuses to run unless the target database name is on an approved list or explicitly allowed by `INVOICEIQ_SHOWCASE_DATABASE`.
-- Tests refuse any database that is not the disposable instance and verify its identity first.
-- Migrations avoid destructive changes; new columns are nullable.
+## Data
 
-## Secrets and repository hygiene
+- An owner can delete all of a workspace's data, or the whole account, from Settings. That includes copies in event
+  payloads, alerts and assistant traces.
+- `.github/workflows/backup.yml` takes a nightly `pg_dump`, encrypts it with a passphrase before it leaves the runner,
+  and keeps it for seven days. It does nothing until its two secrets are set.
+- Seeding scripts refuse any database that isn't on an approved list (or named in `INVOICEIQ_SHOWCASE_DATABASE`).
+- Tests check the database's identity before touching it and refuse anything but the disposable instance.
 
-- `.env` files and credentials are never committed. CI scans the full history with gitleaks and runs a privacy check that blocks private local files.
-- Rotate any credential that has appeared in a chat, ticket or log. Treat tokens (Hugging Face, Vercel, model API keys, database passwords) as compromised if they were ever shared.
-- Deploy credentials live only as GitHub secrets, and the deploy requires an approving reviewer.
+## Logs and error reports
 
-## Logging
+Logs are JSON with a request id and don't include request bodies. The event consumer logs only the topic and the
+outcome. Sentry, if `SENTRY_DSN` is set, receives the method, path and stack trace only; bodies, query strings,
+cookies, headers, user details and local variables are stripped before sending. Assistant traces store timings and
+outcomes, not questions or answers.
 
-Structured JSON logs carry a request id and avoid dumping payloads. The event consumer logs only topic and outcome because event payloads can contain predictions and invoice facts.
+## Secrets
 
-## Hardening roadmap
+`.env` files are never committed. CI scans the whole history with gitleaks and blocks known private files. Deploy
+credentials are GitHub secrets. Anything that has appeared in a chat, ticket or log should be rotated.
 
-The current controls fit an evaluation deployment. Before hosting production customer data, the planned hardening is:
+## Not done yet
 
-- A shared (Redis) store for the sign-in, assistant and transcription limits once more than one API instance runs, plus per-network throttling at an edge proxy.
-- Email verification, password reset, multi-factor authentication and audit-log export.
-- Shared (Redis) limits for the assistant and transcription endpoints once more than one API instance runs.
-- A compliance review for real customer data (data residency, retention, a data-processing agreement with the model provider).
-- Prompt-injection screening is a defence in depth layer; the deterministic policy engine remains the control that gates actions.
+- Rate limits are per process; more than one API instance would need them in Redis.
+- No email verification, password reset or two-factor sign-in.
+- Before holding real customer data at scale: data residency, retention rules and a data-processing agreement with
+  the model provider.

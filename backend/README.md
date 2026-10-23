@@ -32,7 +32,7 @@ before destructive fixtures. Phase 5 and the remaining suite run in different
 databases and Python processes. Running plain `pytest` without the prepared
 container fails closed on database access. Optional private replay and
 Kafka/Redis lifecycle tests have separate fixture requirements; skips are not
-passes. The [release report](../docs/RELEASE_STATUS.md) records actual results.
+passes. See [docs/TESTING.md](../docs/TESTING.md) for what's actually run.
 
 ## Runtime boundaries
 
@@ -42,7 +42,7 @@ passes. The [release report](../docs/RELEASE_STATUS.md) records actual results.
   company-scoped authorization in hosted environments.
 - Recovery-case routes implement detection, risk scoring, the policy-gated
   LangGraph cycle, reviewer decisions, reconciliation and audit trails.
-  The payment simulation endpoint is a sample action, not a bank
+  The payment simulation endpoint is a stand-in, not a bank
   integration.
 - `/dashboard/preserved` and `/dashboard/workspace/*` serve the current
   Next.js dashboard. The web server calls them through server-side proxy
