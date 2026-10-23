@@ -20,6 +20,10 @@ export default function ExploreShowcaseButton(){
           throw new Error(typeof payload.detail==="string"?payload.detail:"Showcase unavailable");
         }
       }
+      // Start the data the next pages need now, so later clicks find warm caches instead of waiting.
+      for(const path of ["overview","recovery-summary","invoices?q=&page=1&page_size=25&sort=posting_desc","intelligence"])
+        void fetch("/api/portal/"+path,{cache:"no-store"}).catch(()=>{});
+      for(const page of ["/invoices","/cases","/approvals","/assistant"])router.prefetch(page);
       router.push("/workspace-dashboard");
       router.refresh();
     }catch(e){

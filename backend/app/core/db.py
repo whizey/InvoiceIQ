@@ -20,6 +20,10 @@ else:
         pool_recycle=1800,
     )
 engine = create_async_engine(settings.database_url, **engine_options)
+
+from app.core.server_timing import install_query_timing  # noqa: E402
+
+install_query_timing(engine.sync_engine)
 async_session_factory = async_sessionmaker(engine, expire_on_commit=False)
 
 

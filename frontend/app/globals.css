@@ -213,3 +213,11 @@ html, body {
 .notes-form select,.notes-form textarea{display:block;width:100%;margin-top:4px;padding:8px;font:inherit}
 .notes-form button{justify-self:start;background:#171717;color:#fff;border:0;padding:9px 14px;border-radius:7px;cursor:pointer}
 .notes-form button:disabled{opacity:.5;cursor:default}
+
+.ops-skeleton{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:16px}
+@media (max-width:900px){.ops-skeleton{grid-template-columns:1fr}}
+.sk-panel{background:#fff;border:1px solid #dededb;border-radius:12px;padding:22px;display:grid;gap:14px}
+.sk-line{display:block;height:14px;border-radius:6px;background:#ecece9}
+.sk-line.w40{width:40%;height:20px}.sk-line.w60{width:60%;height:20px}
+@media (prefers-reduced-motion:no-preference){.sk-line{background:linear-gradient(90deg,#ecece9 25%,#f5f5f3 37%,#ecece9 63%);background-size:400% 100%;animation:sk-shimmer 1.4s ease infinite}}
+@keyframes sk-shimmer{0%{background-position:100% 50%}100%{background-position:0 50%}}
