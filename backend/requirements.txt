@@ -25,4 +25,4 @@ sentry-sdk==2.70.0  # optional error tracking, active only when SENTRY_DSN is se
 shap==0.52.0
 
 # Optional metrics endpoint is disabled until METRICS_ENABLED=true.
-prometheus-client==0.23.1
+prometheus-client==0.26.0
