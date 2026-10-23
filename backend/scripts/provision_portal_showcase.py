@@ -18,6 +18,7 @@ from app.api.portal import SHOWCASE_ID
 from app.models.event_effects import ApprovalAlert
 from app.models.portal import PortalWorkspace, PortalInvoice, PortalPayment, PortalCaseEvent, PortalNote
 from app.seed import showcase_seed
+from app.services import ledger_import
 from app.services import note_embeddings
 from app.services.portal_recovery import SHOWCASE_BASELINE_SCOPE
 from app.services.portal_risk import score_workspace
@@ -72,20 +73,30 @@ async def clear_showcase(db) -> None:
 
 
 async def seed_ledger(db, today: date) -> dict:
-    """Write the business for today, score it with the verified model and embed its notes."""
+    """Write the business for today, score it with the verified model and embed its notes.
+
+    The invoices go in the way a customer's would: as a Zoho Books export read by the same importer.
+    """
     ledger = showcase_seed.build(today)
+    imported = ledger_import.prepare("kaveri-zoho-books.csv", showcase_seed.zoho_export(ledger, today).encode(),
+                                     today=today)
+    if imported.skipped or imported.warnings or len(imported.rows) != len(ledger.invoices):
+        raise RuntimeError(f"Importer rejected the generated export: {imported.report()['skipped']}")
     ids = {}
-    for row in ledger.invoices:
-        invoice = PortalInvoice(id=_id("invoice", row["number"]), workspace_id=SHOWCASE_ID,
-                                invoice_number=row["number"], counterparty=row["account"],
-                                issue_date=row["posted"], posting_date=row["posted"], due_date=row["due"],
-                                amount_total=row["total"], amount_paid=row["paid"])
+    for row in imported.rows:
+        invoice = PortalInvoice(id=_id("invoice", row["invoice_number"]), workspace_id=SHOWCASE_ID,
+                                invoice_number=row["invoice_number"], counterparty=row["counterparty"],
+                                issue_date=row["issue_date"], posting_date=row["posting_date"],
+                                due_date=row["due_date"], amount_total=row["amount_total"],
+                                amount_paid=row["amount_paid"])
         db.add(invoice)
-        ids[row["number"]] = invoice.id
+        ids[row["invoice_number"]] = invoice.id
     await db.flush()  # invoices before the rows that reference them
-    for row in ledger.payments:
-        db.add(PortalPayment(id=_id("payment", row["number"]), workspace_id=SHOWCASE_ID,
-                             invoice_id=ids[row["number"]], paid_on=row["paid_on"], amount=row["amount"]))
+    for row in imported.rows:
+        if row["amount_paid"] > 0:
+            db.add(PortalPayment(id=_id("payment", row["invoice_number"]), workspace_id=SHOWCASE_ID,
+                                 invoice_id=ids[row["invoice_number"]], paid_on=row["payment_date"],
+                                 amount=row["amount_paid"]))
     for index, row in enumerate(ledger.decisions):
         db.add(PortalCaseEvent(id=_id("decision", str(index)), workspace_id=SHOWCASE_ID,
                                invoice_id=ids[row["number"]], actor_scope=SHOWCASE_BASELINE_SCOPE,

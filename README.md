@@ -2,7 +2,7 @@
 
 # InvoiceIQ
 
-**Receivables intelligence for B2B finance teams: see the cash behind every invoice, predict which ones will pay late, and review high-value recovery actions before execution.**
+**For CAs and small finance teams: upload your receivables from Tally or Zoho Books, see who to chase first and how much cash is coming, and send a reminder drafted from the invoice's own facts.**
 
 [![CI](https://github.com/whizey/InvoiceIQ/actions/workflows/ci.yml/badge.svg)](https://github.com/whizey/InvoiceIQ/actions/workflows/ci.yml)
 [![Deploy](https://github.com/whizey/InvoiceIQ/actions/workflows/deploy.yml/badge.svg)](https://github.com/whizey/InvoiceIQ/actions/workflows/deploy.yml)
@@ -19,9 +19,9 @@
 
 ### At a glance
 
-| ~700 | 6 | 0.706 | 7 | 880+ | ~0.4 s |
+| 0.71 vs 0.52 | 92–126% | 2 | 0 | 900+ | ~0.4 s |
 |:---:|:---:|:---:|:---:|:---:|:---:|
-| sample invoices across 40 customers | dashboard KPIs that reconcile | test ROC-AUC of the late-payment model | policy rules between AI and action | automated backend tests | repeat-read latency on the live site |
+| model vs simple-average AUC on unseen public invoices | of forecast actually collected, last six four-week periods | export formats imported (Tally, Zoho Books) | invented numbers allowed in a reminder draft | automated backend tests | repeat-read latency on the live site |
 
 ---
 
@@ -35,7 +35,7 @@
 - [One invoice, from flag to sign-off](#one-invoice-from-flag-to-sign-off)
 - [AI with a human in the loop](#ai-with-a-human-in-the-loop)
 - [The late-payment model](#the-late-payment-model)
-- [Event pipeline on Kafka](#event-pipeline-on-kafka)
+- [Event pipeline (Kafka optional)](#event-pipeline-kafka-optional)
 - [Security and tenancy](#security-and-tenancy)
 - [Performance](#performance)
 - [Technology](#technology)
@@ -51,30 +51,34 @@
 
 ## Why InvoiceIQ
 
-Companies that sell to other businesses on credit wait weeks or months to be paid. Finance teams usually track this in spreadsheets: they can't easily see how much money is at risk, which invoices are about to go late, or which customers need a nudge, and chasing everyone by hand is slow and inconsistent.
+Small businesses that sell on credit wait weeks or months to be paid, and the person chasing payment (often the owner or their CA) works from a Tally or Zoho Books report and memory. Every morning the same questions come up: who do I call first, how much cash will actually come in this month, and what do I say?
 
-InvoiceIQ turns invoices and payments into one trustworthy picture of receivables, scores every open invoice for late-payment risk with an explanation, and runs a recovery workflow where AI proposes the next step but fixed rules and a person decide what actually happens.
+InvoiceIQ answers exactly those. Upload the export you already have; get a ranked follow-up list with a one-line reason for each invoice, a weekly cash forecast with an honest range, and a reminder drafted from the invoice's own facts that you edit and send yourself. Simple, explainable methods come first; the machine-learning model is used only where it measurably beats them on your own history.
 
 ## Try it in two minutes
 
-1. Open **[invoiceiq-ai.vercel.app](https://invoiceiq-ai.vercel.app)** and choose **Explore the product**. You get a private session in the public workspace; nothing you do is visible to anyone else.
-2. **Analytics:** switch the date basis (posting, due, payment) and range (90D, 12M, all data). Every KPI and chart recalculates, and the totals always reconcile.
-3. **Invoices:** search and sort the portfolio, and open an invoice to see its late-payment score and the factors behind it.
-4. **Cases:** escalate a risky invoice. An approval alert appears within a second or two, delivered through Kafka.
-5. **Approvals:** approve or reject it. The alert closes and the decision is recorded in the audit trail.
-6. **Assistant:** ask "Which customers owe the most past 90 days?" by typing or speaking.
+1. Open **[invoiceiq-ai.vercel.app](https://invoiceiq-ai.vercel.app)** and choose **Explore the product**. You land on **Follow-ups**, in a private session on the public workspace; nothing you do is visible to anyone else.
+2. **Follow-ups:** the invoices to chase today, ranked by amount × chance of paying late × days overdue, each with its reason ("₹69k, 51 days overdue, usually pays 46 days late"). Above them, the cash expected per week with a range, and how last month's forecast compared with what came in.
+3. **Remind:** draft a WhatsApp or email reminder in English or Hinglish, edit it, open it in WhatsApp, then mark it sent. A second reminder within three days is refused, as is any reminder on a disputed invoice.
+4. **Invoices:** upload a Tally or Zoho Books export (or download an example) to see the import preview: columns detected, rows ready, rows skipped and why.
+5. **Model:** the model against the simple per-customer average, on this workspace and on public data, with calibration.
 
-Want your own data instead? **Create workspace**, then import invoices from a CSV.
+Want your own data instead? **Create workspace** and import your Tally or Zoho Books export.
 
 ## What it does
 
 | | Capability | Details |
 |---|---|---|
+| 📋 | **Follow-up list** | Who to chase today, ranked by amount × chance of paying late × days overdue, each with a one-line reason from the evidence: a dispute, a part payment, what the customer said or promised, or how late they usually pay. Disputed invoices are held out; invoices due this week are listed separately. |
+| 💰 | **Cash forecast** | Expected collections for each of the next eight weeks with a range, from a survival curve of how long this workspace's invoices take to be paid after their due date, per risk band. The range is widened to cover the forecast's own track record, which is shown: what it predicted four weeks ago against what came in. |
+| ⚖️ | **Baseline first, model when it earns it** | Each customer's late share over their last six settled invoices is the default score. The LightGBM model replaces it only when it ranks the workspace's own last six months better, and both AUCs and the calibration ("when we said 70%, 64% paid late") are shown. |
+| 📥 | **Tally and Zoho Books import** | CSV or Excel exports, with automatic column detection (including Tally's title lines, "Dr/Cr" amounts and Indian dates), manual mapping, and a preview that says what will be skipped and why before anything is saved. |
+| ✉️ | **Reminder drafter** | The model drafts a WhatsApp or email reminder in English or Hinglish from the invoice's facts; a draft with any number not in the case is rejected. A person edits and sends it; the log tracks whether a payment followed within two weeks. |
 | 📊 | **Receivables dashboard** | Six headline KPIs (invoiced, open receivables, overdue exposure, overdue share, collected, score coverage), invoiced vs collected over time, aging schedule, balance bridge, overdue by account, daily collections and upcoming dues. Date basis (posting, due, payment), grouping (day to year), ranges and a comparison cutoff. Totals reconcile and export to CSV. |
 | 🔮 | **Late-payment prediction** | A LightGBM model scores every open invoice at posting time and explains each score with its top SHAP drivers. |
 | 🤖 | **Policy-gated recovery agent** | A LangGraph workflow investigates a case and proposes an action; a deterministic policy engine allows, holds or blocks it; held actions wait in an approvals queue. |
 | ✅ | **Approvals and alerts** | Escalations raise approval alerts through the Kafka pipeline; reviewers approve or reject, and every decision is audited. |
-| 💬 | **Tool-calling assistant** | Ask about balances, ageing, monthly trends and DSO, a customer's payment record, what falls due soon, why an invoice looks risky, or "what if Acme pays?", by text or voice. Every figure in an answer is checked against what its tools returned. |
+| 💬 | **Tool-calling assistant** | Ask about balances, ageing, monthly trends and DSO, a customer's payment record, what falls due soon, why an invoice looks risky, or "what if Acme pays?".  Every figure in an answer is checked against what its tools returned. |
 | 🏢 | **Multi-tenant workspaces** | Sign up, import invoices by CSV (validated), and work in an isolated workspace with roles (owner, admin, reviewer). |
 
 ## Screens
@@ -208,6 +212,15 @@ The [nightly workflow](.github/workflows/assistant-eval-nightly.yml) resumes the
 | PR-AUC | 0.610 | 0.636 |
 | Brier score (lower is better) | 0.241 | 0.281 |
 
+**Against the simple average.** The product's baseline (a customer's late share over its last settled invoices, known at posting time) scored on the same chronological test invoices, posted Dec 2015 – Jan 2016 ([record](docs/evaluations/baseline-vs-model.json), `python -m app.ml.baseline_comparison`):
+
+| | Model | Simple average |
+|---|---|---|
+| ROC-AUC | **0.706** | 0.520 |
+| PR-AUC | 0.636 | 0.470 |
+
+The model earns its place on this data, but its probabilities are poorly calibrated: invoices it scored about 5% were late 32% of the time, and those it scored about 89% were late 69% of the time. The product therefore treats scores as a ranking, and in each workspace uses whichever of the two ranks that workspace's own last six months better. On the public workspace the simple average currently wins (0.88 vs 0.81 when this was written), so it is used. The validation split is not reported here: the served model was refit on data that includes it.
+
 - **Model:** LightGBM champion `b2b_v2:5a8417263da99809`, 14 behaviour-heavy features, trained on 34,437 invoices.
 - **Stability:** a four-fold temporal backtest has a median ROC-AUC of 0.666 and no fold below random.
 - **Calibration:** Platt scaling was tested and rejected because it lowered ranking quality, so raw scores are served.
@@ -217,7 +230,7 @@ The [nightly workflow](.github/workflows/assistant-eval-nightly.yml) resumes the
 
 The full record, with the split fingerprint and limitations, is in [docs/evaluations/model-risk-v1.json](docs/evaluations/model-risk-v1.json) and [docs/ML_MODELS.md](docs/ML_MODELS.md).
 
-## Event pipeline on Kafka
+## Event pipeline (Kafka optional)
 
 ```mermaid
 sequenceDiagram
@@ -245,7 +258,7 @@ sequenceDiagram
 | Survives broker data loss | An outbox reconciler re-applies published-but-unapplied events every 60 s |
 | Never blocks the product | If no broker is reachable, the same handlers run in-process |
 
-The hosted API starts a single-node Kafka 3.9 (KRaft) beside itself when available; event effects use the in-process fallback if the broker is unavailable. To try it locally with Redpanda and a web console, see [deploy/local-kafka](deploy/local-kafka/README.md). More in [docs/EVENT_PIPELINE.md](docs/EVENT_PIPELINE.md).
+Kafka is optional: without a broker, the PostgreSQL outbox and an in-process worker apply every event, which is all a small team needs. The hosted API runs a single-node Kafka 3.9 (KRaft) to exercise the full pipeline. To try it locally with Redpanda and a web console, see [deploy/local-kafka](deploy/local-kafka/README.md). More in [docs/EVENT_PIPELINE.md](docs/EVENT_PIPELINE.md).
 
 The [deduplication check](deploy/local-kafka/README.md) prints `first delivery: processed`, `second delivery: duplicate`, `approval alerts: 1`, and `dedupe markers: 1`. A poison event is parked in the database and published to `<topic>.dlq`; `python -m app.events.replay --dry-run` previews it before replay.
 

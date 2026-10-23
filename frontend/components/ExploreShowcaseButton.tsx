@@ -24,7 +24,7 @@ export default function ExploreShowcaseButton(){
       for(const path of ["overview","recovery-summary","invoices?q=&page=1&page_size=25&sort=posting_desc","intelligence"])
         void fetch("/api/portal/"+path,{cache:"no-store"}).catch(()=>{});
       for(const page of ["/invoices","/cases","/approvals","/assistant"])router.prefetch(page);
-      router.push("/workspace-dashboard");
+      router.push("/follow-ups");
       router.refresh();
     }catch(e){
       setError(e instanceof Error?e.message:"Could not open the showcase");

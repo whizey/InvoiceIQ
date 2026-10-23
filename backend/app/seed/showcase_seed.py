@@ -9,6 +9,8 @@ Pure and deterministic for a given date: the provisioning script writes what thi
 """
 from __future__ import annotations
 
+import csv
+import io
 import math
 import random
 from dataclasses import dataclass, field
@@ -182,3 +184,46 @@ def summary(ledger: Ledger, today: date) -> dict:
             "overdue": overdue, "overdue_share_pct": round(float(overdue / open_balance * 100), 1) if open_balance else 0,
             "overdue_invoices": len(_overdue(ledger, today)), "decisions": len(ledger.decisions),
             "notes": len(ledger.notes)}
+
+
+ZOHO_HEADERS = ["Invoice Date", "Invoice Number", "Invoice Status", "Customer Name", "Due Date", "Total", "Balance",
+                "Last Payment Date"]
+TALLY_HEADERS = ["Date", "Ref. No.", "Party's Name", "Opening Amount", "Pending Amount", "Due on", "Overdue by days"]
+
+
+def zoho_export(ledger: Ledger, today: date) -> str:
+    """The ledger as a Zoho Books invoice export (CSV), the way a customer would download it."""
+    paid_on = {p["number"]: p["paid_on"] for p in ledger.payments}
+    out = io.StringIO()
+    writer = csv.writer(out)
+    writer.writerow(ZOHO_HEADERS)
+    for i in ledger.invoices:
+        balance = i["total"] - i["paid"]
+        status = ("Paid" if balance == 0 else "PartiallyPaid" if i["paid"] > 0
+                  else "Overdue" if i["due"] < today else "Sent")
+        writer.writerow([i["posted"].isoformat(), i["number"], status, i["account"], i["due"].isoformat(),
+                         f"{i['total']:.2f}", f"{balance:.2f}",
+                         paid_on[i["number"]].isoformat() if i["number"] in paid_on else ""])
+    return out.getvalue()
+
+
+def tally_export(ledger: Ledger, today: date) -> str:
+    """Open bills as Tally's Bills Receivable report (CSV): title lines first, Indian formats, a totals line."""
+    out = io.StringIO()
+    writer = csv.writer(out)
+    writer.writerow([BUSINESS])
+    writer.writerow(["Bills Receivable"])
+    writer.writerow([f"1-Apr-{today.year - 1} to {today.day}-{today.strftime('%b-%Y')}"])
+    writer.writerow([])
+    writer.writerow(TALLY_HEADERS)
+    pending_total = Decimal(0)
+    for i in ledger.invoices:
+        pending = i["total"] - i["paid"]
+        if pending <= 0:
+            continue
+        pending_total += pending
+        writer.writerow([f"{i['posted'].day}-{i['posted'].strftime('%b-%y')}", i["number"], i["account"],
+                         f"{i['total']:,.2f} Dr", f"{pending:,.2f} Dr",
+                         f"{i['due'].day}-{i['due'].strftime('%b-%y')}", max((today - i["due"]).days, 0)])
+    writer.writerow(["", "", "Grand Total", "", f"{pending_total:,.2f} Dr", "", ""])
+    return out.getvalue()

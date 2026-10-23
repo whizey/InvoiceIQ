@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 const read=(p)=>fs.readFileSync(new URL(p,import.meta.url),"utf8");
 
-test("showcase entry opens analytics directly without intermediate workspace page",()=>{
+test("workspace entry opens the follow-up list directly",()=>{
   const home=read("../app/home/page.tsx");
   const entry=read("../components/ExploreShowcaseButton.tsx");
   const redirect=read("../app/platform/page.tsx");
@@ -12,9 +12,9 @@ test("showcase entry opens analytics directly without intermediate workspace pag
   assert.ok(!home.includes('href="/platform"'));
   assert.ok(entry.includes("/api/portal/showcase"));
   assert.ok(entry.includes("/api/portal/me"));
-  assert.ok(entry.includes('router.push("/workspace-dashboard")'));
-  assert.ok(redirect.includes('redirect(hasPortalSession?"/workspace-dashboard":"/home")'));
-  assert.ok(auth.includes('router.push("/workspace-dashboard")'));
+  assert.ok(entry.includes('router.push("/follow-ups")'));
+  assert.ok(redirect.includes('redirect(hasPortalSession?"/follow-ups":"/home")'));
+  assert.ok(auth.includes('router.push("/follow-ups")'));
 });
 test("browser history back control works across SaaS routes",()=>{
   const nav=read("../components/PortalNavigation.tsx");

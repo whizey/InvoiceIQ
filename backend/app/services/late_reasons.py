@@ -50,7 +50,8 @@ def late_reason(row, notes, habit_days: int | None, today: date) -> dict | None:
         return {"days_late": days, "kind": "part_paid", "text": text + (f" {said.body}" if said else "")}
     if said:
         prefix = "Promised" if said.kind == "promise" else "Customer says"
-        return {"days_late": days, "kind": said.kind, "text": f"{prefix}: {said.body}"}
+        text = said.body if said.body.lower().startswith(prefix.lower()) else f"{prefix}: {said.body}"
+        return {"days_late": days, "kind": said.kind, "text": text}
     if habit_days is not None and habit_days >= HABIT_DAYS:
         return {"days_late": days, "kind": "habit",
                 "text": f"Usually pays about {habit_days} days after the due date."}

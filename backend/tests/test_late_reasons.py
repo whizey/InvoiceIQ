@@ -53,3 +53,8 @@ def test_customer_habit_needs_enough_paid_history():
     rows.append(invoice(due_days_ago=90, paid="100000", customer="New Co"))
     last = {r.id: r.due_date + timedelta(days=21) for r in rows}
     assert customer_lateness(rows, last) == {"Slow Co": 21}
+
+
+def test_a_promise_that_already_says_so_is_not_prefixed_twice():
+    assert late_reason(invoice(), [note("promise", "Promised payment in their next run.")], None, TODAY)["text"] == \
+        "Promised payment in their next run."

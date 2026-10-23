@@ -16,8 +16,12 @@ test('visitor and customer journeys use isolated persisted workspaces', async ()
       page.on('console', message => {if(message.type()==='error') console.log('CONSOLE',message.text())});
     }
     await page.goto(origin + '/home');
-    const showcaseFinancial=page.waitForResponse(response => response.url().includes('/api/finance/overview?'));
     await page.getByRole('button', {name: /Explore the product/}).click();
+    await page.waitForURL('**/follow-ups');
+    await page.getByRole('heading', {name:'Who to chase today'}).waitFor();
+    await page.getByRole('heading', {name:'Chase first'}).waitFor();
+    const showcaseFinancial=page.waitForResponse(response => response.url().includes('/api/finance/overview?'));
+    await page.getByRole('link', {name:'Analytics', exact:true}).click();
     await page.waitForURL('**/workspace-dashboard');
     const showcaseResponse=await showcaseFinancial;
     assert.equal(showcaseResponse.status(),200,await showcaseResponse.text());
@@ -30,7 +34,7 @@ test('visitor and customer journeys use isolated persisted workspaces', async ()
       `Overdue share should reflect a believable aged ledger: ${showcaseData.metrics.overdue_share}`);
     assert.equal(showcaseData.series.at(-1).open,showcaseData.metrics.open,
       'The plotted period-end balance must reconcile to the open receivables KPI');
-    await page.frameLocator('iframe').getByText('Invoiced', {exact: true}).first().waitFor();
+    await page.frameLocator('iframe').getByText('Total billed', {exact: true}).first().waitFor();
     if(process.env.PORTAL_SCREENSHOT_PATH){
       await page.screenshot({path:process.env.PORTAL_SCREENSHOT_PATH});
       const frame=page.frame({url:/\/reference\/overview\/index\.html/});
@@ -48,7 +52,8 @@ test('visitor and customer journeys use isolated persisted workspaces', async ()
     await page.getByRole('heading', {name:'AI assistant'}).waitFor();
     await page.getByRole('button', {name:'Which overdue invoices should we chase first?'}).waitFor();
     await page.goto(new URL('/ml',page.url()).href);
-    await page.waitForURL('**/workspace-dashboard');
+    await page.waitForURL('**/model');
+    await page.getByRole('heading', {name:'Model or simple average?'}).waitFor();
     await page.getByRole('link', {name:'Cases', exact:true}).click();
     await page.waitForURL('**/cases');
     await page.getByRole('heading', {name:'Case overview'}).waitFor();
@@ -61,7 +66,7 @@ test('visitor and customer journeys use isolated persisted workspaces', async ()
     await page.waitForURL('**/workspace-dashboard');
     await page.getByRole('link', {name: 'Invoices', exact: true}).first().click();
     await page.waitForURL('**/invoices');
-    await page.getByText(/Showing 25 of 1500 matching invoices/).waitFor();
+    await page.getByText(/Showing 25 of \d+ matching invoices/).waitFor();
     await page.route('**/api/portal/invoices?**', route => route.fulfill({status:503,contentType:'application/json',body:'{"detail":"Temporary test outage"}'}));
     await page.getByRole('textbox', {name: 'Search invoices'}).fill('temporary outage');
     await page.getByRole('alert').getByText('Temporary test outage').waitFor();
@@ -94,7 +99,7 @@ test('visitor and customer journeys use isolated persisted workspaces', async ()
     await account.getByLabel('Password').fill(password);
     const emptyFinancial=account.waitForResponse(response => response.url().includes('/api/finance/overview?') && response.status()===200);
     await account.getByRole('button', {name: 'Create account'}).click();
-    await account.waitForURL('**/workspace-dashboard');
+    await account.waitForURL('**/follow-ups');
     assert.equal((await (await emptyFinancial).json()).metrics.invoice_count,0);
     await account.getByRole('link', {name: 'Invoices', exact: true}).first().click();
     await account.getByText('No invoices yet. Import a CSV to begin.').waitFor();
@@ -126,7 +131,7 @@ test('visitor and customer journeys use isolated persisted workspaces', async ()
     await account.getByLabel('Email address').fill(email);
     await account.getByLabel('Password').fill('Changed-browser-test-password-9325');
     await account.getByRole('button', {name: 'Sign in'}).click();
-    await account.waitForURL('**/workspace-dashboard');
+    await account.waitForURL('**/follow-ups');
     await customer.close();
   } finally {
     await browser.close();
