@@ -636,11 +636,15 @@ async def list_portal_invoices(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=25, ge=1, le=100),
     sort: str = Query(default="posting_desc", pattern="^(posting_desc|posting_asc|due_asc|due_desc|number_asc)$"),
+    status: str = Query(default="all", pattern="^(all|overdue|awaiting|escalated)$"),
     subject=Depends(identity), db: AsyncSession = Depends(get_db),
 ):
+    """`status` narrows the list to what a page counts: overdue and unpaid, overdue with no decision yet
+    (awaiting), or escalated. The last two depend on the viewer's own decisions, so they are not shared."""
     session, workspace = subject
-    return await _cached(workspace, session, "invoices", (q.strip(), page, page_size, sort),
-                         lambda: _invoice_page(db, session, workspace, q, page, page_size, sort), shared=True)
+    return await _cached(workspace, session, "invoices", (q.strip(), page, page_size, sort, status),
+                         lambda: _invoice_page(db, session, workspace, q, page, page_size, sort, status),
+                         shared=status in {"all", "overdue"})
 
 
 async def _lateness(db, session, workspace) -> dict[str, int]:
@@ -721,8 +725,21 @@ async def _follow_ups(db, session, workspace):
             "chase": chase, "on_hold": [i for i in overdue if i["on_hold"]], "due_soon": due_soon}
 
 
-async def _invoice_page(db, session, workspace, q, page, page_size, sort):
+async def _invoice_page(db, session, workspace, q, page, page_size, sort, status="all"):
     filters = [PortalInvoice.workspace_id == workspace.id]
+    if status != "all":
+        filters += [PortalInvoice.due_date < date.today(), PortalInvoice.amount_paid < PortalInvoice.amount_total]
+    if status in {"awaiting", "escalated"}:
+        _, events = await _records(db, session, workspace)
+        latest = {}
+        for event in sorted(events, key=lambda e: e.created_at):
+            latest[event.invoice_id] = event.decision
+        decided = {i for i, d in latest.items() if d in {"APPROVE", "REJECT", "ESCALATE"}}
+        if status == "awaiting":
+            filters.append(PortalInvoice.id.notin_(decided) if decided else PortalInvoice.id.isnot(None))
+        else:
+            escalated = [i for i, d in latest.items() if d == "ESCALATE"]
+            filters.append(PortalInvoice.id.in_(escalated) if escalated else PortalInvoice.id.is_(None))
     if q.strip():
         term = f"%{q.strip().replace('%', r'\%').replace('_', r'\_')}%"
         filters.append(or_(PortalInvoice.invoice_number.ilike(term, escape="\\"),
