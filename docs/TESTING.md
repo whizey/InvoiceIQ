@@ -4,7 +4,7 @@
 
 | Layer | Tool | Scope |
 |---|---|---|
-| Backend | pytest, pytest-asyncio, coverage | 765 collected tests (about 110 files), run against a real PostgreSQL; 80% coverage gate in CI |
+| Backend | pytest, pytest-asyncio, coverage | 886 collected tests (about 120 files), run against a real PostgreSQL; 80% coverage gate in CI |
 | Frontend unit and contract | Node test runner | Dashboard inventory and styles, portal contracts, CSV import, navigation, financial consistency, scenario data |
 | Browser journeys | Playwright (Chromium) | Sign-up, import, decisions and the dashboard against a production build |
 | Static checks | Ruff, ESLint, TypeScript | Style and types |

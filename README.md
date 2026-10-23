@@ -19,7 +19,7 @@
 
 ### At a glance
 
-| ~700 | 6 | 0.706 | 7 | 760+ | ~0.4 s |
+| ~700 | 6 | 0.706 | 7 | 880+ | ~0.4 s |
 |:---:|:---:|:---:|:---:|:---:|:---:|
 | sample invoices across 40 customers | dashboard KPIs that reconcile | test ROC-AUC of the late-payment model | policy rules between AI and action | automated backend tests | repeat-read latency on the live site |
 
@@ -297,7 +297,7 @@ InvoiceIQ/
 │   ├── app/events/          outbox, Kafka publisher, consumer, reconciler, replay
 │   ├── app/ml/              training, evaluation, calibration, serving, artifacts
 │   ├── alembic/             database migrations
-│   └── tests/               760+ tests against a disposable PostgreSQL
+│   └── tests/               880+ tests against a disposable PostgreSQL
 ├── frontend/                Next.js app, API proxies, reference dashboard, tests
 ├── deploy/                  Hugging Face Space packaging, local Kafka stack
 ├── infra/                   loopback-only staging Compose rehearsal
@@ -366,7 +366,7 @@ cd backend && ruff check app tests && ./scripts/run_full_tests.sh --coverage
 cd frontend && npm ci && npm run lint && npm run typecheck && npm test && npm run build
 ```
 
-- **Backend:** 760+ tests across about 110 files run against a real PostgreSQL. They cover tenant isolation, sessions and lockout, policy rules, the review gate, reconciliation of dashboard totals, the event pipeline (duplicates, late events, retries, dead letters, broker loss) and ML artifact integrity. CI enforces 80% coverage.
+- **Backend:** 880+ tests across about 120 files run against a real PostgreSQL. They cover tenant isolation, sessions and lockout, policy rules, the review gate, reconciliation of dashboard totals, the event pipeline (duplicates, late events, retries, dead letters, broker loss) and ML artifact integrity. CI enforces 80% coverage.
 - **Migrations:** CI applies them up, down to base, and up again.
 - **Frontend:** unit and contract tests for the dashboard, CSV import and financial consistency, plus Playwright journeys against a production build.
 - **Safety:** test connections are checked against the disposable database's identity before any fixture runs.

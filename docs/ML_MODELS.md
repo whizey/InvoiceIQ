@@ -21,16 +21,17 @@ Everything here is reported with its limitations. Reports live in `backend/app/m
 
 ### Reported performance (development validation)
 
-| Measure | Value |
-|---|---|
-| Validation rows | 13,355 (late-payment rate about 40%) |
-| ROC-AUC | 0.714 |
-| PR-AUC | 0.610 |
-| Temporal backtest | 4 folds, none below random, median ROC-AUC 0.666 |
+| Measure | Validation (13,355 rows, ~40% late) | Chronological test (6,181 rows, ~46% late) |
+|---|---|---|
+| ROC-AUC | 0.714 | 0.706 |
+| PR-AUC | 0.610 | 0.636 |
+| Brier score (lower is better) | 0.241 | 0.281 |
+
+Temporal backtest: 4 folds, none below random, median ROC-AUC 0.666.
 
 **Calibration:** a Platt calibration was evaluated and **not accepted**, so the model serves its raw probabilities. Treat them as ranking scores, not exact probabilities.
 
-**Evidence status:** results come from the development split and a temporal backtest. The held-out test split is reserved for final sign-off and has not been read, which keeps model selection free of test leakage. Explainability cohort coverage and prospective production performance are the next validation steps, tracked in the evaluation JSON.
+**Evidence status:** the model was selected on the development split and a temporal backtest. The frozen model was then scored once on the chronological test split, with no refit or threshold tuning. That split had been examined during earlier development, so the test figures are retrospective held-out evidence rather than a blind test (see `docs/evaluations/model-risk-v1.json`). Explainability cohort coverage and prospective production performance are the next validation steps, tracked in the evaluation JSON.
 
 ### Explanations
 Each score can include native **TreeSHAP** contributions, so the product can show which features pushed a particular invoice up or down.

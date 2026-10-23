@@ -35,7 +35,7 @@ The day-to-day reality in many finance teams:
 
 1. **The model advises; rules decide.** Machine-learning output and language-model output are inputs. A deterministic policy layer is the only thing that can permit an action.
 2. **Humans approve what matters.** High-value or ambiguous actions are held for review, and the workflow stops until a person decides.
-3. **Evidence over claims.** Model numbers are reported with their limitations. The held-out test split is not used to tune anything, and the docs say what has not been established.
+3. **Evidence over claims.** Model numbers are reported with their limitations. The test split was never used to tune anything; the frozen model was scored on it once, and the docs say what has not been established.
 4. **Isolation by default.** Tenants cannot see each other's data, and sample-data tooling refuses to run against anything that is not an approved sample database.
 5. **Everything is explainable.** If the system did something, the reason, the rule and the actor are on record.
 
