@@ -17,7 +17,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
-from fastapi.responses import StreamingResponse
+from fastapi.responses import RedirectResponse, StreamingResponse
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError
@@ -28,8 +28,9 @@ from app.core.db import get_db
 from app.core.login_throttle import login_throttle, registration_limit
 from app.models.portal import (
     PortalWorkspace, PortalUser, PortalMembership, PortalSession, PortalInvoice, PortalCaseEvent,
-    PortalPayment, PortalNote, PortalReminder,
+    PortalPayment, PortalNote, PortalReminder, PortalZohoConnection,
 )
+from app.services import zoho_sync
 from app.ml.champion_serving import verified_contract
 from app.ml.payment_risk_model import PaymentRiskArtifactError
 from app.services.portal_risk import explain_invoice, provenance, score_workspace
@@ -1190,6 +1191,123 @@ async def import_file(payload: LedgerFile, subject=Depends(identity), db: AsyncS
     _bump(workspace.id)
     report = prepared.report()
     return {**report, "imported": len(prepared.rows), "scored": scored}
+
+
+OAUTH_STATE_MAX_AGE = timedelta(minutes=10)
+
+
+@router.get("/zoho-status")
+async def zoho_status(request: Request, subject=Depends(identity), db: AsyncSession = Depends(get_db)):
+    session, workspace = subject
+    await _require_importer(db, session, workspace)
+    connection = await db.scalar(select(PortalZohoConnection).where(
+        PortalZohoConnection.workspace_id == workspace.id))
+    connected = bool(connection and connection.webhook_secret)
+    webhook_url = None
+    if connected:
+        webhook_url = f"{str(request.base_url).rstrip('/')}/portal/zoho-webhook/{connection.webhook_secret}"
+    return {"configured": zoho_sync.configured(), "connected": connected,
+            "connected_at": connection.connected_at.isoformat() if connected and connection.connected_at else None,
+            "last_synced_at": connection.last_synced_at.isoformat()
+                if connection and connection.last_synced_at else None,
+            "invoices_synced": connection.invoices_synced if connection else 0, "webhook_url": webhook_url}
+
+
+@router.post("/zoho-connect")
+async def zoho_connect(subject=Depends(identity), db: AsyncSession = Depends(get_db)):
+    """Starts the OAuth handshake: a one-time `state` the callback will use to find this connection again,
+    since Zoho redirects the browser straight back to the API, not through the signed-in session."""
+    session, workspace = subject
+    await _require_importer(db, session, workspace)
+    if not zoho_sync.configured():
+        raise HTTPException(503, "Zoho sync is not configured on this server")
+    connection = await db.scalar(select(PortalZohoConnection).where(
+        PortalZohoConnection.workspace_id == workspace.id))
+    if connection is None:
+        connection = PortalZohoConnection(workspace_id=workspace.id)
+        db.add(connection)
+    connection.oauth_state = secrets.token_urlsafe(24)
+    connection.oauth_state_created_at = datetime.now(timezone.utc)
+    await db.commit()
+    return {"authorize_url": zoho_sync.authorize_url(connection.oauth_state)}
+
+
+@router.get("/zoho-callback")
+async def zoho_callback(code: str = Query(default=""), state: str = Query(default=""),
+                        db: AsyncSession = Depends(get_db)):
+    """Public: Zoho sends the browser here after the user authorizes or declines. No session cookie survives
+    this redirect (it lands on the API's own origin), so the pending connection is found by `state` instead."""
+    from app.core.config import settings
+
+    frontend = settings.frontend_public_url.rstrip("/") + "/settings"
+    connection = (await db.scalar(select(PortalZohoConnection).where(
+        PortalZohoConnection.oauth_state == state))) if state else None
+    if connection is None or connection.oauth_state_created_at is None or (
+            datetime.now(timezone.utc) - connection.oauth_state_created_at > OAUTH_STATE_MAX_AGE):
+        return RedirectResponse(f"{frontend}?zoho=expired")
+    if not code:
+        return RedirectResponse(f"{frontend}?zoho=denied")
+    try:
+        tokens = await zoho_sync.exchange_code(code)
+    except ValueError:
+        return RedirectResponse(f"{frontend}?zoho=error")
+    connection.access_token = tokens.get("access_token")
+    connection.refresh_token = tokens.get("refresh_token") or connection.refresh_token
+    expires_in = tokens.get("expires_in")
+    connection.token_expires_at = (datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+                                   if expires_in else None)
+    connection.webhook_secret = secrets.token_urlsafe(24)
+    connection.connected_at = datetime.now(timezone.utc)
+    connection.oauth_state = None
+    connection.oauth_state_created_at = None
+    await db.commit()
+    return RedirectResponse(f"{frontend}?zoho=connected")
+
+
+@router.post("/zoho-disconnect")
+async def zoho_disconnect(subject=Depends(identity), db: AsyncSession = Depends(get_db)):
+    session, workspace = subject
+    await _require_importer(db, session, workspace)
+    connection = await db.scalar(select(PortalZohoConnection).where(
+        PortalZohoConnection.workspace_id == workspace.id))
+    if connection:
+        await db.delete(connection)
+        await db.commit()
+        _bump(workspace.id)
+    return {"ok": True}
+
+
+@router.post("/zoho-webhook/{secret}")
+async def zoho_webhook(secret: str, payload: dict, db: AsyncSession = Depends(get_db)):
+    """Public: Zoho posts here on every invoice create/update once connected. The secret in the URL is the only
+    authenticity check available -- Zoho's classic Books webhooks carry no signature in the body or headers."""
+    connection = await db.scalar(select(PortalZohoConnection).where(PortalZohoConnection.webhook_secret == secret))
+    if connection is None:
+        raise HTTPException(404, "Unknown webhook")
+    workspace = await db.get(PortalWorkspace, connection.workspace_id)
+    if workspace is None:
+        raise HTTPException(404, "Workspace not found")
+    try:
+        mapped = zoho_sync.map_invoice(payload)
+    except ValueError as exc:
+        return {"ok": False, "skipped": str(exc)}  # 200: a payload we understood and rejected, not a server error
+    invoice, created, paid = await zoho_sync.upsert_invoice(db, workspace.id, mapped)
+    connection.last_synced_at = datetime.now(timezone.utc)
+    connection.invoices_synced += 1
+    envelope = await TransactionalEventPublisher(db).publish(
+        event_topics.INVOICE_SYNCED, str(invoice.id),
+        {"workspace_id": str(workspace.id), "invoice_id": str(invoice.id), "created": created, "paid": paid})
+    try:
+        scored = (await score_workspace(db, workspace.id))["scored"]
+    except HTTPException:
+        scored = 0
+    await db.commit()
+    _bump(workspace.id)
+    try:  # broker when reachable (the consumer applies it), otherwise in-process
+        await deliver_event(async_session_factory, get_publisher(), event_topics.INVOICE_SYNCED, envelope)
+    except Exception:  # noqa: BLE001 - the invoice is already saved; the outbox row stays pending
+        pass
+    return {"ok": True, "created": created, "paid": paid, "scored": scored}
 
 
 from typing import Annotated  # noqa: E402

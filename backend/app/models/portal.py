@@ -7,7 +7,7 @@ import uuid
 from datetime import date, datetime, time, timezone
 from decimal import Decimal
 
-from sqlalchemy import Date, DateTime, ForeignKey, Index, LargeBinary, Numeric, String, UniqueConstraint, func
+from sqlalchemy import Date, DateTime, ForeignKey, Index, Integer, LargeBinary, Numeric, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, CreatedAtMixin, UUIDPrimaryKeyMixin
@@ -149,3 +149,25 @@ class PortalReminder(Base, UUIDPrimaryKeyMixin):
     balance: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
     draft_source: Mapped[str] = mapped_column(String(64), nullable=False)  # model name, or "template"
     sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class PortalZohoConnection(Base, UUIDPrimaryKeyMixin, CreatedAtMixin):
+    """One Zoho Books organization streaming invoices into a workspace by webhook. `webhook_secret` is the only
+    authenticity check Zoho's classic webhooks offer (the POST itself carries no signature), so it lives in the
+    callback URL path, never in the request body or a header."""
+    __tablename__ = "portal_zoho_connections"
+
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("portal_workspaces.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    # Set on /connect, cleared once /callback succeeds; a stale one past OAUTH_STATE_MAX_AGE is rejected.
+    oauth_state: Mapped[str | None] = mapped_column(String(64))
+    oauth_state_created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    zoho_organization_id: Mapped[str | None] = mapped_column(String(64))
+    access_token: Mapped[str | None] = mapped_column(String(2000))
+    refresh_token: Mapped[str | None] = mapped_column(String(2000))
+    token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    webhook_secret: Mapped[str | None] = mapped_column(String(64), unique=True)
+    connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    invoices_synced: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
