@@ -35,7 +35,7 @@ The day-to-day reality in many finance teams:
 
 1. **The model advises; rules decide.** Machine-learning output and language-model output are inputs. A deterministic policy layer is the only thing that can permit an action.
 2. **Humans approve what matters.** High-value or ambiguous actions are held for review, and the workflow stops until a person decides.
-3. **Evidence over claims.** Model numbers are reported with their limitations. The held-out test split is not used to tune anything, and the docs say what has not been established.
+3. **Evidence over claims.** Model numbers are reported with their limitations. The test split was never used to tune anything; the frozen model was scored on it once, and the docs say what has not been established.
 4. **Isolation by default.** Tenants cannot see each other's data, and sample-data tooling refuses to run against anything that is not an approved sample database.
 5. **Everything is explainable.** If the system did something, the reason, the rule and the actor are on record.
 
@@ -47,6 +47,8 @@ Out of scope by design: moving money, bank integration, and acting as an account
 
 ## Where the data comes from
 
-- **Sample workspace:** a deterministic seed of 1,500 invoices with payments and illustrative review decisions, loaded only into databases explicitly approved for sample data.
+- **Sample workspace:** Kaveri Industrial Supplies, a fictional distributor: a deterministic seed of about 700 invoices across 40 customers over the past year, with payments, review decisions and notes, rebuilt when it goes stale and loaded only into databases explicitly approved for sample data.
 - **Customer workspaces:** invoices imported by CSV by the workspace owner or admin.
-- **Model training:** public datasets, with checksums verified in CI. Details in [ML_MODELS.md](ML_MODELS.md).
+- **Model training:** two public datasets. Details in [ML_MODELS.md](ML_MODELS.md).
+  - **B2B invoice-payment dataset** (45,839 invoices, 69 customers): trains the late-payment model. CI downloads it from a pinned commit and verifies its SHA-256 checksum before the tests run.
+  - **BPI Challenge 2019 event log** (a public purchase-to-pay process log): trains the survival models, which estimate when a purchase-to-pay item clears. It is about 730 MB, so it is used offline only and is not downloaded or checksummed in CI.
