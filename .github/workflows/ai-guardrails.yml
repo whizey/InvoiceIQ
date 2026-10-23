@@ -41,7 +41,7 @@ jobs:
         with:
           persist-credentials: false
           lfs: false
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
           cache: pip
@@ -81,7 +81,7 @@ jobs:
         with:
           persist-credentials: false
           lfs: false
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
           cache: pip
