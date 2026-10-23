@@ -40,8 +40,11 @@ async function handler(req: NextRequest, context: Params, method: "GET"|"POST"|"
     if (upstream.ok && ["register","login","showcase"].includes(action)) {
       if (typeof data.token!=="string" || !data.token.startsWith("iqp_"))
         return Response.json({detail:"Invalid session"},{status:503});
+      // Lax, not Strict: the Zoho OAuth callback redirects the browser back here as a top-level GET that
+      // originated by leaving this site, and a Strict cookie is dropped on that return trip. Every mutating
+      // request is still checked against its Origin header above, so Lax loses no real CSRF protection here.
       (await cookies()).set(cookieName,data.token,{httpOnly:true,secure:req.nextUrl.protocol==="https:",
-        sameSite:"strict",path:"/",maxAge:8*3600});
+        sameSite:"lax",path:"/",maxAge:8*3600});
       return Response.json({ok:true,kind:data.kind,workspace:data.workspace},{headers:{"Cache-Control":"no-store"}});
     }
     if ((method==="DELETE" && (upstream.ok||upstream.status===401)) || (action==="erase" && upstream.ok && data.scope==="account")) {
