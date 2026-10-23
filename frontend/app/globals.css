@@ -335,3 +335,11 @@ button.fu-review{cursor:pointer;font:inherit;font-size:13px}
 .rp-pick{cursor:pointer;border-radius:6px}
 .rp-pick:hover,.rp-pick:focus-visible{background:#f4f4f2;outline:none}
 
+/* Invoices page KPI strip */
+.inv-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:14px;margin:0 0 16px}
+.inv-kpis>div{background:#fff;border:1px solid #e5e5e2;border-radius:10px;padding:16px}
+.inv-kpis small{display:block;font-size:11px;letter-spacing:.07em;color:#6b6b6b;font-weight:500}
+.inv-kpis strong{display:block;margin:7px 0 3px;font-size:24px;letter-spacing:-.02em}
+.inv-kpis span{font-size:12px;color:#6b6b6b}
+@media (max-width:1150px){.inv-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:620px){.inv-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}

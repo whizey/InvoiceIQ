@@ -13,7 +13,8 @@ import type {PortalFilters} from "@/lib/portal-filters";
 type LateReason={days_late:number;kind:string;text:string};
 type Invoice={id:string;number:string;counterparty:string;due_date:string;amount:string;paid:string;balance:string;risk_probability:string|null;late_reason:LateReason|null};
 type Event={id:string;invoice_id:string;decision:string;note:string;created_at:string};
-type Overview={workspace:string;kind:"showcase"|"customer";provenance:string;actions:Event[]};
+type Metrics={invoiced:string;open:string;overdue:string;overdue_share:string;collected:string;score_coverage:number;invoice_count:number};
+type Overview={workspace:string;kind:"showcase"|"customer";provenance:string;actions:Event[];metrics:Metrics};
 type InvoicePage={invoices:Invoice[];total:number;page:number;page_size:number};
 type Section="invoices"|"cases"|"approvals";
 type ListStatus="all"|"overdue"|"awaiting"|"escalated";
@@ -107,6 +108,14 @@ export default function PortalOperations({section,initialFilters}:{section:Secti
         onPick={label=>{const next=PICK[label]??"overdue";setInvoicePage(null);setStatus(next);setPage(1);
           document.getElementById("invoice-list")?.scrollIntoView({behavior:"smooth"})}}/>}
       {data&&<>
+        {section==="invoices"&&<div className="inv-kpis">
+          <div><small>INVOICES</small><strong>{data.metrics.invoice_count.toLocaleString("en-IN")}</strong><span>loaded in this workspace</span></div>
+          <div><small>STILL OWED</small><strong>{rupees(data.metrics.open)}</strong><span>unpaid, as of today</span></div>
+          <div><small>OVERDUE</small><strong>{rupees(data.metrics.overdue)}</strong><span>owed and past due</span></div>
+          <div><small>SHARE LATE</small><strong>{data.metrics.overdue_share}%</strong><span>of what&apos;s owed</span></div>
+          <div><small>COLLECTED</small><strong>{rupees(data.metrics.collected)}</strong><span>received to date</span></div>
+          <div><small>RISK SCORED</small><strong>{data.metrics.score_coverage.toLocaleString("en-IN")} / {data.metrics.invoice_count.toLocaleString("en-IN")}</strong><span>invoices with a score</span></div>
+        </div>}
         {section==="invoices"&&<LedgerImport canImport={data.kind==="customer"}
           onImported={()=>{void load();setReload(value=>value+1)}}/>}
         <div className="portal-operations-grid">
