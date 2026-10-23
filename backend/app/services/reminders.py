@@ -92,6 +92,15 @@ def prompt(f: dict, channel: str, language: str) -> str:
             f"Reply with the message only.")
 
 
+def complete(draft: str, f: dict, reply=None) -> bool:
+    """A usable draft names the invoice and ends on a finished sentence; one cut off by the length limit
+    (thinking models can spend most of the budget before writing) is not."""
+    meta = getattr(reply, "response_metadata", None) or {}
+    if str(meta.get("finish_reason", "")).upper() in {"MAX_TOKENS", "LENGTH"}:
+        return False
+    return f["invoice_number"] in draft and draft.rstrip()[-1:] in {".", "!", "?", ")"} | set(f["business"][-1:])
+
+
 def stray_figures(draft: str, f: dict) -> list[str]:
     """Numbers in the draft that are not among the case's facts (dates are compared as text, not figures)."""
     report = check_grounding(draft, grounded_values(f, *[str(v) for v in f.values()]), exempt_small=False)
@@ -113,10 +122,13 @@ async def draft(f: dict, channel: str, language: str, clients, timeout: float = 
             text = reply.content if isinstance(reply.content, str) else "".join(
                 p.get("text", "") for p in reply.content if isinstance(p, dict))
             text = text.strip()
+            if not text or not complete(text, f, reply):
+                rejected.append("incomplete draft")
+                continue
             stray = stray_figures(text, f)
-            if text and not stray:
+            if not stray:
                 return {"body": text, "source": name, "rejected": rejected}
-            rejected.extend(stray or ["empty draft"])
+            rejected.extend(stray)
     return {"body": template(f, channel, language), "source": "template", "rejected": rejected}
 
 
