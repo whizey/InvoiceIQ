@@ -19,7 +19,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, model_validator
-from sqlalchemy import delete, func, or_, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
@@ -734,38 +734,35 @@ async def _follow_ups(db, session, workspace):
             "chase": chase, "on_hold": [i for i in overdue if i["on_hold"]], "due_soon": due_soon}
 
 
+SORTS = {"posting_desc": (lambda r: r.posting_date, True), "posting_asc": (lambda r: r.posting_date, False),
+         "due_asc": (lambda r: r.due_date, False), "due_desc": (lambda r: r.due_date, True),
+         "number_asc": (lambda r: r.invoice_number, False)}
+
+
 async def _invoice_page(db, session, workspace, q, page, page_size, sort, status="all"):
-    filters = [PortalInvoice.workspace_id == workspace.id]
+    """Filter, sort and page the workspace's cached rows in memory: one query for decisions (when the status
+    needs them) and one for the page's notes, instead of a count and a page query per request."""
+    rows = await _invoice_rows(db, session, workspace)
+    today = workspace.today()
     if status != "all":
-        filters += [PortalInvoice.due_date < workspace.today(), PortalInvoice.amount_paid < PortalInvoice.amount_total]
+        rows = [r for r in rows if r.due_date < today and r.amount_paid < r.amount_total]
     if status in {"awaiting", "escalated"}:
         _, events = await _records(db, session, workspace)
         latest = {}
         for event in sorted(events, key=lambda e: e.created_at):
             latest[event.invoice_id] = event.decision
-        decided = {i for i, d in latest.items() if d in {"APPROVE", "REJECT", "ESCALATE"}}
         if status == "awaiting":
-            filters.append(PortalInvoice.id.notin_(decided) if decided else PortalInvoice.id.isnot(None))
+            rows = [r for r in rows if latest.get(r.id) not in {"APPROVE", "REJECT", "ESCALATE"}]
         else:
-            escalated = [i for i, d in latest.items() if d == "ESCALATE"]
-            filters.append(PortalInvoice.id.in_(escalated) if escalated else PortalInvoice.id.is_(None))
-    if q.strip():
-        term = f"%{q.strip().replace('%', r'\%').replace('_', r'\_')}%"
-        filters.append(or_(PortalInvoice.invoice_number.ilike(term, escape="\\"),
-                           PortalInvoice.counterparty.ilike(term, escape="\\")))
-    order = {
-        "posting_desc": PortalInvoice.posting_date.desc(),
-        "posting_asc": PortalInvoice.posting_date.asc(),
-        "due_asc": PortalInvoice.due_date.asc(),
-        "due_desc": PortalInvoice.due_date.desc(),
-        "number_asc": PortalInvoice.invoice_number.asc(),
-    }[sort]
-    total = await db.scalar(select(func.count()).select_from(PortalInvoice).where(*filters)) or 0
-    rows = (await db.scalars(select(PortalInvoice).where(*filters)
-                             .order_by(order, PortalInvoice.id)
-                             .offset((page - 1) * page_size).limit(page_size))).all()
-    reasons = await _late_reasons(db, session, workspace, rows)
-    return {"invoices": [invoice_json(row, reasons.get(row.id)) for row in rows], "total": total,
+            rows = [r for r in rows if latest.get(r.id) == "ESCALATE"]
+    term = q.strip().casefold()
+    if term:
+        rows = [r for r in rows if term in r.invoice_number.casefold() or term in r.counterparty.casefold()]
+    key, descending = SORTS[sort]
+    rows = sorted(sorted(rows, key=lambda r: r.id), key=key, reverse=descending)  # ties stay in id order
+    window = rows[(page - 1) * page_size:page * page_size]
+    reasons = await _late_reasons(db, session, workspace, window)
+    return {"invoices": [invoice_json(row, reasons.get(row.id)) for row in window], "total": len(rows),
             "page": page, "page_size": page_size}
 
 
