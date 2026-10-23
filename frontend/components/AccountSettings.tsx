@@ -18,6 +18,24 @@ export default function AccountSettings(){
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
   const [success,setSuccess]=useState("");
+  const [confirmName,setConfirmName]=useState("");
+  const [erasePassword,setErasePassword]=useState("");
+  async function erase(scope:"data"|"account"){
+    if(busy)return;
+    const warning=scope==="data"?"Delete every invoice, payment, note, decision and reminder in this workspace? This cannot be undone.":
+      "Delete your account and this workspace with all its data? This cannot be undone.";
+    if(!window.confirm(warning))return;
+    setBusy(true);setError("");setSuccess("");
+    try{
+      const response=await fetch("/api/portal/erase",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({scope,confirm:confirmName,password:erasePassword})});
+      const result=await response.json();
+      if(!response.ok)throw new Error(result.detail||"Nothing was deleted");
+      if(scope==="account"){router.push("/home");router.refresh();return}
+      setConfirmName("");setErasePassword("");setSuccess(`Deleted ${result.invoices} invoices and everything attached to them.`);
+    }catch(e){setError(e instanceof Error?e.message:"Nothing was deleted")}
+    finally{setBusy(false)}
+  }
   const load=useCallback(async()=>{
     const response=await fetch("/api/portal/settings",{cache:"no-store"});
     if(response.status===401){router.replace("/home");return}
@@ -66,6 +84,15 @@ export default function AccountSettings(){
           <label>New password<input type="password" autoComplete="new-password" minLength={12} required value={newPassword} onChange={e=>setNewPassword(e.target.value)}/></label>
           <button disabled={busy}>{busy?"Saving…":"Change password"}</button>
         </form>
+        {settings.role==="owner"&&<section className="settings-card settings-danger" aria-labelledby="erase-title">
+          <h2 id="erase-title">Your data</h2>
+          <p className="settings-muted">Delete everything imported into this workspace, or the whole account. Deletion is immediate and
+            cannot be undone; backups expire within seven days. See the <Link href="/privacy">privacy page</Link>.</p>
+          <label>Type the company name, {settings.company}, to confirm<input value={confirmName} onChange={e=>setConfirmName(e.target.value)} autoComplete="off"/></label>
+          <button type="button" disabled={busy||confirmName!==settings.company} onClick={()=>void erase("data")}>Delete all workspace data</button>
+          <label>Password, to delete the account<input type="password" autoComplete="current-password" value={erasePassword} onChange={e=>setErasePassword(e.target.value)}/></label>
+          <button type="button" disabled={busy||confirmName!==settings.company||erasePassword.length<12} onClick={()=>void erase("account")}>Delete account and workspace</button>
+        </section>}
       </div>}
     </main>
   </div>;

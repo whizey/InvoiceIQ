@@ -22,6 +22,7 @@ export default function AccountForm({mode}:{mode:"register"|"login"}){
  {error&&<p role="alert" style={{color:"#b42318",margin:0}}>{error}</p>}
  <button disabled={loading} style={{background:"#141414",color:"white",border:0,borderRadius:8,padding:14,cursor:"pointer",fontSize:15}}>{loading?"Please wait…":register?"Create account":"Sign in"}</button></form>
  <p style={{color:"#666",fontSize:14,marginTop:25}}>{register?"Already have an account? ":"New to InvoiceIQ? "}<Link href={register?"/login":"/signup"}>{register?"Sign in":"Create one"}</Link></p>
+ {register&&<p style={{color:"#666",fontSize:13}}>By creating a workspace you agree to how we handle data, described on the <Link href="/privacy">privacy page</Link>.</p>}
  </div></main>
 }
 const field:React.CSSProperties={display:"block",width:"100%",border:"1px solid #ddd",borderRadius:7,padding:12,marginTop:7,fontSize:15};

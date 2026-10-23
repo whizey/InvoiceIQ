@@ -92,6 +92,31 @@ def configure_logging() -> None:
     logging.getLogger("uvicorn.access").disabled = True
 
 
+def scrub_error_event(event: dict, hint=None) -> dict:
+    """Keep only what helps fix the error: method, path and the stack. No bodies, query strings, cookies,
+    headers or user details leave the server (the privacy page promises this)."""
+    request = event.get("request") or {}
+    event["request"] = {"method": request.get("method"), "url": (request.get("url") or "").split("?")[0]}
+    event.pop("user", None)
+    for frame_list in [e.get("stacktrace", {}).get("frames", []) for e in (event.get("exception") or {}).get("values", [])]:
+        for frame in frame_list:
+            frame.pop("vars", None)  # local variables can hold invoice rows or tokens
+    return event
+
+
+def configure_error_tracking() -> bool:
+    """Report unexpected server errors to Sentry when SENTRY_DSN is set; otherwise do nothing."""
+    dsn = os.getenv("SENTRY_DSN", "").strip()
+    if not dsn:
+        return False
+    import sentry_sdk
+
+    sentry_sdk.init(dsn=dsn, send_default_pii=False, include_local_variables=False, traces_sample_rate=0.0,
+                    max_request_body_size="never", before_send=scrub_error_event,
+                    environment=os.getenv("SENTRY_ENVIRONMENT", "production"))
+    return True
+
+
 def configure_langsmith() -> None:
     if not settings.langchain_tracing_v2:
         return

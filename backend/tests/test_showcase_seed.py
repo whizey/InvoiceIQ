@@ -63,6 +63,7 @@ async def test_provisioning_seeds_refreshes_and_replaces_only_the_showcase(monke
             assert await provision.needs_rebuild(db, TODAY) == "empty"
             result = await provision.seed_ledger(db, TODAY)
             assert result["scored"] == result["invoices"] and result["notes"] > 20
+            assert result["reminders"] > 40
             assert await provision.needs_rebuild(db, TODAY) is None
             assert await provision.needs_rebuild(db, TODAY + timedelta(days=45)) == "stale data"
             db.add(PortalInvoice(workspace_id=showcase_id, invoice_number="IQ-2026-00001", counterparty="Account 001",
@@ -93,3 +94,14 @@ def test_rebuilding_is_kept_away_from_startup_without_an_explicit_target(monkeyp
     monkeypatch.delenv("INVOICEIQ_PORTAL_SHOWCASE", raising=False)
     with pytest.raises(RuntimeError):
         asyncio.run(provision.main())
+
+
+def test_reminder_history_is_plausible_and_never_blocks_a_visitor():
+    ledger = showcase_seed.build(TODAY)
+    history = showcase_seed.reminder_history(ledger, TODAY)
+    by_number = {i["number"]: i for i in ledger.invoices}
+    assert 40 < len(history) < 150
+    assert all(r["at"].date() <= TODAY - timedelta(days=4) for r in history)
+    assert not any(by_number[r["number"]]["disputed"] for r in history)
+    assert all(r["at"].date() > by_number[r["number"]]["due"] for r in history)
+    assert {r["language"] for r in history} == {"english", "hinglish"}

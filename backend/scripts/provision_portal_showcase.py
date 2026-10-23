@@ -16,7 +16,8 @@ from sqlalchemy.engine import make_url
 from app.core.db import async_session_factory, engine
 from app.api.portal import SHOWCASE_ID
 from app.models.event_effects import ApprovalAlert
-from app.models.portal import PortalWorkspace, PortalInvoice, PortalPayment, PortalCaseEvent, PortalNote
+from app.models.portal import (PortalWorkspace, PortalInvoice, PortalPayment, PortalCaseEvent, PortalNote,
+                               PortalReminder)
 from app.seed import showcase_seed
 from app.services import ledger_import
 from app.services import note_embeddings
@@ -58,6 +59,10 @@ async def needs_rebuild(db, today: date) -> str | None:
     newest = await db.scalar(select(func.max(PortalInvoice.posting_date)).where(PortalInvoice.workspace_id == SHOWCASE_ID))
     if newest is None or newest < today - timedelta(days=STALE_AFTER_DAYS):
         return "stale data"
+    reminded = await db.scalar(select(func.count()).select_from(PortalReminder).where(
+        PortalReminder.workspace_id == SHOWCASE_ID, PortalReminder.actor_scope == SHOWCASE_BASELINE_SCOPE))
+    if not reminded:
+        return "no reminder history"
     return None
 
 
@@ -67,7 +72,7 @@ async def clear_showcase(db) -> None:
     if workspace is None or workspace.kind != "showcase":
         raise RuntimeError("Refusing to clear a workspace that is not the showcase")
     await db.execute(delete(ApprovalAlert).where(ApprovalAlert.workspace_id == SHOWCASE_ID))
-    for model in (PortalNote, PortalCaseEvent, PortalPayment, PortalInvoice):
+    for model in (PortalReminder, PortalNote, PortalCaseEvent, PortalPayment, PortalInvoice):
         await db.execute(delete(model).where(model.workspace_id == SHOWCASE_ID))
     await db.flush()
 
@@ -105,10 +110,15 @@ async def seed_ledger(db, today: date) -> dict:
         db.add(PortalNote(id=_id("note", str(index)), workspace_id=SHOWCASE_ID, invoice_id=ids[row["number"]],
                           kind=row["kind"], body=row["body"], author_scope=SHOWCASE_BASELINE_SCOPE,
                           created_at=row["at"]))
+    history = showcase_seed.reminder_history(ledger, today)
+    for index, row in enumerate(history):
+        db.add(PortalReminder(id=_id("reminder", str(index)), workspace_id=SHOWCASE_ID, invoice_id=ids[row["number"]],
+                              actor_scope=SHOWCASE_BASELINE_SCOPE, channel=row["channel"], language=row["language"],
+                              body=row["body"], balance=row["balance"], draft_source="template", sent_at=row["at"]))
     await db.flush()
     scoring = await score_workspace(db, SHOWCASE_ID)
     embedded = await note_embeddings.backfill(db, SHOWCASE_ID)
-    return {**showcase_seed.summary(ledger, today), "scored": scoring["scored"],
+    return {**showcase_seed.summary(ledger, today), "reminders": len(history), "scored": scoring["scored"],
             "model_version": scoring["model_version"], "notes_embedded": embedded}
 
 
