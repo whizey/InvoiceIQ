@@ -2,6 +2,7 @@
 import {useRouter,usePathname} from "next/navigation";
 import Link from "next/link";
 import {useState} from "react";
+import SampleGuide from "@/components/SampleGuide";
 
 /** Shared top navigation for the authenticated SaaS area.
  * Browser history is retained between pages; the back fallback handles
@@ -35,7 +36,7 @@ export default function PortalNavigation(){
     {href:"/assistant",label:"AI assistant"},
     {href:"/settings",label:"Settings"},
   ];
-  return <nav aria-label="Workspace navigation" style={{
+  return <><nav aria-label="Workspace navigation" style={{
     minHeight:56,background:"#fff",borderBottom:"1px solid #dededb",
     display:"flex",alignItems:"center",justifyContent:"space-between",
     padding:"9px clamp(15px,3.3vw,52px)",gap:14,flexWrap:"wrap",fontFamily:"Arial,sans-serif"
@@ -58,5 +59,7 @@ export default function PortalNavigation(){
         {busy?"Signing out…":"Sign out"}</button>
     </div>
     {error&&<span role="alert" style={{color:"#922b1e",fontSize:12}}>{error}</span>}
-  </nav>;
+  </nav>
+    <SampleGuide/>
+  </>;
 }

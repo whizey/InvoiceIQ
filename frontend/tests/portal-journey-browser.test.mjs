@@ -22,7 +22,7 @@ test('visitor and customer journeys use isolated persisted workspaces', async ()
     const showcaseResponse=await showcaseFinancial;
     assert.equal(showcaseResponse.status(),200,await showcaseResponse.text());
     const showcaseData=await showcaseResponse.json();
-    assert.equal(showcaseData.workspace,'InvoiceIQ Showcase');
+    assert.equal(showcaseData.workspace,'Kaveri Industrial Supplies (sample)');
     assert.equal(showcaseData.metrics.scored_open,showcaseData.metrics.open_count,
       'Every illustrative open invoice has a genuine stored champion prediction');
     assert.ok(showcaseData.metrics.invoice_count>0);

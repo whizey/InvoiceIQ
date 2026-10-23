@@ -5,6 +5,8 @@ import RecoveryCharts from "@/components/RecoveryCharts";
 import ApprovalAlerts from "@/components/ApprovalAlerts";
 import PortalNavigation from "@/components/PortalNavigation";
 import InvoiceNotes from "@/components/InvoiceNotes";
+import Term from "@/components/Term";
+import {DECISION_WORDS} from "@/lib/glossary";
 import {parseInvoiceCsv} from "@/lib/invoice-csv.mjs";
 import type {PortalFilters} from "@/lib/portal-filters";
 
@@ -28,7 +30,7 @@ export default function PortalOperations({section,initialFilters}:{section:Secti
   const [reload,setReload]=useState(0);
   const [success,setSuccess]=useState("");
   const [selected,setSelected]=useState<Invoice|null>(null);
-  const [choice,setChoice]=useState<"ESCALATE"|"APPROVE"|"REJECT">("ESCALATE");
+  const [choice,setChoice]=useState<"ESCALATE"|"APPROVE"|"REJECT">("APPROVE");
   const [note,setNote]=useState("");
   const load=useCallback(async()=>{
     const response=await fetch("/api/portal/overview",{cache:"no-store"});
@@ -94,12 +96,16 @@ export default function PortalOperations({section,initialFilters}:{section:Secti
     finally{setBusy(false)}
   }
   const title={invoices:"Invoices",cases:"Recovery reviews",approvals:"Approval queue"}[section];
+  const intro={invoices:"Every bill sent to a customer. Choose Review on any invoice to read its notes and decide what happens next.",
+    cases:"Invoices someone has already looked at, and what they decided: follow up, escalate to a manager, or take no action.",
+    approvals:"Escalations waiting for a manager, and overdue invoices nobody has decided on yet."}[section];
   return <div style={{minHeight:"100dvh",background:"#f5f5f3",fontFamily:"Arial,sans-serif",color:"#171717"}}>
     <PortalNavigation/>
     <main style={{padding:"32px clamp(18px,4vw,64px)",maxWidth:1600,margin:"auto"}}>
       <p style={{fontSize:11,letterSpacing:2,textTransform:"uppercase",color:"#777"}}>Workspace / {title}</p>
       <h1 style={{fontSize:"clamp(30px,4vw,46px)",letterSpacing:"-.045em",margin:"10px 0"}}>{title}</h1>
-      <p style={{color:"#6c6c6c",marginBottom:26}}>{data?.workspace||"Loading workspace"} · {data?.provenance||"Tenant-scoped financial workflows"}</p>
+      <p className="page-intro">{intro}</p>
+      <p style={{color:"#6c6c6c",marginBottom:26,fontSize:13}}>{data?.workspace||"Loading workspace"} · {data?.provenance||"Tenant-scoped financial workflows"}</p>
       {loading&&<div role="status" aria-label="Loading records" className="ops-skeleton">
         <div className="sk sk-panel"><span className="sk-line w40"/>{Array.from({length:7},(_,i)=><span key={i} className="sk-line"/>)}</div>
         <div className="sk sk-panel"><span className="sk-line w60"/>{Array.from({length:5},(_,i)=><span key={i} className="sk-line"/>)}</div>
@@ -134,12 +140,12 @@ export default function PortalOperations({section,initialFilters}:{section:Secti
             <p style={{fontSize:12,color:"#777"}}>Showing {invoices.length} of {invoicePage?.total??0} matching invoices · INR</p>
             {!invoicePage&&!error&&<p role="status">Loading invoices…</p>}
             <div style={{overflowX:"auto"}}><table className="portal-invoice-table" style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-              <thead><tr>{["Invoice","Account","Due date","Outstanding","Risk","Action"].map(s=>
-                <th key={s} style={{textAlign:"left",padding:"14px 8px",borderBottom:"1px solid #ddd"}}>{s}</th>)}</tr></thead>
+              <thead><tr>{([["Invoice",null],["Customer",null],["Due date",null],["Still owed","owed"],["Late-payment risk","risk"],["Action",null]] as const).map(([s,k])=>
+                <th key={s} style={{textAlign:"left",padding:"14px 8px",borderBottom:"1px solid #ddd"}}>{k?<Term k={k}>{s}</Term>:s}</th>)}</tr></thead>
               <tbody>{invoices.map(inv=><tr key={inv.id}>
-                <td data-label="Invoice" style={cell}>{inv.number}</td><td data-label="Account" style={cell}>{inv.counterparty}</td>
+                <td data-label="Invoice" style={cell}>{inv.number}</td><td data-label="Customer" style={cell}>{inv.counterparty}</td>
                 <td data-label="Due date" style={cell}>{inv.due_date}</td><td data-label="Outstanding" style={cell}>{rupees(inv.balance)}</td>
-                <td data-label="Risk" style={cell}>{inv.risk_probability===null?"Not scored":Math.round(Number(inv.risk_probability)*100)+"%"}</td>
+                <td data-label="Late-payment risk" style={cell}>{inv.risk_probability===null?"Not scored":Math.round(Number(inv.risk_probability)*100)+"% chance of late payment"}</td>
                 <td data-label="Action" style={cell}><button onClick={()=>{setSelected(inv);setNote("");}}
                   style={{border:"1px solid #ddd",padding:"8px",borderRadius:6,background:"#fff",cursor:"pointer"}}>
                   Review →</button></td>
@@ -159,7 +165,7 @@ export default function PortalOperations({section,initialFilters}:{section:Secti
               <label style={{fontSize:13}}>Decision
                 <select value={choice} onChange={e=>setChoice(e.target.value as typeof choice)}
                   style={{display:"block",width:"100%",padding:11,marginTop:5}}>
-                  <option value="ESCALATE">Escalate</option><option value="APPROVE">Approve</option><option value="REJECT">Reject</option>
+                  <option value="APPROVE">Approve: follow up with the customer</option><option value="ESCALATE">Escalate: pass to a manager</option><option value="REJECT">Reject: no action for now</option>
                 </select>
               </label>
               <label style={{fontSize:13}}>Review note
@@ -175,7 +181,7 @@ export default function PortalOperations({section,initialFilters}:{section:Secti
             </div>}
             {data.actions.length===0&&!selected&&<p style={{fontSize:13,color:"#777"}}>No decisions recorded. Select an invoice to begin.</p>}
             {data.actions.slice(0,30).map(ev=><div key={ev.id} style={{borderTop:"1px solid #eee",padding:"12px 0",fontSize:13}}>
-              <strong>{ev.decision}</strong><p style={{margin:"6px 0",color:"#666"}}>{ev.note}</p>
+              <strong>{DECISION_WORDS[ev.decision]??ev.decision}</strong><p style={{margin:"6px 0",color:"#666"}}>{ev.note}</p>
               <small style={{color:"#777"}}>{new Date(ev.created_at).toLocaleString()}</small>
             </div>)}
           </section>

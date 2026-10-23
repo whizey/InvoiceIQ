@@ -129,7 +129,7 @@ export default function AssistantChat(){
     <div className="ai-thread" aria-live="polite">
       {turns.length===0&&<div className="ai-empty">
         <h2>Ask about your receivables</h2>
-        <p>The assistant looks up this workspace&apos;s balances, ageing, payment history, customer track records, model risk and review decisions, and every figure it states is checked against those records. It can suggest a review decision; nothing is saved until you apply it.</p>
+        <p>Try one of these, or type your own question.</p>
         <div className="rp-chips">{SUGGESTIONS.map(s=><button key={s} type="button" disabled={asking} onClick={()=>void ask(null,s)}>{s}</button>)}</div>
       </div>}
       {turns.map((t,i)=><div key={i} className={t.role==="user"?"rp-msg rp-user":"rp-msg rp-answer"}><p>{t.role==="assistant"?<Reveal text={t.content} animate={i===fresh&&!reduceMotion.current}/>:t.content}</p>
