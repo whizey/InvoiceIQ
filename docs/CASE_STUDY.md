@@ -34,8 +34,8 @@ A LightGBM model (14 posting-time behavioural features) is available, but each w
 workspace's own last six months of settled invoices better than the simple average, by at least 0.02 AUC. Both numbers
 are shown on the Model page either way.
 
-**On public data the model clearly wins.** On the chronological test split of a public B2B invoice-payment dataset
-(6,181 invoices posted Dec 2015 – Jan 2016, which the model never trained on):
+On the chronological test split of a public B2B invoice-payment dataset (6,181 invoices posted Dec 2015 – Jan 2016,
+which the model never trained on), the model clearly wins:
 
 | | Model | Simple average |
 |---|---|---|
@@ -44,17 +44,18 @@ are shown on the Model page either way.
 
 The simple average barely beats a coin flip here. A likely reason is that many customers in this dataset pay late
 often, so their recent late share is similar and separates little, while the model also uses trend, streaks and the
-amount relative to the customer's usual invoice. We have not tested that explanation.
+amount relative to the customer's usual invoice. We have not tested that explanation. This is the only one of the
+three comparisons below on invoices neither method has seen; treat it as the real result and the other two as what
+they are, not independent evidence.
 
-**On the public demo workspace the simple average wins** (AUC 0.88 vs 0.81 when written), so the product uses it and
-says so. That workspace is a generated ledger in which each customer has a consistent payment habit, which is
-exactly what a per-customer average captures. This is the behaviour we want: the comparison decides, not a preference
-for the fancier method.
-
-**On real invoices in the product.** The second public workspace holds 1,998 real, anonymised invoices for 34
-customers from the same public dataset, viewed as of 30 Nov 2015. There the model wins (AUC 0.87 vs 0.61) and is
-used. That 0.87 is optimistic: those invoices fall inside the period the model was trained on, and the page says so.
-The fair figure is the unseen test split above.
+In the product, the two public workspaces disagree, and neither result should be trusted the way the test split
+above can be. On Kaveri, the fictional distributor, the simple average wins (AUC 0.88 vs 0.81 when written). Kaveri
+is a generated ledger in which each customer has one fixed, consistent payment habit by construction, which is
+exactly what a per-customer average is built to capture; a method that learns "this customer's habit" doing well on
+data built from fixed habits says nothing about how it would do on a real, messier business. On the real 2015 ledger
+the model wins instead (AUC 0.87 vs 0.61), but those invoices fall inside the period the model was trained on, so
+that result is optimistic in the other direction. Both numbers are shown on the Model page precisely so a visitor
+can see them disagree, rather than picking the one that looks better.
 
 ## Calibration, honestly
 
@@ -81,9 +82,11 @@ kept separately for low-, medium- and high-risk invoices when each has enough hi
 still waiting, not as never paying.
 
 Each forecast is checked against the past. Re-running it from the start of each of the last six four-week periods,
-using only what was known then, actual collections came to **92–126% of the forecast** on the demo workspace,
-but **52–181%** on the real 2015 ledger. Real payments are likely lumpier than a generated ledger's (customers
-often clear several invoices at once), so on real data the range is wide, and the page shows it rather than hiding it.
+using only what was known then, actual collections came to 92–126% of the forecast on Kaveri, but 52–181% on the
+real 2015 ledger. The Kaveri figure is tight mostly because Kaveri's payments were generated to be tight; it is not
+evidence the forecasting method works on a real business, any more than the AUC comparison above is. The real-ledger
+figure is the one worth taking seriously, and it is wide: real payments cluster (a customer clearing several
+invoices in one batch), and it is only six periods from one ledger. The page shows the range rather than hiding it.
 
 ## What failed or surprised us
 

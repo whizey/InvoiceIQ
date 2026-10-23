@@ -12,6 +12,12 @@
 
 Why this arrangement: all three services have a free tier with no card. A Space cannot host a managed broker, so a small single-node Kafka runs beside the API in the same container. The Space's free hardware sleeps after about two days without visitors, and the first request after a sleep takes about a minute. Supabase pauses idle free projects.
 
+This is free-tier hosting for a project meant to be looked at, not a production SLA: no uptime guarantee, and
+[Hugging Face's own Spaces limits](https://huggingface.co/docs/hub/spaces-overview) can change (free CPU hardware
+quotas have tightened before). The keep-warm job below pings the Space on a schedule so a visitor doesn't land on a
+cold start; it reads the same public pages a real visitor's browser would, nothing more. If Hugging Face's free tier
+stops fitting this, the backend moves to a paid tier or another host without any code change.
+
 Latency note: the API runs in the US (AWS Ohio). A database in a distant region costs about 200 ms per query; a request makes several. Placing the database in the same region as the Space is the main available speed-up.
 
 ## Continuous integration

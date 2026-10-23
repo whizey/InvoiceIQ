@@ -1,17 +1,25 @@
 "use client";
 import {useRouter,usePathname} from "next/navigation";
 import Link from "next/link";
-import {useState} from "react";
+import {useEffect,useRef,useState} from "react";
 
 /** Shared top navigation for the authenticated SaaS area.
  * Browser history is retained between pages; the back fallback handles
  * directly opened deep links with no same-origin referring page.
+ *
+ * Follow-ups, Invoices and Settings are the job most visitors came for, so they stay on the bar. Everything
+ * else (the dashboard, review queues, the assistant, the model comparison) still works exactly the same, just
+ * one click further under "More", so the bar doesn't read like eight equally-important destinations.
  */
 export default function PortalNavigation(){
   const router=useRouter();
   const pathname=usePathname();
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
+  const [moreOpen,setMoreOpen]=useState(false);
+  const moreRef=useRef<HTMLDivElement>(null);
+  const [shownFor,setShownFor]=useState(pathname);
+  if(pathname!==shownFor){setShownFor(pathname);setMoreOpen(false)} // close the menu when a link in it navigates
   function back(){
     let sameOrigin=false;
     try{sameOrigin=Boolean(document.referrer&&new URL(document.referrer).origin===location.origin)}
@@ -27,16 +35,28 @@ export default function PortalNavigation(){
       router.push("/home");router.refresh();
     }catch{setError("Sign out failed. Please try again.");setBusy(false)}
   }
-  const destinations=[
+  useEffect(()=>{
+    if(!moreOpen)return;
+    function onDown(e:MouseEvent){if(moreRef.current&&!moreRef.current.contains(e.target as Node))setMoreOpen(false)}
+    function onKey(e:KeyboardEvent){if(e.key==="Escape")setMoreOpen(false)}
+    document.addEventListener("mousedown",onDown);document.addEventListener("keydown",onKey);
+    return()=>{document.removeEventListener("mousedown",onDown);document.removeEventListener("keydown",onKey)};
+  },[moreOpen]);
+  const primary=[
     {href:"/follow-ups",label:"Follow-ups"},
-    {href:"/workspace-dashboard",label:"Analytics"},
     {href:"/invoices",label:"Invoices"},
+    {href:"/settings",label:"Settings"},
+  ];
+  const more=[
+    {href:"/workspace-dashboard",label:"Analytics"},
     {href:"/cases",label:"Cases"},
     {href:"/approvals",label:"Approvals"},
     {href:"/assistant",label:"AI assistant"},
     {href:"/model",label:"Model"},
-    {href:"/settings",label:"Settings"},
   ];
+  const linkStyle=(active:boolean):React.CSSProperties=>({padding:"8px 11px",borderRadius:7,fontSize:13,textDecoration:"none",
+    color:active?"#fff":"#444",background:active?"#161616":"transparent"});
+  const inMore=more.some(link=>link.href===pathname);
   return <><nav aria-label="Workspace navigation" style={{
     minHeight:56,background:"#fff",borderBottom:"1px solid #dededb",
     display:"flex",alignItems:"center",justifyContent:"space-between",
@@ -50,11 +70,22 @@ export default function PortalNavigation(){
       <Link href="/home" style={{textDecoration:"none",color:"#161616",fontWeight:800,letterSpacing:"-.04em"}}>▣ InvoiceIQ</Link>
     </div>
     <div className="pn-links" style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-      {destinations.map(link=><Link key={link.href} href={link.href}
+      {primary.map(link=><Link key={link.href} href={link.href}
         aria-current={pathname===link.href?"page":undefined}
-        style={{padding:"8px 11px",borderRadius:7,fontSize:13,textDecoration:"none",
-          color:pathname===link.href?"#fff":"#444",background:pathname===link.href?"#161616":"transparent"}}>
-        {link.label}</Link>)}
+        style={linkStyle(pathname===link.href)}>{link.label}</Link>)}
+      <div ref={moreRef} style={{position:"relative"}}>
+        <button type="button" aria-haspopup="true" aria-expanded={moreOpen} onClick={()=>setMoreOpen(v=>!v)}
+          style={{...linkStyle(inMore||moreOpen),border:0,cursor:"pointer",font:"inherit",display:"flex",alignItems:"center",gap:4}}>
+          More <span aria-hidden="true" style={{fontSize:10}}>{moreOpen?"▲":"▼"}</span>
+        </button>
+        {moreOpen&&<div aria-label="More destinations" style={{
+          position:"absolute",top:"calc(100% + 6px)",right:0,background:"#fff",border:"1px solid #dededb",
+          borderRadius:9,boxShadow:"0 10px 28px rgba(0,0,0,.12)",padding:6,display:"grid",gap:2,minWidth:160,zIndex:30}}>
+          {more.map(link=><Link key={link.href} href={link.href}
+            aria-current={pathname===link.href?"page":undefined}
+            style={{...linkStyle(pathname===link.href),display:"block",whiteSpace:"nowrap"}}>{link.label}</Link>)}
+        </div>}
+      </div>
       <button type="button" disabled={busy} onClick={signOut}
         style={{marginLeft:6,border:"1px solid #ddd",borderRadius:7,background:"white",padding:"8px 10px",cursor:"pointer"}}>
         {busy?"Signing out…":"Sign out"}</button>

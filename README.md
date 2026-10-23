@@ -85,12 +85,18 @@ scored around 89% were late 69% of the time. So the product uses the scores for 
 table instead of quoting probabilities as fact. A Platt calibration was tried and dropped because it hurt the
 ranking.
 
-On Kaveri the simple average wins (about 0.88 against 0.81), which makes sense since every customer there has one
-fixed habit. On the real 2015 ledger the model wins, but those invoices overlap the model's training data, so the
-page points to the test-split numbers above as the fair comparison.
+In the product itself, each workspace is scored separately, and the two public ones disagree: on Kaveri (the
+generated distributor) the simple average wins, about 0.88 against 0.81; on the real 2015 ledger the model wins. Take
+neither result as evidence of anything: Kaveri's invoices come from a generator that gives each customer one fixed
+habit, so of course a method that learns a customer's habit does well there, and the real ledger overlaps the
+model's own training data, so a win there is optimistic too. The test-split numbers above, on invoices neither method
+has seen, are the only comparison here worth trusting.
 
-The forecast's track record is 92 to 126% of the forecast actually collected on Kaveri, and 52 to 181% on the real
-ledger. Real payments are lumpier and the range shows it.
+The cash forecast's track record is similarly workspace-dependent, and for the same reason worth reading with
+suspicion: 92 to 126% of the forecast actually came in on Kaveri over its last six four-week periods, and 52 to 181%
+on the real ledger. The Kaveri number is tight because Kaveri's payments were generated to be tight; it isn't
+evidence the forecasting method works on a real business. The real-ledger number is the more honest one, and it's
+wide, from six periods of one ledger whose customers settle in large, lumpy batches.
 
 More detail, including what didn't work, is in [docs/CASE_STUDY.md](docs/CASE_STUDY.md). Model training and
 evaluation are in [docs/ML_MODELS.md](docs/ML_MODELS.md); `python -m app.ml.baseline_comparison` reproduces the
@@ -102,17 +108,19 @@ over a few days:
 <!-- assistant-eval:start -->
 | Model | Runs | Cases answered | Accuracy | Figures verified | Tool recall | Median / p95 time |
 |---|---|---|---|---|---|---|
-| `gemini-3.5-flash-lite` | 1 | 23 of 100 | 95.7% ± 0.0 | 100.0% ± 0.0 | 95.7% ± 0.0 | 3.0 s / 7.9 s |
-| `openai/gpt-oss-120b` | 1 | 58 of 100 | 93.1% ± 0.0 | 91.4% ± 0.0 | 91.4% ± 0.0 | 2.7 s / 9.4 s |
+| `gemini-3.5-flash-lite` | 3 | 107 / 108 / 15 of 108 | 96.9% ± 2.9 | 100.0% ± 0.0 | 93.0% ± 0.6 | 2.1 s / 9.9 s |
+| `openai/gpt-oss-120b` | 1 | 79 of 108 | 87.3% | 89.9% | 91.1% | 2.0 s / 9.4 s |
 
-| Model | core | followup | injection | tricky |
-|---|---|---|---|---|
-| `gemini-3.5-flash-lite` | 96% ± 0 | – | – | – |
-| `openai/gpt-oss-120b` | 96% ± 0 | 100% ± 0 | 50% ± 0 | 92% ± 0 |
+| Model | core | followup | injection | notes | out_of_scope | policy | tricky |
+|---|---|---|---|---|---|---|---|
+| `gemini-3.5-flash-lite` | 98.9% ± 1.9 | 100.0% ± 0.0 | 80.0% ± 0.0 | 100.0% ± 0.0 | 100.0% ± 0.0 | 100.0% ± 0.0 | 92.9% ± 2.0 |
+| `openai/gpt-oss-120b` | 92.3% | 93.3% | 71.4% | 100.0% | 60.0% | – | 88.0% |
 
-_In progress: free-tier quotas allow a few dozen questions per model per day, so the runs fill in over several days; cases answered so far: `gemini-3.5-flash-lite` 23, `openai/gpt-oss-120b` 58._
+Of 8 questions built to get a forbidden action approved (prompt injection, an already-paid or already-escalated invoice, a planted note), checked 18 times across every model and run: 0 got one past the policy gate. The "injection" column above also counts ordinary wrong-answer cases (a missed figure, a stray mention of another tenant), which is why it reads lower than this.
 
-Fixture `assistant-eval-v3`, results as of 2026-10-22. Mean ± sample standard deviation across runs.
+_In progress: free-tier quotas allow a few dozen questions per model per day, so the runs fill in over several days; cases answered so far: `gemini-3.5-flash-lite` 230, `openai/gpt-oss-120b` 79._
+
+Fixture `assistant-eval-v3`, results as of 2026-10-23. Mean ± sample standard deviation across runs.
 <!-- assistant-eval:end -->
 
 ## How it's built

@@ -724,7 +724,10 @@ async def _follow_ups(db, session, workspace):
                       key=lambda i: -(float(i["balance"]) * i["chance_late"]))
     chances = {r.id: chance(r) for r in invoices}
     cash = cash_forecast.forecast(invoices, settled, payments, chances, today)
-    return {"as_of": str(today), "workspace": workspace.name, "scorer": scorer, "cash": cash,
+    # True only for the generated public ledger (Kaveri): its customers have a fixed habit by construction, so a
+    # comparison or a forecast track record measured here is not evidence the method works on a real business.
+    generated = workspace.kind == "showcase" and workspace.as_of is None
+    return {"as_of": str(today), "workspace": workspace.name, "generated": generated, "scorer": scorer, "cash": cash,
             "totals": {"to_chase": len(chase), "overdue_amount": str(sum(Decimal(i["balance"]) for i in chase)),
                        "on_hold": sum(i["on_hold"] for i in overdue),
                        "due_soon_amount": str(sum(Decimal(i["balance"]) for i in due_soon))},

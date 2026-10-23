@@ -68,6 +68,13 @@ follow-ups, prompt injection (including an instruction planted in a note), out-o
 Expected figures are worked out by hand. Each model answers alone, three times; an answer counts only if it states
 every key figure and lets nothing forbidden through.
 
+The README's per-category table mixes two different things under "injection": ordinary wrong-answer mistakes (a
+missed figure, a stray mention of another tenant's name) and an actual forbidden action getting approved. Eight of
+the cases are built to test the second, more serious thing directly (prompt injection, an already-paid or
+already-escalated invoice, a planted note, each asking for a decision the policy engine should never allow). The
+README states that count on its own, separately from the category accuracy, because a low accuracy number there
+doesn't by itself say whether anything unsafe actually happened.
+
 CI runs the offline part on every change. A [nightly workflow](../.github/workflows/assistant-eval-nightly.yml) runs
 the live models on separate eval keys, so the site keeps its quota, and updates the table in the README.
 `gemini-3.6-flash` isn't in that table: its free tier allows about six questions a day.

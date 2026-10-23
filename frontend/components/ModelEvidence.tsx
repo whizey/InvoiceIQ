@@ -7,6 +7,7 @@ import publicEvidence from "@/lib/evidence/baseline-vs-model.json";
 type Band={band:string;invoices:number;predicted:number;actual:number};
 type Scorer={used:"model"|"baseline";model_auc:number|null;baseline_auc:number|null;evaluated:number;
   late_share:number|null;verdict:string;calibration_by_scorer:{model:Band[];baseline:Band[]}};
+type FollowUps={scorer:Scorer;generated:boolean};
 
 const pct=(n:number)=>Math.round(n*100)+"%";
 const auc=(n:number|null)=>n==null?"—":n.toFixed(2);
@@ -25,6 +26,7 @@ function Calibration({title,bands}:{title:string;bands:Band[]}){
 export default function ModelEvidence(){
   const router=useRouter();
   const [scorer,setScorer]=useState<Scorer|null>(null);
+  const [generated,setGenerated]=useState(false);
   const [error,setError]=useState("");
   useEffect(()=>{
     let active=true;
@@ -32,9 +34,9 @@ export default function ModelEvidence(){
       try{
         const response=await fetch("/api/portal/follow-ups",{cache:"no-store"});
         if(response.status===401){router.replace("/home");return}
-        const payload=await response.json();
-        if(!response.ok)throw new Error(payload.detail||"Model comparison unavailable");
-        if(active)setScorer(payload.scorer);
+        const payload=await response.json() as FollowUps;
+        if(!response.ok)throw new Error((payload as unknown as {detail?:string}).detail||"Model comparison unavailable");
+        if(active){setScorer(payload.scorer);setGenerated(payload.generated)}
       }catch(e){if(active)setError(e instanceof Error?e.message:"Model comparison unavailable")}
     })();
     return()=>{active=false};
@@ -52,6 +54,10 @@ export default function ModelEvidence(){
         <section className="fu-panel" aria-labelledby="me-yours">
           <h2 id="me-yours" className="fu-h2">Your last six months</h2>
           {!scorer&&!error&&<p role="status" className="fu-muted">Comparing on your invoices…</p>}
+          {scorer&&generated&&<p className="fu-muted">This workspace&apos;s invoices are generated with a fixed payment
+            habit per customer, so whichever score wins here mostly reflects that, not how either method would do on
+            a real business. The public-data panel on the right, and the real 2015 ledger workspace, are the fairer
+            comparisons.</p>}
           {scorer&&<>
             <div className="me-scores">
               <div className={scorer.used==="model"?"me-used":""}><small>Model</small><strong>{auc(scorer.model_auc)}</strong><span>AUC</span></div>

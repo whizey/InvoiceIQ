@@ -10,7 +10,7 @@ const lakh=(n:number)=>n>=1e7?`₹${(n/1e7).toFixed(1)}Cr`:n>=1e5?`₹${(n/1e5).
 const day=(iso:string)=>new Date(iso+"T00:00:00Z").toLocaleDateString("en-IN",{day:"numeric",month:"short",timeZone:"UTC"});
 
 /** Expected collections per week with their range, and how the same forecast did in recent weeks. */
-export default function CashForecast({cash}:{cash:Cash}){
+export default function CashForecast({cash,generated}:{cash:Cash;generated:boolean}){
   const [hover,setHover]=useState<number|null>(null);
   const box=useRef<HTMLDivElement>(null);
   const [W,setW]=useState(720);
@@ -33,6 +33,7 @@ export default function CashForecast({cash}:{cash:Cash}){
       {latest&&<p className="cf-track">Four weeks ago this forecast said <strong>{lakh(latest.expected)}</strong>; <strong>{lakh(latest.actual)}</strong> came in.
         {periods>=4&&lo!=null&&hi!=null&&<> Over the last {periods} four-week periods, actual collections were {Math.round(lo*100)}–{Math.round(hi*100)}% of the forecast.</>}</p>}
     </div>
+    {generated&&<p className="fu-muted">This workspace&apos;s invoices are generated with a fixed payment habit per customer, so this track record mostly shows the forecast fitting data built to be fittable. It isn&apos;t evidence the method works on a real business; open the real 2015 ledger from the home page to see a noisier, more honest version of this same number.</p>}
     <div className="cf-chart" ref={box}>
       <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Expected collections per week with likely range" onMouseLeave={()=>setHover(null)}>
         {[0,0.5,1].map(f=><g key={f}><line x1={pad.l} x2={W} y1={y(top*f)} y2={y(top*f)} className="cf-grid"/>
