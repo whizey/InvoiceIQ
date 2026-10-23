@@ -1,5 +1,6 @@
 """Isolated product portal. Never use portal identities for legacy operator routes."""
 import asyncio
+from collections import defaultdict
 import base64
 import binascii
 import csv
@@ -27,7 +28,7 @@ from app.core.db import get_db
 from app.core.login_throttle import login_throttle, registration_limit
 from app.models.portal import (
     PortalWorkspace, PortalUser, PortalMembership, PortalSession, PortalInvoice, PortalCaseEvent,
-    PortalPayment, PortalNote,
+    PortalPayment, PortalNote, PortalReminder,
 )
 from app.ml.champion_serving import verified_contract
 from app.ml.payment_risk_model import PaymentRiskArtifactError
@@ -39,6 +40,7 @@ from app.events.outbox import TransactionalEventPublisher
 from app.core.db import async_session_factory
 from app.models.event_effects import ApprovalAlert
 from app.models.outbox import OutboxEvent
+from app.services import cash_forecast, follow_up, ledger_import, reminders
 from app.services.late_reasons import customer_lateness, late_reason
 from app.services.portal_recovery import SHOWCASE_BASELINE_SCOPE, recovery_summary
 
@@ -667,6 +669,58 @@ async def _late_reasons(db, session, workspace, rows) -> dict:
     return {r.id: late_reason(r, notes.get(r.id, []), habits.get(r.counterparty), today) for r in overdue}
 
 
+@router.get("/follow-ups")
+async def follow_ups(subject=Depends(identity), db: AsyncSession = Depends(get_db)):
+    """Who to chase today, ranked, with the reason and the model-versus-baseline comparison behind the ranking."""
+    session, workspace = subject
+    return await _cached(workspace, session, "follow-ups", None, lambda: _follow_ups(db, session, workspace),
+                         shared=True)
+
+
+async def _follow_ups(db, session, workspace):
+    today = date.today()
+    invoices = await _invoice_rows(db, session, workspace)
+    payments = (await db.scalars(select(PortalPayment).where(PortalPayment.workspace_id == workspace.id))).all()
+    settled = follow_up.settled_on(invoices, payments)
+    baseline = follow_up.baseline_scores(invoices, settled, today)
+    scorer = follow_up.choose_scorer(invoices, settled, baseline, today)
+    habits = customer_lateness(invoices, settled)
+    open_rows = [r for r in invoices if r.amount_paid < r.amount_total]
+    reasons = await _late_reasons(db, session, workspace, open_rows)
+
+    def chance(row) -> float:
+        if scorer["used"] == "model" and row.risk_probability is not None:
+            return float(row.risk_probability)
+        return baseline[row.id]
+
+    def item(row, days_overdue):
+        balance = row.amount_total - row.amount_paid
+        habit = habits.get(row.counterparty)
+        reason = reasons.get(row.id)
+        summary = f"{follow_up.short_rupees(balance)}, " + (
+            follow_up.days(days_overdue) + " overdue" if days_overdue > 0
+            else "due today" if days_overdue == 0 else "due in " + follow_up.days(-days_overdue))
+        if habit is not None and habit > 0:
+            summary += f", usually pays {follow_up.days(habit)} late"
+        on_hold = bool(reason and reason["kind"] == "dispute")
+        return {**invoice_json(row, reason), "days_overdue": days_overdue, "chance_late": round(chance(row), 3),
+                "priority": 0.0 if on_hold else round(follow_up.priority(balance, chance(row), days_overdue), 2),
+                "summary": summary, "on_hold": on_hold}
+
+    overdue = [item(r, (today - r.due_date).days) for r in open_rows if r.due_date < today]
+    chase = sorted((i for i in overdue if not i["on_hold"]), key=lambda i: -i["priority"])
+    due_soon = sorted((item(r, (today - r.due_date).days) for r in open_rows
+                       if today <= r.due_date <= today + timedelta(days=follow_up.DUE_SOON_DAYS)),
+                      key=lambda i: -(float(i["balance"]) * i["chance_late"]))
+    chances = {r.id: chance(r) for r in invoices}
+    cash = cash_forecast.forecast(invoices, settled, payments, chances, today)
+    return {"as_of": str(today), "workspace": workspace.name, "scorer": scorer, "cash": cash,
+            "totals": {"to_chase": len(chase), "overdue_amount": str(sum(Decimal(i["balance"]) for i in chase)),
+                       "on_hold": sum(i["on_hold"] for i in overdue),
+                       "due_soon_amount": str(sum(Decimal(i["balance"]) for i in due_soon))},
+            "chase": chase, "on_hold": [i for i in overdue if i["on_hold"]], "due_soon": due_soon}
+
+
 async def _invoice_page(db, session, workspace, q, page, page_size, sort):
     filters = [PortalInvoice.workspace_id == workspace.id]
     if q.strip():
@@ -872,6 +926,186 @@ async def import_invoices(batch: ImportBatch, subject=Depends(identity), db: Asy
         raise HTTPException(409, "A duplicate invoice number was imported") from None
     _bump(workspace.id)
     return {"imported": len(batch.invoices), "workspace_id": str(workspace.id)}
+
+
+class ReminderRequest(BaseModel):
+    invoice_id: uuid.UUID
+    channel: str = Field(pattern="^(email|whatsapp)$")
+    language: str = Field(pattern="^(english|hinglish)$")
+
+
+class ReminderSent(ReminderRequest):
+    body: str = Field(min_length=10, max_length=2000)
+    draft_source: str = Field(default="template", max_length=64)
+
+
+def _actor(session, workspace) -> str:
+    return session.token_digest if workspace.kind == "showcase" else str(session.user_id)
+
+
+async def _reminder_case(db, session, workspace, invoice_id):
+    """The invoice, its facts, and the policy verdict for contacting the customer now."""
+    row = await db.scalar(select(PortalInvoice).where(PortalInvoice.id == invoice_id,
+                                                      PortalInvoice.workspace_id == workspace.id))
+    if row is None:
+        raise HTTPException(404, "Invoice not found")
+    if workspace.kind == "customer":
+        member = await db.scalar(select(PortalMembership).where(
+            PortalMembership.user_id == session.user_id, PortalMembership.workspace_id == workspace.id))
+        if member is None or member.role not in {"owner", "admin", "reviewer"}:
+            raise HTTPException(403, "Reviewer permission required to send reminders")
+    reason = (await _late_reasons(db, session, workspace, [row])).get(row.id)
+    scope = [PortalReminder.workspace_id == workspace.id, PortalReminder.invoice_id == row.id]
+    if workspace.kind == "showcase":
+        scope.append(PortalReminder.actor_scope == session.token_digest)
+    last = await db.scalar(select(func.max(PortalReminder.sent_at)).where(*scope))
+    verdict = reminders.policy(row, reason["kind"] if reason else None, last, datetime.now(timezone.utc))
+    return row, reminders.facts(row, workspace.name, date.today()), verdict
+
+
+@router.post("/reminder-draft")
+async def reminder_draft(payload: ReminderRequest, subject=Depends(identity), db: AsyncSession = Depends(get_db)):
+    """Policy first; if contact is allowed, a draft that uses only the case's facts (or the template)."""
+    session, workspace = subject
+    if not _assistant_allowed("draft:" + session.token_digest):
+        raise HTTPException(429, "Too many drafts; wait a minute and try again")
+    _, case, verdict = await _reminder_case(db, session, workspace, payload.invoice_id)
+    if not verdict["allowed"]:
+        return {"policy": verdict, "facts": case, "draft": None}
+    from app.agents.llm_client import _llm_chat, gemini_fallback_chats, groq_chat
+
+    clients = [c for c in [_llm_chat(), *gemini_fallback_chats(timeout=25), groq_chat()] if c[0] is not None]
+    result = await reminders.draft(case, payload.channel, payload.language, clients)
+    return {"policy": verdict, "facts": case, "draft": result}
+
+
+@router.post("/reminders", status_code=201)
+async def log_reminder(payload: ReminderSent, subject=Depends(identity), db: AsyncSession = Depends(get_db)):
+    """Record a reminder the person has sent themselves. The policy is checked again: it is the gate."""
+    session, workspace = subject
+    row, _, verdict = await _reminder_case(db, session, workspace, payload.invoice_id)
+    if not verdict["allowed"]:
+        raise HTTPException(409, verdict["blocked"])
+    db.add(PortalReminder(workspace_id=workspace.id, invoice_id=row.id, actor_scope=_actor(session, workspace),
+                          channel=payload.channel, language=payload.language, body=payload.body.strip(),
+                          balance=row.amount_total - row.amount_paid, draft_source=payload.draft_source))
+    await db.commit()
+    _bump(workspace.id)
+    return {"ok": True, "external_effects": False}
+
+
+@router.get("/reminders")
+async def list_reminders(subject=Depends(identity), db: AsyncSession = Depends(get_db)):
+    """Reminders sent, newest first, each with the payment that followed it (if one did)."""
+    session, workspace = subject
+    scope = [PortalReminder.workspace_id == workspace.id]
+    if workspace.kind == "showcase":
+        scope.append(PortalReminder.actor_scope == session.token_digest)
+    rows = (await db.execute(select(PortalReminder, PortalInvoice.invoice_number, PortalInvoice.counterparty)
+                             .join(PortalInvoice, PortalInvoice.id == PortalReminder.invoice_id)
+                             .where(*scope).order_by(PortalReminder.sent_at.desc()).limit(200))).all()
+    paid = defaultdict(list)
+    ids = list({r.invoice_id for r, _, _ in rows})
+    if ids:
+        for p in (await db.scalars(select(PortalPayment).where(PortalPayment.invoice_id.in_(ids)))).all():
+            paid[p.invoice_id].append(p)
+    items = [{"id": str(r.id), "invoice_id": str(r.invoice_id), "invoice": number, "customer": customer,
+              "channel": r.channel, "language": r.language, "body": r.body, "balance": str(r.balance),
+              "draft_source": r.draft_source, "sent_at": r.sent_at.isoformat(),
+              "payment": reminders.outcome(r.sent_at, paid[r.invoice_id])} for r, number, customer in rows]
+    settled_window = [i for i in items
+                      if datetime.fromisoformat(i["sent_at"]) <= datetime.now(timezone.utc) - timedelta(
+                          days=reminders.OUTCOME_DAYS) or i["payment"]]
+    return {"reminders": items, "summary": {"sent": len(items), "judged": len(settled_window),
+                                            "followed_by_payment": sum(bool(i["payment"]) for i in settled_window)}}
+
+
+class LedgerFile(BaseModel):
+    filename: str = Field(min_length=1, max_length=200, pattern=r"(?i)\.(csv|txt|xlsx|xlsm)$")
+    content: str = Field(min_length=4, max_length=3_400_000)  # base64
+    mapping: dict[str, str | None] = Field(default_factory=dict)
+
+
+async def _prepared(payload: LedgerFile, db, workspace):
+    """Parse and validate the file; for the public workspace nothing is saved, so its own invoices don't count
+    as already imported."""
+    try:
+        content = base64.b64decode(payload.content, validate=True)
+    except (binascii.Error, ValueError):
+        raise HTTPException(422, "The file could not be read") from None
+    existing = set() if workspace.kind == "showcase" else {n.casefold() for n in (await db.scalars(
+        select(PortalInvoice.invoice_number).where(PortalInvoice.workspace_id == workspace.id))).all()}
+    try:
+        return await run_in_threadpool(ledger_import.prepare, payload.filename, content, payload.mapping,
+                                       existing=existing)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
+    except Exception:  # noqa: BLE001 - a malformed spreadsheet must not surface as a server error
+        raise HTTPException(422, "The file could not be read as CSV or Excel") from None
+
+
+async def _require_importer(db, session, workspace):
+    if workspace.kind != "customer":
+        raise HTTPException(403, "Import into your own company workspace")
+    member = await db.scalar(select(PortalMembership).where(
+        PortalMembership.user_id == session.user_id, PortalMembership.workspace_id == workspace.id))
+    if member is None or member.role not in {"owner", "admin"}:
+        raise HTTPException(403, "Import permission required")
+
+
+@router.get("/example-export")
+async def example_export(format: str = Query(default="zoho", pattern="^(zoho|tally)$"), subject=Depends(identity)):
+    """The public business as a Zoho Books or Tally export, to try the importer with a real file layout."""
+    from app.seed import showcase_seed
+
+    today = date.today()
+    ledger = showcase_seed.build(today)
+    if format == "zoho":
+        return {"filename": "kaveri-zoho-books-invoices.csv", "content": showcase_seed.zoho_export(ledger, today)}
+    return {"filename": "kaveri-tally-bills-receivable.csv", "content": showcase_seed.tally_export(ledger, today)}
+
+
+@router.post("/import-preview")
+async def import_preview(payload: LedgerFile, subject=Depends(identity), db: AsyncSession = Depends(get_db)):
+    """What a Tally or Zoho Books export would import: detected columns, rows ready, rows skipped and why.
+    Read-only, so visitors to the public workspace can try it with their own file."""
+    session, workspace = subject
+    if workspace.kind == "customer":
+        await _require_importer(db, session, workspace)
+    return (await _prepared(payload, db, workspace)).report()
+
+
+@router.post("/import-file", status_code=201)
+async def import_file(payload: LedgerFile, subject=Depends(identity), db: AsyncSession = Depends(get_db)):
+    """Import the rows the preview showed as ready, then score the workspace."""
+    session, workspace = subject
+    await _require_importer(db, session, workspace)
+    prepared = await _prepared(payload, db, workspace)
+    if not prepared.rows:
+        raise HTTPException(422, "No rows are ready to import")
+    for row in prepared.rows:
+        invoice = PortalInvoice(workspace_id=workspace.id, invoice_number=row["invoice_number"],
+                                counterparty=row["counterparty"], issue_date=row["issue_date"],
+                                posting_date=row["posting_date"], due_date=row["due_date"],
+                                amount_total=row["amount_total"], amount_paid=row["amount_paid"])
+        db.add(invoice)
+        await db.flush()
+        if row["amount_paid"] > 0:
+            db.add(PortalPayment(workspace_id=workspace.id, invoice_id=invoice.id, paid_on=row["payment_date"],
+                                 amount=row["amount_paid"]))
+    try:
+        await db.flush()
+        scored = (await score_workspace(db, workspace.id))["scored"]
+    except HTTPException:
+        scored = 0  # imported anyway; scoring can be re-run from the model page
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(409, "An invoice number was imported twice") from None
+    _bump(workspace.id)
+    report = prepared.report()
+    return {**report, "imported": len(prepared.rows), "scored": scored}
 
 
 from typing import Annotated  # noqa: E402

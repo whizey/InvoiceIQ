@@ -5,9 +5,9 @@ import RecoveryCharts from "@/components/RecoveryCharts";
 import ApprovalAlerts from "@/components/ApprovalAlerts";
 import PortalNavigation from "@/components/PortalNavigation";
 import InvoiceNotes from "@/components/InvoiceNotes";
+import LedgerImport from "@/components/LedgerImport";
 import Term from "@/components/Term";
 import {DECISION_WORDS} from "@/lib/glossary";
-import {parseInvoiceCsv} from "@/lib/invoice-csv.mjs";
 import type {PortalFilters} from "@/lib/portal-filters";
 
 type LateReason={days_late:number;kind:string;text:string};
@@ -72,17 +72,6 @@ export default function PortalOperations({section,initialFilters}:{section:Secti
   },[query,page,sort,reload]);
   const invoices=invoicePage?.invoices||[];
 
-  async function importFile(file:File){
-    setBusy(true);setError("");setSuccess("");
-    try{
-      const invoices=parseInvoiceCsv(await file.text());
-      const r=await fetch("/api/portal/import",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({invoices})});
-      const payload=await r.json();
-      if(!r.ok)throw new Error(payload.detail||"Import failed");
-      await load();setReload(value=>value+1);setSuccess(`Imported ${payload.imported} invoice${payload.imported===1?"":"s"}.`);
-    }catch(e){setError(e instanceof Error?e.message:"Import failed")}
-    finally{setBusy(false)}
-  }
   async function recordDecision(){
     if(!selected||note.trim().length<3)return;
     setBusy(true);setError("");setSuccess("");
@@ -112,16 +101,8 @@ export default function PortalOperations({section,initialFilters}:{section:Secti
       {data&&section!=="invoices"&&<ApprovalAlerts refreshKey={data}/>}
       {data&&section!=="invoices"&&<RecoveryCharts view={section} refreshKey={data}/>}
       {data&&<>
-        {section==="invoices"&&data.kind==="customer"&&<section style={panel}>
-          <h2 style={{fontSize:18,marginTop:0}}>Import customer invoices</h2>
-          <p style={{fontSize:13,color:"#666",lineHeight:1.6}}>
-            CSV columns: invoice_number, counterparty, issue_date, posting_date, due_date,
-            amount_total, amount_paid, payment_date. Dates use YYYY-MM-DD. A payment date is
-            required for paid invoices. Up to 250 rows per upload.
-          </p>
-          <input aria-label="Import company invoices" type="file" accept=".csv,text/csv"
-            disabled={busy} onChange={e=>{const file=e.target.files?.[0];if(file)void importFile(file);e.target.value=""}}/>
-        </section>}
+        {section==="invoices"&&<LedgerImport canImport={data.kind==="customer"}
+          onImported={()=>{void load();setReload(value=>value+1)}}/>}
         <div className="portal-operations-grid">
           <section style={panel}>
             <div style={{display:"flex",gap:12,alignItems:"center",justifyContent:"space-between",flexWrap:"wrap"}}>

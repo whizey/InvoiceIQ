@@ -28,11 +28,13 @@ export default function PortalNavigation(){
     }catch{setError("Sign out failed. Please try again.");setBusy(false)}
   }
   const destinations=[
+    {href:"/follow-ups",label:"Follow-ups"},
     {href:"/workspace-dashboard",label:"Analytics"},
     {href:"/invoices",label:"Invoices"},
     {href:"/cases",label:"Cases"},
     {href:"/approvals",label:"Approvals"},
     {href:"/assistant",label:"AI assistant"},
+    {href:"/model",label:"Model"},
     {href:"/settings",label:"Settings"},
   ];
   return <><nav aria-label="Workspace navigation" style={{

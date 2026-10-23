@@ -121,3 +121,22 @@ class PortalNote(Base, UUIDPrimaryKeyMixin):
     # Semantic search: the note's embedding as float32 bytes, and the model that produced it (None until embedded).
     embedding: Mapped[bytes | None] = mapped_column(LargeBinary)
     embedding_model: Mapped[str | None] = mapped_column(String(64))
+
+
+class PortalReminder(Base, UUIDPrimaryKeyMixin):
+    """A payment reminder a person sent themselves (by email or WhatsApp), logged so the three-day rule holds
+    and so we can see whether a payment followed. Showcase visitors see only their own, like decisions."""
+    __tablename__ = "portal_reminders"
+    __table_args__ = (Index("ix_portal_reminders_invoice", "workspace_id", "invoice_id", "sent_at"),)
+
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("portal_workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    invoice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("portal_invoices.id", ondelete="CASCADE"), nullable=False)
+    actor_scope: Mapped[str] = mapped_column(String(64), nullable=False)
+    channel: Mapped[str] = mapped_column(String(16), nullable=False)  # email | whatsapp
+    language: Mapped[str] = mapped_column(String(16), nullable=False)  # english | hinglish
+    body: Mapped[str] = mapped_column(String(2000), nullable=False)
+    balance: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    draft_source: Mapped[str] = mapped_column(String(64), nullable=False)  # model name, or "template"
+    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
