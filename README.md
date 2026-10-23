@@ -14,6 +14,12 @@ Live at **https://invoiceiq-ai.vercel.app**. No sign-up needed to look around.
 This is the live site, not a mock-up: open "More" in the nav, go to Approvals, click a status to filter the real
 queue underneath it. Nothing in that recording is staged.
 
+### At a glance
+
+| 1,998 | 939 | 0.706 vs 0.520 | 0 of 18 | 2 | 0 |
+|:---:|:---:|:---:|:---:|:---:|:---:|
+| real invoices loaded for the Model page's comparison | automated backend tests, 85% coverage | model vs simple-average AUC on invoices neither had seen | times a forbidden action got approved, across every eval safety check | import formats supported (Tally, Zoho Books) | invented numbers let through into a reminder draft |
+
 ## Trying it
 
 The home page has two ways in:
@@ -184,7 +190,7 @@ cd backend && ruff check . && ./scripts/run_full_tests.sh --coverage   # needs t
 cd frontend && npm ci && npm run lint && npm test && npm run build
 ```
 
-The backend suite (about 937 tests) runs against a real PostgreSQL and CI requires 80% coverage. CI also runs the
+The backend suite (about 939 tests) runs against a real PostgreSQL and CI requires 80% coverage. CI also runs the
 assistant's offline eval, migrations up and down, dependency audits and a secret scan. Merging to `main` deploys the
 API and the site.
 
