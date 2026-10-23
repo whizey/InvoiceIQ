@@ -15,7 +15,7 @@
 
 </div>
 
-> The public workspace runs on **seeded, simulated invoices** (about 700 invoices across 40 customers of a fictional distributor). The models were developed on two public datasets: a B2B invoice-payment dataset for the late-payment model and the BPI Challenge 2019 purchase-to-pay event log for the survival models. Open the sample workspace from the home page; no sign-up is needed. InvoiceIQ never moves money, and its forecasts are predictions, not guarantees.
+> The public workspace is **Kaveri Industrial Supplies**, a fictional distributor with about 700 invoices across 40 customers over the past year. The models were developed on two public datasets: a B2B invoice-payment dataset for the late-payment model and the BPI Challenge 2019 purchase-to-pay event log for the survival models. Open the public workspace from the home page; no sign-up is needed. InvoiceIQ never moves money, and its forecasts are predictions, not guarantees.
 
 ### At a glance
 
@@ -57,7 +57,7 @@ InvoiceIQ turns invoices and payments into one trustworthy picture of receivable
 
 ## Try it in two minutes
 
-1. Open **[invoiceiq-ai.vercel.app](https://invoiceiq-ai.vercel.app)** and choose **Explore the product**. You get a private session in the sample workspace; nothing you do is visible to anyone else.
+1. Open **[invoiceiq-ai.vercel.app](https://invoiceiq-ai.vercel.app)** and choose **Explore the product**. You get a private session in the public workspace; nothing you do is visible to anyone else.
 2. **Analytics:** switch the date basis (posting, due, payment) and range (90D, 12M, all data). Every KPI and chart recalculates, and the totals always reconcile.
 3. **Invoices:** search and sort the portfolio, and open an invoice to see its late-payment score and the factors behind it.
 4. **Cases:** escalate a risky invoice. An approval alert appears within a second or two, delivered through Kafka.
@@ -156,7 +156,7 @@ The portal assistant ([`finance_agent.py`](backend/app/agents/finance_agent.py))
 
 Workspace figures come from the dashboard's own calculation (`compute_portal_dashboard`) for the same period, so an answer always adds up to what the dashboard shows. Answers stream to the chat as progress steps ("Checking ageing…", "Checking every figure against your records…"); the text itself is only sent once its figures and suggestions have passed the checks. Written recommendations get the same rules as Apply suggestions.
 
-Every model call, tool call, check and fallback is recorded in `assistant_traces` (metadata only, no question or answer text). With `LANGCHAIN_TRACING_V2` and `LANGCHAIN_API_KEY` set, each answer is also one **LangSmith** trace: the model calls, every tool call with its arguments and result, the figure and policy checks and any fallback, nested in order, with metadata to filter on (who answered, fallback used, figures checked and removed, latency). Customer-workspace traces carry structure and metadata only unless `LANGSMITH_LOG_CUSTOMER_CONTENT=true`; the illustrative showcase and eval fixture are sent in full, and recorded voice audio is never sent. The **reliability page** (`/assistant/reliability`) shows, per workspace, which model answered (main, backup or rules), how the figures fared (verified, fixed after a rewrite, trimmed), response times, and the evaluation results below. `python -m app.agents.check_providers` tests each model in the chain with one tool call.
+Every model call, tool call, check and fallback is recorded in `assistant_traces` (metadata only, no question or answer text). With `LANGCHAIN_TRACING_V2` and `LANGCHAIN_API_KEY` set, each answer is also one **LangSmith** trace: the model calls, every tool call with its arguments and result, the figure and policy checks and any fallback, nested in order, with metadata to filter on (who answered, fallback used, figures checked and removed, latency). Customer-workspace traces carry structure and metadata only unless `LANGSMITH_LOG_CUSTOMER_CONTENT=true`; the public workspace and eval fixture are sent in full, and recorded voice audio is never sent. The **reliability page** (`/assistant/reliability`) shows, per workspace, which model answered (main, backup or rules), how the figures fared (verified, fixed after a rewrite, trimmed), response times, and the evaluation results below. `python -m app.agents.check_providers` tests each model in the chain with one tool call.
 
 ### Note search: hybrid retrieval
 
@@ -336,7 +336,7 @@ All settings are environment variables; every optional integration switches itse
 |---|---|---|
 | `DATABASE_URL` | PostgreSQL connection (asyncpg) | required |
 | `ENV` | `local`, `staging` or `production`; hosted modes tighten auth on private endpoints | `local` |
-| `INVOICEIQ_PORTAL_ENABLED` / `INVOICEIQ_PORTAL_SHOWCASE` | Turn on the multi-tenant portal and the shared sample workspace | off |
+| `INVOICEIQ_PORTAL_ENABLED` / `INVOICEIQ_PORTAL_SHOWCASE` | Turn on the multi-tenant portal and the shared public workspace | off |
 | `GOOGLE_API_KEY` | Gemini for the agent, the assistant and transcription | rule-based fallback |
 | `LLM_MODEL` | Primary model | `gemini-3.6-flash` |
 | `GEMINI_FALLBACK_MODELS` | Comma-separated Gemini models tried in order when the primary is rate limited; each has its own free quota. `none` disables | `gemini-3.5-flash-lite` |

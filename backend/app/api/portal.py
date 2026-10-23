@@ -39,11 +39,12 @@ from app.events.outbox import TransactionalEventPublisher
 from app.core.db import async_session_factory
 from app.models.event_effects import ApprovalAlert
 from app.models.outbox import OutboxEvent
+from app.services.late_reasons import customer_lateness, late_reason
 from app.services.portal_recovery import SHOWCASE_BASELINE_SCOPE, recovery_summary
 
 router = APIRouter(prefix="/portal", tags=["customer portal"])
 SHOWCASE_ID = uuid.UUID("60c111be-dde9-4a54-9dcc-f881d0d0aaa1")
-SEED_VERSION = "showcase-v2"  # Kaveri Industrial Supplies, app/seed/showcase_sample.py
+SEED_VERSION = "showcase-v2"  # Kaveri Industrial Supplies, app/seed/showcase_seed.py
 
 # Read cache; any write to a workspace bumps its version, so views never go stale. The TTL only bounds memory and
 # the date rollover, so it can be generous.
@@ -354,13 +355,13 @@ async def score_customer_workspace(subject=Depends(identity), db: AsyncSession =
     return result
 
 
-def invoice_json(row):
+def invoice_json(row, reason=None):
     return {"id": str(row.id), "number": row.invoice_number, "counterparty": row.counterparty,
             "posting_date": str(row.posting_date), "due_date": str(row.due_date),
             "amount": str(row.amount_total), "paid": str(row.amount_paid),
             "balance": str(row.amount_total - row.amount_paid),
             "risk_probability": str(row.risk_probability) if row.risk_probability is not None else None,
-            "risk_provenance": row.risk_provenance}
+            "risk_provenance": row.risk_provenance, "late_reason": reason}
 
 
 @router.get("/overview")
@@ -394,7 +395,7 @@ async def _overview(db, session, workspace):
     events = (await db.scalars(select(PortalCaseEvent).where(*event_scope)
                                .order_by(PortalCaseEvent.created_at.desc()).limit(100))).all()
     return {"workspace": workspace.name, "kind": workspace.kind,
-            "provenance": "Illustrative, isolated showcase records" if workspace.kind == "showcase" else "Customer workspace",
+            "provenance": "Shared workspace" if workspace.kind == "showcase" else "Customer workspace",
             "metrics": {"invoiced": str(invoiced), "open": str(open_balance), "overdue": str(overdue),
                         "overdue_share": str(round(overdue / open_balance * 100, 2)) if open_balance else "0",
                         "collected": str(paid), "score_coverage": sum(r.risk_probability is not None for r in invoices),
@@ -637,10 +638,36 @@ async def list_portal_invoices(
 ):
     session, workspace = subject
     return await _cached(workspace, session, "invoices", (q.strip(), page, page_size, sort),
-                         lambda: _invoice_page(db, workspace, q, page, page_size, sort), shared=True)
+                         lambda: _invoice_page(db, session, workspace, q, page, page_size, sort), shared=True)
 
 
-async def _invoice_page(db, workspace, q, page, page_size, sort):
+async def _lateness(db, session, workspace) -> dict[str, int]:
+    """Each customer's typical days late, from its paid invoices; shared by every visitor."""
+    async def build():
+        last = dict((await db.execute(select(PortalPayment.invoice_id, func.max(PortalPayment.paid_on))
+                                      .where(PortalPayment.workspace_id == workspace.id)
+                                      .group_by(PortalPayment.invoice_id))).all())
+        return customer_lateness(await _invoice_rows(db, session, workspace), last)
+    return await _cached(workspace, session, "lateness", None, build, shared=True)
+
+
+async def _late_reasons(db, session, workspace, rows) -> dict:
+    """Why each overdue row is unpaid. Only notes every viewer can see are used, so the page stays shareable."""
+    today = date.today()
+    overdue = [r for r in rows if r.amount_paid < r.amount_total and r.due_date < today]
+    if not overdue:
+        return {}
+    shared_scope = ([PortalNote.author_scope == SHOWCASE_BASELINE_SCOPE] if workspace.kind == "showcase" else [])
+    notes: dict = {}
+    for note in (await db.scalars(select(PortalNote).where(
+            PortalNote.workspace_id == workspace.id, PortalNote.invoice_id.in_([r.id for r in overdue]),
+            *shared_scope).order_by(PortalNote.created_at.desc(), PortalNote.id))).all():
+        notes.setdefault(note.invoice_id, []).append(note)
+    habits = await _lateness(db, session, workspace)
+    return {r.id: late_reason(r, notes.get(r.id, []), habits.get(r.counterparty), today) for r in overdue}
+
+
+async def _invoice_page(db, session, workspace, q, page, page_size, sort):
     filters = [PortalInvoice.workspace_id == workspace.id]
     if q.strip():
         term = f"%{q.strip().replace('%', r'\%').replace('_', r'\_')}%"
@@ -657,7 +684,8 @@ async def _invoice_page(db, workspace, q, page, page_size, sort):
     rows = (await db.scalars(select(PortalInvoice).where(*filters)
                              .order_by(order, PortalInvoice.id)
                              .offset((page - 1) * page_size).limit(page_size))).all()
-    return {"invoices": [invoice_json(row) for row in rows], "total": total,
+    reasons = await _late_reasons(db, session, workspace, rows)
+    return {"invoices": [invoice_json(row, reasons.get(row.id)) for row in rows], "total": total,
             "page": page, "page_size": page_size}
 
 
@@ -702,7 +730,7 @@ async def decision(payload: DecisionInput, subject=Depends(identity), db: AsyncS
 
 
 def _note_visibility(session, workspace) -> list:
-    """Showcase visitors see the shared sample notes plus their own; customer members see the workspace's."""
+    """Showcase visitors see the shared notes plus their own; customer members see the workspace's."""
     scope = [PortalNote.workspace_id == workspace.id]
     if workspace.kind == "showcase":
         scope.append(PortalNote.author_scope.in_((session.token_digest, SHOWCASE_BASELINE_SCOPE)))
@@ -712,7 +740,7 @@ def _note_visibility(session, workspace) -> list:
 def note_json(note, number: str | None = None) -> dict:
     return {"id": str(note.id), "invoice_id": str(note.invoice_id), "invoice": number, "kind": note.kind,
             "body": note.body, "created_at": note.created_at.isoformat() if note.created_at else None,
-            "sample": note.author_scope == SHOWCASE_BASELINE_SCOPE}
+            "shared": note.author_scope == SHOWCASE_BASELINE_SCOPE}
 
 
 @router.post("/notes", status_code=201)

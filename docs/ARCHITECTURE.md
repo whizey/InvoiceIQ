@@ -54,7 +54,7 @@ There are two deployable units. The **web app** serves pages and proxies API cal
 | Events | `backend/app/events/` | Outbox, publishers, consumer, handlers, in-process delivery, topics |
 | Models | `backend/app/models/` | SQLAlchemy tables |
 | Tools | `backend/app/tools/` | Email, voice speech I/O, read-only knowledge and query helpers |
-| Seed | `backend/app/seed/` | Deterministic sample data and dataset loaders |
+| Seed | `backend/app/seed/` | Deterministic workspace seed and dataset loaders |
 
 ## Data model
 
@@ -68,7 +68,7 @@ There are two deployable units. The **web app** serves pages and proxies API cal
 Design choices worth knowing:
 - Portal records are tenant-scoped by `workspace_id`, and foreign keys cascade on workspace deletion.
 - Sessions store only a SHA-256 digest of the token, never the token itself.
-- Review events for the sample workspace carry an `actor_scope` (the visitor's session digest) so one visitor's decisions never appear to another. A shared `showcase-baseline` scope provides illustrative history for everyone.
+- Review events for the public workspace carry an `actor_scope` (the visitor's session digest) so one visitor's decisions never appear to another. A shared `showcase-baseline` scope provides shared history for everyone.
 - Payments are a dated ledger, so collections can be reported by day.
 
 ## Two deliberately separate API surfaces

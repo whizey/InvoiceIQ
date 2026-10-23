@@ -65,7 +65,7 @@ export default function PortalIntelligence(){
     {success&&<p role="status" className="portal-notice-success">{success}</p>}
     {data&&<>
       <section className="portal-intelligence-summary">
-        <div><small>WORKSPACE</small><strong>{data.workspace}</strong><span>{data.kind==="showcase"?"Illustrative invoice portfolio":"Customer invoice portfolio"}</span></div>
+        <div><small>WORKSPACE</small><strong>{data.workspace}</strong><span>Invoice portfolio</span></div>
         <div><small>SCORE COVERAGE</small><strong>{data.scored.toLocaleString()} / {data.total.toLocaleString()}</strong><span>Stored scores on invoices</span></div>
         <div><small>VERIFIED MODEL</small><strong>B2B payment-risk model</strong><span>{data.model_version}</span></div>
       </section>

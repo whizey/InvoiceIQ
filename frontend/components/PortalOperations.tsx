@@ -10,7 +10,8 @@ import {DECISION_WORDS} from "@/lib/glossary";
 import {parseInvoiceCsv} from "@/lib/invoice-csv.mjs";
 import type {PortalFilters} from "@/lib/portal-filters";
 
-type Invoice={id:string;number:string;counterparty:string;due_date:string;amount:string;paid:string;balance:string;risk_probability:string|null};
+type LateReason={days_late:number;kind:string;text:string};
+type Invoice={id:string;number:string;counterparty:string;due_date:string;amount:string;paid:string;balance:string;risk_probability:string|null;late_reason:LateReason|null};
 type Event={id:string;invoice_id:string;decision:string;note:string;created_at:string};
 type Overview={workspace:string;kind:"showcase"|"customer";provenance:string;actions:Event[]};
 type InvoicePage={invoices:Invoice[];total:number;page:number;page_size:number};
@@ -96,16 +97,12 @@ export default function PortalOperations({section,initialFilters}:{section:Secti
     finally{setBusy(false)}
   }
   const title={invoices:"Invoices",cases:"Recovery reviews",approvals:"Approval queue"}[section];
-  const intro={invoices:"Every bill sent to a customer. Choose Review on any invoice to read its notes and decide what happens next.",
-    cases:"Invoices someone has already looked at, and what they decided: follow up, escalate to a manager, or take no action.",
-    approvals:"Escalations waiting for a manager, and overdue invoices nobody has decided on yet."}[section];
   return <div style={{minHeight:"100dvh",background:"#f5f5f3",fontFamily:"Arial,sans-serif",color:"#171717"}}>
     <PortalNavigation/>
     <main style={{padding:"32px clamp(18px,4vw,64px)",maxWidth:1600,margin:"auto"}}>
       <p style={{fontSize:11,letterSpacing:2,textTransform:"uppercase",color:"#777"}}>Workspace / {title}</p>
       <h1 style={{fontSize:"clamp(30px,4vw,46px)",letterSpacing:"-.045em",margin:"10px 0"}}>{title}</h1>
-      <p className="page-intro">{intro}</p>
-      <p style={{color:"#6c6c6c",marginBottom:26,fontSize:13}}>{data?.workspace||"Loading workspace"} · {data?.provenance||"Tenant-scoped financial workflows"}</p>
+      <p style={{color:"#6c6c6c",marginBottom:26,fontSize:13}}>{data?.workspace||"Loading workspace"}</p>
       {loading&&<div role="status" aria-label="Loading records" className="ops-skeleton">
         <div className="sk sk-panel"><span className="sk-line w40"/>{Array.from({length:7},(_,i)=><span key={i} className="sk-line"/>)}</div>
         <div className="sk sk-panel"><span className="sk-line w60"/>{Array.from({length:5},(_,i)=><span key={i} className="sk-line"/>)}</div>
@@ -140,11 +137,12 @@ export default function PortalOperations({section,initialFilters}:{section:Secti
             <p style={{fontSize:12,color:"#777"}}>Showing {invoices.length} of {invoicePage?.total??0} matching invoices · INR</p>
             {!invoicePage&&!error&&<p role="status">Loading invoices…</p>}
             <div style={{overflowX:"auto"}}><table className="portal-invoice-table" style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-              <thead><tr>{([["Invoice",null],["Customer",null],["Due date",null],["Still owed","owed"],["Late-payment risk","risk"],["Action",null]] as const).map(([s,k])=>
+              <thead><tr>{([["Invoice",null],["Customer",null],["Due date",null],["Still owed","owed"],["Why it's late","late"],["Late-payment risk","risk"],["Action",null]] as const).map(([s,k])=>
                 <th key={s} style={{textAlign:"left",padding:"14px 8px",borderBottom:"1px solid #ddd"}}>{k?<Term k={k}>{s}</Term>:s}</th>)}</tr></thead>
               <tbody>{invoices.map(inv=><tr key={inv.id}>
                 <td data-label="Invoice" style={cell}>{inv.number}</td><td data-label="Customer" style={cell}>{inv.counterparty}</td>
                 <td data-label="Due date" style={cell}>{inv.due_date}</td><td data-label="Outstanding" style={cell}>{rupees(inv.balance)}</td>
+                <td data-label="Why it's late" style={reasonCell}>{inv.late_reason?<><strong>{inv.late_reason.days_late} days overdue.</strong> {inv.late_reason.text}</>:<span style={{color:"#8a8a87"}}>{Number(inv.balance)>0?"Not due yet":"Paid"}</span>}</td>
                 <td data-label="Late-payment risk" style={cell}>{inv.risk_probability===null?"Not scored":Math.round(Number(inv.risk_probability)*100)+"% chance of late payment"}</td>
                 <td data-label="Action" style={cell}><button onClick={()=>{setSelected(inv);setNote("");}}
                   style={{border:"1px solid #ddd",padding:"8px",borderRadius:6,background:"#fff",cursor:"pointer"}}>
@@ -162,6 +160,7 @@ export default function PortalOperations({section,initialFilters}:{section:Secti
             <h2 style={{fontSize:19,marginTop:0}}>{selected?"Record a decision":"Review activity"}</h2>
             {selected&&<div style={{display:"grid",gap:12}}>
               <p style={{fontSize:13}}><strong>{selected.number}</strong> · {selected.counterparty}</p>
+              {selected.late_reason&&<p className="late-reason"><strong>Why it&apos;s late · {selected.late_reason.days_late} days overdue</strong>{selected.late_reason.text}</p>}
               <label style={{fontSize:13}}>Decision
                 <select value={choice} onChange={e=>setChoice(e.target.value as typeof choice)}
                   style={{display:"block",width:"100%",padding:11,marginTop:5}}>
@@ -187,7 +186,7 @@ export default function PortalOperations({section,initialFilters}:{section:Secti
           </section>
         </div>
         <p style={{fontSize:12,color:"#777",marginTop:22}}>
-          {data.kind==="showcase"?"Illustrative records. Your review decisions are isolated to this visitor session.":
+          {data.kind==="showcase"?"Your review decisions are visible only to you.":
           "Only records within your authenticated company workspace are accessible."}
         </p>
       </>}
@@ -196,3 +195,4 @@ export default function PortalOperations({section,initialFilters}:{section:Secti
 }
 const panel:React.CSSProperties={background:"#fff",border:"1px solid #dededb",borderRadius:12,padding:22,minWidth:0,marginBottom:16};
 const cell:React.CSSProperties={padding:"12px 8px",borderBottom:"1px solid #ececea",whiteSpace:"nowrap"};
+const reasonCell:React.CSSProperties={...cell,whiteSpace:"normal",minWidth:240,maxWidth:380,lineHeight:1.45};

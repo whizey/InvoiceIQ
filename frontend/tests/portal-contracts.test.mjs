@@ -19,13 +19,14 @@ test("portal proxy requires same-origin mutation and secure cookie flags",()=>{
  assert.ok(route.includes('maxAge:8*3600'));
  assert.ok(!route.includes("NEXT_PUBLIC_"));
 });
-test("showcase action and account surfaces are separate",()=>{
- const portal=read("../components/PortalWorkspace.tsx");
+test("open-workspace action and account surfaces are separate",()=>{
+ const entry=read("../components/ExploreShowcaseButton.tsx");
+ const operations=read("../components/PortalOperations.tsx");
  const auth=read("../components/AccountForm.tsx");
- assert.ok(portal.includes("/api/portal/showcase"));
- assert.ok(portal.includes("/api/portal/decisions"));
+ assert.ok(entry.includes("/api/portal/showcase"));
+ assert.ok(operations.includes("/api/portal/decisions"));
  assert.ok(auth.includes("/api/portal/"));
- assert.ok(portal.includes("Illustrative"));
+ assert.ok(!auth.includes("/api/portal/showcase"));
 });
 
 test("portal export is session-scoped and retains existing dashboard export",()=>{

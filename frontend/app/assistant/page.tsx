@@ -13,7 +13,7 @@ export default async function AssistantPage(){
     <main className="ai-page">
       <p className="settings-eyebrow">Workspace / AI assistant</p>
       <h1>AI assistant</h1>
-      <p className="settings-intro">Ask questions in plain English about who owes what and what to do next. It looks the figures up itself and double-checks every number before answering; it can suggest a next step, but nothing happens until you press Apply. <Link href="/assistant/reliability">How reliable is it?</Link></p>
+      <p className="settings-intro">Ask about who owes what and what to do next. Every figure is checked against your records, and nothing changes until you press Apply. <Link href="/assistant/reliability">How reliable is it?</Link></p>
       <AssistantChat/>
     </main>
   </div>;

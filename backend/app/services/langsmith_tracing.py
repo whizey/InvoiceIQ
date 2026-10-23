@@ -7,7 +7,7 @@ LANGCHAIN_API_KEY are set, and then:
 
 - customer workspaces send structure and metadata only: questions, answers and tool contents are replaced
   before they leave the server, unless LANGSMITH_LOG_CUSTOMER_CONTENT=true;
-- the illustrative showcase and the eval fixture send full content.
+- the public workspace and the eval fixture send full content.
 
 The metadata-only ``assistant_traces`` table keeps working either way; LangSmith adds the full picture.
 """
@@ -29,7 +29,7 @@ def enabled() -> bool:
 
 
 def redacts(workspace) -> bool:
-    """Customer content stays on the server unless the operator opts in; samples and fixtures are synthetic."""
+    """Customer content stays on the server unless the operator opts in; the public workspace and fixtures hold no customer data."""
     kind = getattr(workspace, "kind", None)
     return kind == "customer" and not settings.langsmith_log_customer_content
 

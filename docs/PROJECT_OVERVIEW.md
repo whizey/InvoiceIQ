@@ -22,7 +22,7 @@ The day-to-day reality in many finance teams:
 | Fear of unsafe automation | A deterministic policy engine, not the AI model, decides whether an action runs. High-value actions require human approval. Escalated cases stop automated reminders. |
 | No audit trail | Decisions, approvals, policy outcomes, agent steps and model scores are stored with actor and time. |
 | Slow questions about the data | A grounded AI assistant answers in plain language from the workspace's own figures, with voice input and read-aloud. |
-| Multi-company risk | Every query is scoped to a workspace; sessions are revocable; the sample workspace is isolated per visitor. |
+| Multi-company risk | Every query is scoped to a workspace; sessions are revocable; the public workspace is isolated per visitor. |
 
 ## Who it is for
 
@@ -36,7 +36,7 @@ The day-to-day reality in many finance teams:
 1. **The model advises; rules decide.** Machine-learning output and language-model output are inputs. A deterministic policy layer is the only thing that can permit an action.
 2. **Humans approve what matters.** High-value or ambiguous actions are held for review, and the workflow stops until a person decides.
 3. **Evidence over claims.** Model numbers are reported with their limitations. The test split was never used to tune anything; the frozen model was scored on it once, and the docs say what has not been established.
-4. **Isolation by default.** Tenants cannot see each other's data, and sample-data tooling refuses to run against anything that is not an approved sample database.
+4. **Isolation by default.** Tenants cannot see each other's data, and seeding tools refuse to run against anything that is not an approved database.
 5. **Everything is explainable.** If the system did something, the reason, the rule and the actor are on record.
 
 ## Scope and non-goals
@@ -47,7 +47,7 @@ Out of scope by design: moving money, bank integration, and acting as an account
 
 ## Where the data comes from
 
-- **Sample workspace:** Kaveri Industrial Supplies, a fictional distributor: a deterministic seed of about 700 invoices across 40 customers over the past year, with payments, review decisions and notes, rebuilt when it goes stale and loaded only into databases explicitly approved for sample data.
+- **Public workspace:** Kaveri Industrial Supplies, a fictional distributor: a deterministic seed of about 700 invoices across 40 customers over the past year, with payments, review decisions and notes, rebuilt when it goes stale and loaded only into databases explicitly approved for sample data.
 - **Customer workspaces:** invoices imported by CSV by the workspace owner or admin.
 - **Model training:** two public datasets. Details in [ML_MODELS.md](ML_MODELS.md).
   - **B2B invoice-payment dataset** (45,839 invoices, 69 customers): trains the late-payment model. CI downloads it from a pinned commit and verifies its SHA-256 checksum before the tests run.

@@ -2,7 +2,6 @@
 import {useRouter,usePathname} from "next/navigation";
 import Link from "next/link";
 import {useState} from "react";
-import SampleGuide from "@/components/SampleGuide";
 
 /** Shared top navigation for the authenticated SaaS area.
  * Browser history is retained between pages; the back fallback handles
@@ -60,6 +59,5 @@ export default function PortalNavigation(){
     </div>
     {error&&<span role="alert" style={{color:"#922b1e",fontSize:12}}>{error}</span>}
   </nav>
-    <SampleGuide/>
   </>;
 }

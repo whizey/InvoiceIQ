@@ -2,12 +2,12 @@
 
 How the product behaves end to end, for users and for the system.
 
-## 1. First visit: the sample workspace
+## 1. First visit: the public workspace
 
 1. The visitor opens `/home` and clicks **Explore the product**.
-2. The browser posts to `/api/portal/showcase`. The API creates a session on the shared sample workspace with no account, and the proxy stores it in an HTTP-only cookie.
-3. The visitor lands on the dashboard with about 700 illustrative invoices.
-4. Any decision they record is tagged with their own session scope, so it is visible only to them. A shared baseline of illustrative past decisions keeps the recovery charts populated from the start.
+2. The browser posts to `/api/portal/showcase`. The API creates a session on the shared public workspace with no account, and the proxy stores it in an HTTP-only cookie.
+3. The visitor lands on the dashboard with about 700 invoices.
+4. Any decision they record is tagged with their own session scope, so it is visible only to them. A shared baseline of past decisions keeps the recovery charts populated from the start.
 
 ## 2. Creating a real workspace
 
