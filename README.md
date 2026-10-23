@@ -70,6 +70,18 @@ There's also a receivables dashboard, review and approval queues, an [assistant]
 questions about the ledger (every figure it states is checked against the data), and account settings including
 deleting all your data. See the [privacy page](https://invoiceiq-ai.vercel.app/privacy) for what's stored where.
 
+## Screens
+
+All of these are the live site, mid-session, with its generated data populated: nothing here is mocked up.
+
+| Dashboard | Model vs simple average |
+|---|---|
+| ![Receivables dashboard with reconciled totals and an aging chart](docs/images/dashboard.png) | ![Model and baseline AUC on this workspace and on public data, with calibration](docs/images/model.png) |
+
+| Approval queue | AI assistant answering a real question |
+|---|---|
+| ![Approval queue with status counts that add up and a weekly decisions chart](docs/images/approvals.png) | ![The assistant naming specific overdue invoices, with every figure checked against the records](docs/images/assistant.png) |
+
 ## How well it works
 
 On the chronological test split of the public dataset (6,181 invoices from Dec 2015 to Jan 2016 that the model never
