@@ -42,7 +42,7 @@ Each score can include native **TreeSHAP** contributions, so the product can sho
 
 ## Survival models (purchase-to-pay)
 
-These estimate a **process-clearance** target from a public purchase-to-pay event log. They are benchmarked (Coxnet, XGBoost AFT and others), backtested over time, and compared in `bpi_survival/MODEL_COMPARISON.md`. A recovery-policy backtest evaluates how a policy would have performed. **Their probabilities are not customer payment or collection estimates** and must not be presented as such.
+These estimate a **process-clearance** target from the public BPI Challenge 2019 purchase-to-pay event log (about 730 MB; used offline, not downloaded or checksummed in CI). They are benchmarked (Coxnet, XGBoost AFT and others), backtested over time, and compared in `bpi_survival/MODEL_COMPARISON.md`. A recovery-policy backtest evaluates how a policy would have performed. **Their probabilities are not customer payment or collection estimates** and must not be presented as such.
 
 ## Offline tooling
 

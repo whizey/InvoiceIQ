@@ -15,13 +15,13 @@
 
 </div>
 
-> The public workspace runs on **seeded, simulated invoices** (1,500 invoices across 97 companies), and the risk model was developed on a public B2B invoice-payment dataset. Open the sample workspace from the home page; no sign-up is needed. InvoiceIQ never moves money, and its forecasts are predictions, not guarantees.
+> The public workspace runs on **seeded, simulated invoices** (about 700 invoices across 40 customers of a fictional distributor). The models were developed on two public datasets: a B2B invoice-payment dataset for the late-payment model and the BPI Challenge 2019 purchase-to-pay event log for the survival models. Open the sample workspace from the home page; no sign-up is needed. InvoiceIQ never moves money, and its forecasts are predictions, not guarantees.
 
 ### At a glance
 
-| 1,500 | 6 | 0.706 | 7 | 760+ | ~0.4 s |
+| ~700 | 6 | 0.706 | 7 | 760+ | ~0.4 s |
 |:---:|:---:|:---:|:---:|:---:|:---:|
-| sample invoices across 97 companies | dashboard KPIs that reconcile | test ROC-AUC of the late-payment model | policy rules between AI and action | automated backend tests | repeat-read latency on the live site |
+| sample invoices across 40 customers | dashboard KPIs that reconcile | test ROC-AUC of the late-payment model | policy rules between AI and action | automated backend tests | repeat-read latency on the live site |
 
 ---
 

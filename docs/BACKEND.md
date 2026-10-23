@@ -15,7 +15,7 @@ Implemented in `app/api/portal.py`.
 
 ### Workspaces
 - **Customer workspaces** hold the company's own invoices and payments.
-- **The showcase workspace** is a single shared, read-mostly set of 1,500 illustrative invoices. Visitors get a session without an account. Decisions they record are tagged with their session scope, so they only see their own. A shared baseline of illustrative history is layered under every visitor's view.
+- **The showcase workspace** is a single shared, read-mostly set of about 700 illustrative invoices from a fictional distributor. Visitors get a session without an account. Decisions they record are tagged with their session scope, so they only see their own. A shared baseline of illustrative history is layered under every visitor's view.
 - Isolation is enforced in the `identity` dependency and in every query's `workspace_id` filter. Tests exercise cross-tenant access.
 
 ### Data in and out
