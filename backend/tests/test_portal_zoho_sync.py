@@ -130,6 +130,18 @@ async def test_connect_then_callback_then_webhook_round_trip(monkeypatch):
             assert body["webhook_url"].endswith(f"/portal/zoho-webhook/{body['webhook_url'].rsplit('/', 1)[1]}")
             secret = body["webhook_url"].rsplit("/", 1)[1]
 
+            # Re-authorizing without disconnecting first (a second Connect click, or a token refresh)
+            # must not rotate the secret -- that would silently break a webhook URL already saved in Zoho.
+            await client.post("/portal/zoho-connect", headers=headers)
+            async with async_session_factory() as db:
+                state2 = (await db.scalar(select(PortalZohoConnection).where(
+                    PortalZohoConnection.workspace_id == workspace_id))).oauth_state
+            with patch("httpx.AsyncClient.post", new=mock_post):
+                await client.get("/portal/zoho-callback", params={
+                    "code": "another-code", "state": state2, "accounts-server": "https://accounts.zoho.in"})
+            status_again = await client.get("/portal/zoho-status", headers=headers)
+            assert status_again.json()["webhook_url"].rsplit("/", 1)[1] == secret
+
             # An unknown secret is refused outright.
             assert (await client.post("/portal/zoho-webhook/not-the-real-secret", json={"invoice": {}})
                    ).status_code == 404

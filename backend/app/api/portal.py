@@ -1272,7 +1272,10 @@ async def zoho_callback(code: str = Query(default=""), state: str = Query(defaul
     connection.token_expires_at = (datetime.now(timezone.utc) + timedelta(seconds=expires_in)
                                    if expires_in else None)
     connection.api_domain = tokens.get("api_domain") or connection.api_domain
-    connection.webhook_secret = secrets.token_urlsafe(24)
+    # Keep the existing secret across a re-authorization (refreshing tokens, or clicking Connect again
+    # without disconnecting first) -- only an explicit Disconnect should ever invalidate a webhook URL
+    # already saved in Zoho Books.
+    connection.webhook_secret = connection.webhook_secret or secrets.token_urlsafe(24)
     connection.connected_at = datetime.now(timezone.utc)
     connection.oauth_state = None
     connection.oauth_state_created_at = None
