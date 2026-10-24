@@ -8,7 +8,7 @@ import PortalNavigation from "@/components/PortalNavigation";
 type Settings={email:string;full_name:string;company:string;role:string;session_expires_at:string};
 type ZohoEvent={invoice_number:string|null;outcome:"created"|"updated"|"skipped";reason:string|null;received_at:string};
 type ZohoStatus={configured:boolean;connected:boolean;connected_at:string|null;last_synced_at:string|null;
-  invoices_synced:number;webhook_url:string|null;api_domain:string|null;events:ZohoEvent[]};
+  invoices_synced:number;webhook_url:string|null;api_domain:string|null;events?:ZohoEvent[]};
 const ZOHO_MESSAGES:Record<string,string>={
   connected:"Zoho connected. Add the webhook URL below in Zoho Books to start streaming invoices.",
   expired:"The connection attempt expired. Try connecting again.",
@@ -158,9 +158,9 @@ export default function AccountSettings(){
               {zoho.last_synced_at?`, last ${new Date(zoho.last_synced_at).toLocaleString()}`:""}.</p>
             <label>Webhook URL — add this in Zoho Books under Settings → Automation → Webhooks
               <input readOnly value={zoho.webhook_url||""} onFocus={e=>e.target.select()}/></label>
-            {zoho.events.length>0&&<div>
+            {(zoho.events||[]).length>0&&<div>
               <p className="settings-muted" style={{marginBottom:6}}>Recent deliveries</p>
-              <ul className="fu-mini">{zoho.events.slice(0,8).map((e,i)=><li key={i}>
+              <ul className="fu-mini">{(zoho.events||[]).slice(0,8).map((e,i)=><li key={i}>
                 <strong>{e.invoice_number||"(no invoice number)"}</strong>
                 <span>{e.outcome==="skipped"?"Skipped":e.outcome==="created"?"Imported":"Updated"}
                   {" · "}{new Date(e.received_at).toLocaleString()}</span>
