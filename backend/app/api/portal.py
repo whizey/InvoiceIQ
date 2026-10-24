@@ -1210,7 +1210,8 @@ async def zoho_status(request: Request, subject=Depends(identity), db: AsyncSess
             "connected_at": connection.connected_at.isoformat() if connected and connection.connected_at else None,
             "last_synced_at": connection.last_synced_at.isoformat()
                 if connection and connection.last_synced_at else None,
-            "invoices_synced": connection.invoices_synced if connection else 0, "webhook_url": webhook_url}
+            "invoices_synced": connection.invoices_synced if connection else 0, "webhook_url": webhook_url,
+            "api_domain": connection.api_domain if connected else None}
 
 
 @router.post("/zoho-connect")
@@ -1234,9 +1235,13 @@ async def zoho_connect(subject=Depends(identity), db: AsyncSession = Depends(get
 
 @router.get("/zoho-callback")
 async def zoho_callback(code: str = Query(default=""), state: str = Query(default=""),
+                        accounts_server: str = Query(default="", alias="accounts-server"),
                         db: AsyncSession = Depends(get_db)):
     """Public: Zoho sends the browser here after the user authorizes or declines. No session cookie survives
-    this redirect (it lands on the API's own origin), so the pending connection is found by `state` instead."""
+    this redirect (it lands on the API's own origin), so the pending connection is found by `state` instead.
+    `accounts-server` is Zoho's own report of which data centre issued the code (an account on any data
+    centre authorizes through accounts.zoho.com, but the code is only redeemable at its own data centre's
+    token endpoint) -- using it instead of a fixed domain is what makes this work for any Zoho account."""
     from app.core.config import settings
 
     frontend = settings.frontend_public_url.rstrip("/") + "/settings"
@@ -1248,7 +1253,7 @@ async def zoho_callback(code: str = Query(default=""), state: str = Query(defaul
     if not code:
         return RedirectResponse(f"{frontend}?zoho=denied")
     try:
-        tokens = await zoho_sync.exchange_code(code)
+        tokens = await zoho_sync.exchange_code(code, accounts_server or None)
     except ValueError as exc:
         from urllib.parse import quote
 
@@ -1258,6 +1263,7 @@ async def zoho_callback(code: str = Query(default=""), state: str = Query(defaul
     expires_in = tokens.get("expires_in")
     connection.token_expires_at = (datetime.now(timezone.utc) + timedelta(seconds=expires_in)
                                    if expires_in else None)
+    connection.api_domain = tokens.get("api_domain") or connection.api_domain
     connection.webhook_secret = secrets.token_urlsafe(24)
     connection.connected_at = datetime.now(timezone.utc)
     connection.oauth_state = None

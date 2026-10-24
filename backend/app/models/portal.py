@@ -167,6 +167,9 @@ class PortalZohoConnection(Base, UUIDPrimaryKeyMixin, CreatedAtMixin):
     access_token: Mapped[str | None] = mapped_column(String(2000))
     refresh_token: Mapped[str | None] = mapped_column(String(2000))
     token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The regional API base Zoho's token response reports (e.g. www.zohoapis.in) -- read from the response,
+    # never guessed from a setting, since it follows the account's own data centre.
+    api_domain: Mapped[str | None] = mapped_column(String(120))
     webhook_secret: Mapped[str | None] = mapped_column(String(64), unique=True)
     connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

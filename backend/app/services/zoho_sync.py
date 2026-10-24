@@ -26,21 +26,26 @@ def configured() -> bool:
 
 
 def authorize_url(state: str) -> str:
+    # Always accounts.zoho.com: Zoho requires every authorization request to start there
+    # regardless of the account's actual data centre, and routes internally from there.
     params = {"scope": SCOPE, "client_id": settings.zoho_client_id, "response_type": "code",
               "access_type": "offline", "redirect_uri": settings.zoho_redirect_uri, "state": state,
               "prompt": "consent"}
-    return f"{settings.zoho_accounts_domain}/oauth/v2/auth?{urlencode(params)}"
+    return f"https://accounts.zoho.com/oauth/v2/auth?{urlencode(params)}"
 
 
-async def exchange_code(code: str) -> dict:
-    """Exchange an OAuth authorization code for tokens. Raises ValueError on failure."""
+async def exchange_code(code: str, accounts_server: str | None) -> dict:
+    """Exchange an OAuth authorization code for tokens, against the data centre that issued it
+    (Zoho's callback reports this as `accounts-server`; a code is only valid at its own data
+    centre's token endpoint). Raises ValueError on failure."""
     import httpx
 
+    server = (accounts_server or settings.zoho_accounts_domain).rstrip("/")
     params = {"grant_type": "authorization_code", "client_id": settings.zoho_client_id,
               "client_secret": settings.zoho_client_secret, "redirect_uri": settings.zoho_redirect_uri,
               "code": code}
     async with httpx.AsyncClient(timeout=10) as client:
-        response = await client.post(f"{settings.zoho_accounts_domain}/oauth/v2/token", params=params)
+        response = await client.post(f"{server}/oauth/v2/token", params=params)
     body = response.json() if response.content else {}
     if response.status_code != 200 or "access_token" not in body:
         raise ValueError(str(body.get("error", "Zoho rejected the authorization code")))

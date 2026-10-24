@@ -118,12 +118,16 @@ class Settings(BaseSettings):
     sarvam_api_key: str | None = None
 
     # Zoho Books live sync (see app/services/zoho_sync.py). If the client id/secret are unset,
-    # /portal/integrations/zoho reports "not configured" and connect is refused -- no Zoho
-    # account required to run the app. The domains vary by data centre (.com/.in/.eu/.com.au/.jp).
+    # /portal/zoho-status reports "not configured" and connect is refused -- no Zoho account
+    # required to run the app. Every account authorizes through accounts.zoho.com regardless of
+    # its data centre (India, EU, ...); Zoho's own callback then reports which regional server
+    # actually issued the code (the `accounts-server` parameter), and that -- not a fixed setting
+    # -- is what the token exchange uses, so this works for a CA on any data centre without
+    # per-deployment configuration. This setting is only the fallback for the rare case that
+    # parameter is missing.
     zoho_client_id: str | None = None
     zoho_client_secret: str | None = None
     zoho_accounts_domain: str = "https://accounts.zoho.com"
-    zoho_api_domain: str = "https://www.zohoapis.com"
     # Where Zoho redirects the browser after authorizing, and where we send it back to afterwards.
     zoho_redirect_uri: str | None = None
     frontend_public_url: str = "https://invoiceiq-ai.vercel.app"
