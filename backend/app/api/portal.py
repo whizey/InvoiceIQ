@@ -1249,8 +1249,10 @@ async def zoho_callback(code: str = Query(default=""), state: str = Query(defaul
         return RedirectResponse(f"{frontend}?zoho=denied")
     try:
         tokens = await zoho_sync.exchange_code(code)
-    except ValueError:
-        return RedirectResponse(f"{frontend}?zoho=error")
+    except ValueError as exc:
+        from urllib.parse import quote
+
+        return RedirectResponse(f"{frontend}?zoho=error&reason={quote(str(exc)[:200])}")
     connection.access_token = tokens.get("access_token")
     connection.refresh_token = tokens.get("refresh_token") or connection.refresh_token
     expires_in = tokens.get("expires_in")

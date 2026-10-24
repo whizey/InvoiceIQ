@@ -68,8 +68,13 @@ export default function AccountSettings(){
     if(settings&&["owner","admin"].includes(settings.role)){(async()=>{await loadZoho()})()}
   },[settings,loadZoho]);
   const zohoFlag=searchParams.get("zoho");
+  const zohoReason=searchParams.get("reason");
   const [shownZohoFlag,setShownZohoFlag]=useState<string|null>(null);
-  if(zohoFlag&&zohoFlag!==shownZohoFlag){setShownZohoFlag(zohoFlag);setZohoBanner(ZOHO_MESSAGES[zohoFlag]||"")}
+  if(zohoFlag&&zohoFlag!==shownZohoFlag){
+    setShownZohoFlag(zohoFlag);
+    const message=ZOHO_MESSAGES[zohoFlag]||"";
+    setZohoBanner(zohoFlag==="error"&&zohoReason?`${message} (${zohoReason})`:message);
+  }
   useEffect(()=>{
     if(searchParams.get("zoho"))router.replace("/settings");
   },[searchParams,router]);
@@ -133,7 +138,8 @@ export default function AccountSettings(){
         </form>
         {["owner","admin"].includes(settings.role)&&<section className="settings-card" aria-labelledby="zoho-title">
           <h2 id="zoho-title">Zoho Books live sync</h2>
-          {zohoBanner&&<p role="status" className="settings-success">{zohoBanner}</p>}
+          {zohoBanner&&<p role="status" className={shownZohoFlag==="connected"?"settings-success":"settings-error"}>
+            {zohoBanner}</p>}
           {zohoError&&<p role="alert" className="settings-error">{zohoError}</p>}
           {!zoho&&<p className="settings-muted">Loading…</p>}
           {zoho&&!zoho.configured&&
