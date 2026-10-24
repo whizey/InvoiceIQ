@@ -45,7 +45,8 @@ async def test_status_reports_unconfigured_and_disconnected_by_default(monkeypat
             status = await client.get("/portal/zoho-status", headers=headers)
             assert status.status_code == 200
             assert status.json() == {"configured": False, "connected": False, "connected_at": None,
-                                     "last_synced_at": None, "invoices_synced": 0, "webhook_url": None}
+                                     "last_synced_at": None, "invoices_synced": 0, "webhook_url": None,
+                                     "api_domain": None}
     finally:
         async with async_session_factory() as db:
             await db.execute(delete(PortalZohoConnection).where(PortalZohoConnection.workspace_id.in_(workspace_ids)))
@@ -110,15 +111,22 @@ async def test_connect_then_callback_then_webhook_round_trip(monkeypatch):
             assert bad.status_code in (302, 307) and "zoho=expired" in bad.headers["location"]
 
             mock_response = MagicMock(status_code=200, content=b"{}")
-            mock_response.json.return_value = {"access_token": "tok", "refresh_token": "ref", "expires_in": 3600}
-            with patch("httpx.AsyncClient.post", new=AsyncMock(return_value=mock_response)):
-                callback = await client.get("/portal/zoho-callback", params={"code": "a-real-code", "state": state})
+            mock_response.json.return_value = {"access_token": "tok", "refresh_token": "ref", "expires_in": 3600,
+                                               "api_domain": "https://www.zohoapis.in"}
+            mock_post = AsyncMock(return_value=mock_response)
+            with patch("httpx.AsyncClient.post", new=mock_post):
+                # accounts-server is Zoho's own report of which data centre issued the code -- an
+                # account on any data centre must work, not just the one zoho_accounts_domain defaults to.
+                callback = await client.get("/portal/zoho-callback", params={
+                    "code": "a-real-code", "state": state, "accounts-server": "https://accounts.zoho.in"})
             assert callback.status_code in (302, 307)
             assert callback.headers["location"] == "https://site.invalid/settings?zoho=connected"
+            assert mock_post.call_args[0][0] == "https://accounts.zoho.in/oauth/v2/token"
 
             status = await client.get("/portal/zoho-status", headers=headers)
             body = status.json()
             assert body["connected"] is True and body["connected_at"] is not None
+            assert body["api_domain"] == "https://www.zohoapis.in"
             assert body["webhook_url"].endswith(f"/portal/zoho-webhook/{body['webhook_url'].rsplit('/', 1)[1]}")
             secret = body["webhook_url"].rsplit("/", 1)[1]
 
@@ -149,6 +157,42 @@ async def test_connect_then_callback_then_webhook_round_trip(monkeypatch):
             assert disconnect.status_code == 200
             assert (await client.post(f"/portal/zoho-webhook/{secret}", json={"invoice": {}})).status_code == 404
             assert (await client.get("/portal/zoho-status", headers=headers)).json()["connected"] is False
+    finally:
+        async with async_session_factory() as db:
+            await db.execute(delete(PortalZohoConnection).where(PortalZohoConnection.workspace_id.in_(workspace_ids)))
+            if workspace_ids:
+                await db.execute(delete(PortalWorkspace).where(PortalWorkspace.id.in_(workspace_ids)))
+            if user_ids:
+                await db.execute(delete(PortalUser).where(PortalUser.id.in_(user_ids)))
+            await db.commit()
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_webhook_url_uses_the_public_https_scheme_not_the_internal_proxy_hop(monkeypatch):
+    """uvicorn sees the Space's own internal (plain HTTP) hop to the app, not the real public HTTPS
+    request -- the webhook URL has to come from X-Forwarded-Proto, or Zoho gets handed an http:// URL."""
+    monkeypatch.setenv("PUBLIC_READ_ONLY", "false")
+    monkeypatch.setenv("INVOICEIQ_PORTAL_ENABLED", "true")
+    configure(monkeypatch)
+    await engine.dispose()
+    tag = uuid.uuid4().hex
+    workspace_ids, user_ids = [], []
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
+            headers, workspace_id, user_id = await register(client, tag, "Zoho Scheme Co")
+            workspace_ids.append(workspace_id)
+            user_ids.append(user_id)
+            await client.post("/portal/zoho-connect", headers=headers)
+            async with async_session_factory() as db:
+                state = (await db.scalar(select(PortalZohoConnection).where(
+                    PortalZohoConnection.workspace_id == workspace_id))).oauth_state
+            mock_response = MagicMock(status_code=200, content=b"{}")
+            mock_response.json.return_value = {"access_token": "tok"}
+            with patch("httpx.AsyncClient.post", new=AsyncMock(return_value=mock_response)):
+                await client.get("/portal/zoho-callback", params={"code": "c", "state": state})
+            status = await client.get("/portal/zoho-status", headers={**headers, "X-Forwarded-Proto": "https"})
+            assert status.json()["webhook_url"].startswith("https://")
     finally:
         async with async_session_factory() as db:
             await db.execute(delete(PortalZohoConnection).where(PortalZohoConnection.workspace_id.in_(workspace_ids)))

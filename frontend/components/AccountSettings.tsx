@@ -7,7 +7,7 @@ import PortalNavigation from "@/components/PortalNavigation";
 
 type Settings={email:string;full_name:string;company:string;role:string;session_expires_at:string};
 type ZohoStatus={configured:boolean;connected:boolean;connected_at:string|null;last_synced_at:string|null;
-  invoices_synced:number;webhook_url:string|null};
+  invoices_synced:number;webhook_url:string|null;api_domain:string|null};
 const ZOHO_MESSAGES:Record<string,string>={
   connected:"Zoho connected. Add the webhook URL below in Zoho Books to start streaming invoices.",
   expired:"The connection attempt expired. Try connecting again.",
@@ -151,7 +151,8 @@ export default function AccountSettings(){
               {zohoBusy?"Connecting…":"Connect Zoho Books"}</button>
           </>}
           {zoho&&zoho.connected&&<>
-            <p className="settings-muted">Connected{zoho.connected_at?` ${new Date(zoho.connected_at).toLocaleString()}`:""}.{" "}
+            <p className="settings-muted">Connected{zoho.connected_at?` ${new Date(zoho.connected_at).toLocaleString()}`:""}
+              {zoho.api_domain?` (${zoho.api_domain.replace("https://www.zohoapis","Zoho")} data centre)`:""}.{" "}
               {zoho.invoices_synced} invoice{zoho.invoices_synced===1?"":"s"} synced so far
               {zoho.last_synced_at?`, last ${new Date(zoho.last_synced_at).toLocaleString()}`:""}.</p>
             <label>Webhook URL — add this in Zoho Books under Settings → Automation → Webhooks

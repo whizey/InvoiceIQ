@@ -20,24 +20,44 @@ def test_not_configured_until_client_id_secret_and_redirect_uri_are_all_set(monk
     assert zoho_sync.configured() is True
 
 
-def test_authorize_url_carries_the_state_and_client_id(monkeypatch):
+def test_authorize_url_always_starts_at_the_global_accounts_domain(monkeypatch):
+    """Every account authorizes through accounts.zoho.com regardless of its own data centre --
+    only the later token exchange varies, so this never reads zoho_accounts_domain."""
     monkeypatch.setattr(settings, "zoho_client_id", "my-client-id")
     monkeypatch.setattr(settings, "zoho_accounts_domain", "https://accounts.zoho.in")
     url = zoho_sync.authorize_url("a-one-time-state")
-    assert url.startswith("https://accounts.zoho.in/oauth/v2/auth?")
+    assert url.startswith("https://accounts.zoho.com/oauth/v2/auth?")
     assert "client_id=my-client-id" in url and "state=a-one-time-state" in url
 
 
 @pytest.mark.asyncio
-async def test_exchange_code_returns_the_token_body_on_success(monkeypatch):
+async def test_exchange_code_uses_the_accounts_server_zoho_reported_not_a_fixed_domain(monkeypatch):
     monkeypatch.setattr(settings, "zoho_client_id", "id")
     monkeypatch.setattr(settings, "zoho_client_secret", "secret")
     monkeypatch.setattr(settings, "zoho_redirect_uri", "https://api.invalid/portal/zoho-callback")
+    monkeypatch.setattr(settings, "zoho_accounts_domain", "https://accounts.zoho.com")  # the unused fallback
     mock_response = MagicMock(status_code=200, content=b"{}")
-    mock_response.json.return_value = {"access_token": "tok", "refresh_token": "ref", "expires_in": 3600}
-    with patch("httpx.AsyncClient.post", new=AsyncMock(return_value=mock_response)):
-        body = await zoho_sync.exchange_code("a-code")
+    mock_response.json.return_value = {"access_token": "tok", "refresh_token": "ref", "expires_in": 3600,
+                                       "api_domain": "https://www.zohoapis.in"}
+    mock_post = AsyncMock(return_value=mock_response)
+    with patch("httpx.AsyncClient.post", new=mock_post):
+        body = await zoho_sync.exchange_code("a-code", "https://accounts.zoho.in")
     assert body["access_token"] == "tok"
+    assert mock_post.call_args[0][0] == "https://accounts.zoho.in/oauth/v2/token"
+
+
+@pytest.mark.asyncio
+async def test_exchange_code_falls_back_to_the_configured_domain_when_zoho_omits_it(monkeypatch):
+    monkeypatch.setattr(settings, "zoho_client_id", "id")
+    monkeypatch.setattr(settings, "zoho_client_secret", "secret")
+    monkeypatch.setattr(settings, "zoho_redirect_uri", "https://api.invalid/portal/zoho-callback")
+    monkeypatch.setattr(settings, "zoho_accounts_domain", "https://accounts.zoho.com")
+    mock_response = MagicMock(status_code=200, content=b"{}")
+    mock_response.json.return_value = {"access_token": "tok"}
+    mock_post = AsyncMock(return_value=mock_response)
+    with patch("httpx.AsyncClient.post", new=mock_post):
+        await zoho_sync.exchange_code("a-code", None)
+    assert mock_post.call_args[0][0] == "https://accounts.zoho.com/oauth/v2/token"
 
 
 @pytest.mark.asyncio
@@ -49,7 +69,7 @@ async def test_exchange_code_raises_when_zoho_rejects_the_code(monkeypatch):
     mock_response.json.return_value = {"error": "invalid_code"}
     with patch("httpx.AsyncClient.post", new=AsyncMock(return_value=mock_response)):
         with pytest.raises(ValueError, match="invalid_code"):
-            await zoho_sync.exchange_code("a-bad-code")
+            await zoho_sync.exchange_code("a-bad-code", "https://accounts.zoho.in")
 
 
 def zoho_invoice(**overrides):

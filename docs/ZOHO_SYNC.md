@@ -47,10 +47,17 @@ Note the **Client ID** and **Client Secret** it gives you.
 | `ZOHO_CLIENT_SECRET` | from the API Console |
 | `ZOHO_REDIRECT_URI` | the exact URI registered in step 1 |
 
-Two more exist with working defaults and rarely need changing: `ZOHO_ACCOUNTS_DOMAIN` (`accounts.zoho.com` by
-default; use `accounts.zoho.in`, `accounts.zoho.eu`, etc. for other data centres) and `ZOHO_API_DOMAIN`
-(`www.zohoapis.com`, with the matching regional variant). `FRONTEND_PUBLIC_URL` controls where the browser
-lands after authorizing — it already defaults to this project's live site.
+Two more exist with working defaults and rarely need changing: `ZOHO_ACCOUNTS_DOMAIN` (`accounts.zoho.in` by
+default, since this product's audience is Indian CAs; use `accounts.zoho.com`, `accounts.zoho.eu`, etc. for
+other data centres) and `ZOHO_API_DOMAIN` (`www.zohoapis.in`, with the matching regional variant).
+`FRONTEND_PUBLIC_URL` controls where the browser lands after authorizing — it already defaults to this
+project's live site.
+
+**This has to match the data centre the Zoho *account* actually authenticates against, not what its web apps
+show in the browser.** Zoho Books can display as `books.zoho.com` while the underlying account is provisioned
+on a regional data centre (India is a common case) — exchanging an authorization code against the wrong
+domain fails with `invalid_code` even though everything else about the setup is correct. If connecting fails
+that way, the account is very likely on a different data centre than these settings currently point at.
 
 Until `ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET` and `ZOHO_REDIRECT_URI` are all set, `/portal/zoho-status` reports
 `configured: false` and connecting is refused with a clear error — no Zoho account is required to run the rest
