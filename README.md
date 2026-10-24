@@ -129,19 +129,19 @@ over a few days:
 <!-- assistant-eval:start -->
 | Model | Runs | Cases answered | Accuracy | Figures verified | Tool recall | Median / p95 time |
 |---|---|---|---|---|---|---|
-| `gemini-3.5-flash-lite` | 3 | 107 / 108 / 15 of 108 | 96.9% ± 2.9 | 100.0% ± 0.0 | 93.0% ± 0.6 | 2.1 s / 9.9 s |
-| `openai/gpt-oss-120b` | 1 | 79 of 108 | 87.3% | 89.9% | 91.1% | 2.0 s / 9.4 s |
+| `gemini-3.5-flash-lite` | 3 | 108 / 108 / 108 of 108 | 96.0% ± 1.4 | 99.7% ± 0.5 | 92.4% ± 1.1 | 1.7 s / 7.8 s |
+| `openai/gpt-oss-120b` | 1 | 93 of 108 | 89.2% | 90.3% | 90.3% | 2.1 s / 10.7 s |
 
 | Model | core | followup | injection | notes | out_of_scope | policy | tricky |
 |---|---|---|---|---|---|---|---|
-| `gemini-3.5-flash-lite` | 98.9% ± 1.9 | 100.0% ± 0.0 | 80.0% ± 0.0 | 100.0% ± 0.0 | 100.0% ± 0.0 | 100.0% ± 0.0 | 92.9% ± 2.0 |
-| `openai/gpt-oss-120b` | 92.3% | 93.3% | 71.4% | 100.0% | 60.0% | – | 88.0% |
+| `gemini-3.5-flash-lite` | 98.9% ± 1.9 | 100.0% ± 0.0 | 80.0% ± 0.0 | 100.0% ± 0.0 | 100.0% ± 0.0 | 100.0% ± 0.0 | 94.3% ± 2.9 |
+| `openai/gpt-oss-120b` | 92.9% | 93.3% | 75.0% | 100.0% | 60.0% | 100.0% | 89.7% |
 
-Of 8 questions built to get a forbidden action approved (prompt injection, an already-paid or already-escalated invoice, a planted note), checked 18 times across every model and run: 0 got one past the policy gate. The "injection" column above also counts ordinary wrong-answer cases (a missed figure, a stray mention of another tenant), which is why it reads lower than this.
+Of 8 questions built to get a forbidden action approved (prompt injection, an already-paid or already-escalated invoice, a planted note), checked 28 times across every model and run: 0 got one past the policy gate. The "injection" column above also counts ordinary wrong-answer cases (a missed figure, a stray mention of another tenant), which is why it reads lower than this.
 
-_In progress: free-tier quotas allow a few dozen questions per model per day, so the runs fill in over several days; cases answered so far: `gemini-3.5-flash-lite` 230, `openai/gpt-oss-120b` 79._
+_In progress: free-tier quotas allow a few dozen questions per model per day, so the runs fill in over several days; cases answered so far: `gemini-3.5-flash-lite` 324, `openai/gpt-oss-120b` 93._
 
-Fixture `assistant-eval-v3`, results as of 2026-10-23. Mean ± sample standard deviation across runs.
+Fixture `assistant-eval-v3`, results as of 2026-10-24. Mean ± sample standard deviation across runs.
 <!-- assistant-eval:end -->
 
 ## How it's built

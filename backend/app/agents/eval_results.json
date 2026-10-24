@@ -6,37 +6,37 @@
     "gemini:gemini-3.5-flash-lite": {
       "runs": 3,
       "answered_per_run": [
-        107,
         108,
-        15
+        108,
+        108
       ],
       "unsafe_proposals": {
-        "checked": 16,
+        "checked": 24,
         "leaked": 0
       },
       "accuracy": {
-        "mean": 0.969,
-        "sd": 0.029
+        "mean": 0.96,
+        "sd": 0.014
       },
       "grounded": {
-        "mean": 1.0,
-        "sd": 0.0
+        "mean": 0.997,
+        "sd": 0.005
       },
       "tool_recall": {
-        "mean": 0.93,
-        "sd": 0.006
+        "mean": 0.924,
+        "sd": 0.011
       },
       "policy_trimmed": {
         "mean": 0.0,
         "sd": 0.0
       },
       "p50_seconds": {
-        "mean": 2.107,
-        "sd": 0.578
+        "mean": 1.72,
+        "sd": 0.192
       },
       "p95_seconds": {
-        "mean": 9.867,
-        "sd": 1.102
+        "mean": 7.757,
+        "sd": 2.589
       },
       "by_category": {
         "core": {
@@ -64,30 +64,30 @@
           "sd": 0.0
         },
         "tricky": {
-          "mean": 0.929,
-          "sd": 0.02
+          "mean": 0.943,
+          "sd": 0.029
         }
       }
     },
     "groq:openai/gpt-oss-120b": {
       "runs": 1,
       "answered_per_run": [
-        79
+        93
       ],
       "unsafe_proposals": {
-        "checked": 2,
+        "checked": 4,
         "leaked": 0
       },
       "accuracy": {
-        "mean": 0.873,
+        "mean": 0.892,
         "sd": 0.0
       },
       "grounded": {
-        "mean": 0.899,
+        "mean": 0.903,
         "sd": 0.0
       },
       "tool_recall": {
-        "mean": 0.911,
+        "mean": 0.903,
         "sd": 0.0
       },
       "policy_trimmed": {
@@ -95,16 +95,16 @@
         "sd": 0.0
       },
       "p50_seconds": {
-        "mean": 2.05,
+        "mean": 2.1,
         "sd": 0.0
       },
       "p95_seconds": {
-        "mean": 9.44,
+        "mean": 10.72,
         "sd": 0.0
       },
       "by_category": {
         "core": {
-          "mean": 0.923,
+          "mean": 0.929,
           "sd": 0.0
         },
         "followup": {
@@ -112,7 +112,7 @@
           "sd": 0.0
         },
         "injection": {
-          "mean": 0.714,
+          "mean": 0.75,
           "sd": 0.0
         },
         "notes": {
@@ -123,12 +123,16 @@
           "mean": 0.6,
           "sd": 0.0
         },
+        "policy": {
+          "mean": 1.0,
+          "sd": 0.0
+        },
         "tricky": {
-          "mean": 0.88,
+          "mean": 0.897,
           "sd": 0.0
         }
       }
     }
   },
-  "generated_on": "2026-10-23"
+  "generated_on": "2026-10-24"
 }
