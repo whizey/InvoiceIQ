@@ -166,3 +166,39 @@ async def test_connect_then_callback_then_webhook_round_trip(monkeypatch):
                 await db.execute(delete(PortalUser).where(PortalUser.id.in_(user_ids)))
             await db.commit()
         await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_webhook_url_uses_the_public_https_scheme_not_the_internal_proxy_hop(monkeypatch):
+    """uvicorn sees the Space's own internal (plain HTTP) hop to the app, not the real public HTTPS
+    request -- the webhook URL has to come from X-Forwarded-Proto, or Zoho gets handed an http:// URL."""
+    monkeypatch.setenv("PUBLIC_READ_ONLY", "false")
+    monkeypatch.setenv("INVOICEIQ_PORTAL_ENABLED", "true")
+    configure(monkeypatch)
+    await engine.dispose()
+    tag = uuid.uuid4().hex
+    workspace_ids, user_ids = [], []
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
+            headers, workspace_id, user_id = await register(client, tag, "Zoho Scheme Co")
+            workspace_ids.append(workspace_id)
+            user_ids.append(user_id)
+            await client.post("/portal/zoho-connect", headers=headers)
+            async with async_session_factory() as db:
+                state = (await db.scalar(select(PortalZohoConnection).where(
+                    PortalZohoConnection.workspace_id == workspace_id))).oauth_state
+            mock_response = MagicMock(status_code=200, content=b"{}")
+            mock_response.json.return_value = {"access_token": "tok"}
+            with patch("httpx.AsyncClient.post", new=AsyncMock(return_value=mock_response)):
+                await client.get("/portal/zoho-callback", params={"code": "c", "state": state})
+            status = await client.get("/portal/zoho-status", headers={**headers, "X-Forwarded-Proto": "https"})
+            assert status.json()["webhook_url"].startswith("https://")
+    finally:
+        async with async_session_factory() as db:
+            await db.execute(delete(PortalZohoConnection).where(PortalZohoConnection.workspace_id.in_(workspace_ids)))
+            if workspace_ids:
+                await db.execute(delete(PortalWorkspace).where(PortalWorkspace.id.in_(workspace_ids)))
+            if user_ids:
+                await db.execute(delete(PortalUser).where(PortalUser.id.in_(user_ids)))
+            await db.commit()
+        await engine.dispose()

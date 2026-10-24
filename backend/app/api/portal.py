@@ -1205,7 +1205,11 @@ async def zoho_status(request: Request, subject=Depends(identity), db: AsyncSess
     connected = bool(connection and connection.webhook_secret)
     webhook_url = None
     if connected:
-        webhook_url = f"{str(request.base_url).rstrip('/')}/portal/zoho-webhook/{connection.webhook_secret}"
+        # uvicorn isn't started with --proxy-headers, so request.base_url reports the scheme of the Space's
+        # internal (plain HTTP) proxy hop, not the real public HTTPS one -- read it from the header instead.
+        scheme = request.headers.get("x-forwarded-proto", request.url.scheme).split(",")[0].strip()
+        host = request.headers.get("host", request.url.netloc)
+        webhook_url = f"{scheme}://{host}/portal/zoho-webhook/{connection.webhook_secret}"
     return {"configured": zoho_sync.configured(), "connected": connected,
             "connected_at": connection.connected_at.isoformat() if connected and connection.connected_at else None,
             "last_synced_at": connection.last_synced_at.isoformat()
