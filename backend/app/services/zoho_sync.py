@@ -1,9 +1,8 @@
-"""Zoho Books live sync: OAuth connect and the webhook payload mapping.
+"""Zoho Books live sync: OAuth connect, the one-time invoice backfill, and the webhook payload mapping.
 
-Zoho pushes to us, so this module needs no polling. The access/refresh tokens it stores are not required for
-the webhook path itself (Zoho's webhook POST carries the invoice data directly) -- they're kept for a future
-initial-backfill pull, so connecting an account does not also require building token-refresh machinery that
-nothing here depends on yet.
+Going forward, Zoho pushes to us, so the webhook path needs no polling. The access/refresh tokens are used for
+the "Sync Now" backfill (pulling invoices that already existed in Zoho before the webhook was connected,
+which a webhook -- firing only on future create/update events -- can never retroactively deliver on its own).
 
 Zoho's classic Books webhooks are unsigned: the POST body carries no signature to verify. The only authenticity
 check available is a secret in the URL itself (see PortalZohoConnection.webhook_secret), never in the body or a
@@ -50,6 +49,63 @@ async def exchange_code(code: str, accounts_server: str | None) -> dict:
     if response.status_code != 200 or "access_token" not in body:
         raise ValueError(str(body.get("error", "Zoho rejected the authorization code")))
     return body
+
+
+async def refresh_access_token(refresh_token: str, accounts_server: str) -> dict:
+    """A fresh access token from a stored refresh token, against the same data centre the connection was
+    established at -- a refresh token is no more portable across data centres than an authorization code.
+    Raises ValueError on failure."""
+    import httpx
+
+    params = {"grant_type": "refresh_token", "client_id": settings.zoho_client_id,
+              "client_secret": settings.zoho_client_secret, "refresh_token": refresh_token}
+    async with httpx.AsyncClient(timeout=10) as client:
+        response = await client.post(f"{accounts_server.rstrip('/')}/oauth/v2/token", params=params)
+    body = response.json() if response.content else {}
+    if response.status_code != 200 or "access_token" not in body:
+        raise ValueError(str(body.get("error", "Zoho rejected the refresh token")))
+    return body
+
+
+async def list_organizations(access_token: str, api_domain: str) -> list[dict]:
+    """The Zoho Books organizations this access token can see. Raises ValueError on failure."""
+    import httpx
+
+    async with httpx.AsyncClient(timeout=15) as client:
+        response = await client.get(f"{api_domain.rstrip('/')}/books/v3/organizations",
+                                    headers={"Authorization": f"Zoho-oauthtoken {access_token}"})
+    body = response.json() if response.content else {}
+    if response.status_code != 200:
+        raise ValueError(str(body.get("message", "Could not list Zoho organizations")))
+    return body.get("organizations") or []
+
+
+MAX_BACKFILL_INVOICES = 2000  # matches ledger_import.py's own per-workspace import cap
+INVOICES_PER_PAGE = 200  # Zoho's documented maximum
+
+
+async def list_invoices(access_token: str, api_domain: str, organization_id: str) -> list[dict]:
+    """Every invoice in the organization, up to MAX_BACKFILL_INVOICES -- a one-time pull for invoices that
+    already existed before the webhook was connected (a webhook only ever fires on future events, so it can
+    never retroactively deliver these on its own). Raises ValueError on failure."""
+    import httpx
+
+    invoices: list[dict] = []
+    page = 1
+    async with httpx.AsyncClient(timeout=20) as client:
+        while True:
+            response = await client.get(f"{api_domain.rstrip('/')}/books/v3/invoices",
+                params={"organization_id": organization_id, "page": page, "per_page": INVOICES_PER_PAGE},
+                headers={"Authorization": f"Zoho-oauthtoken {access_token}"})
+            body = response.json() if response.content else {}
+            if response.status_code != 200:
+                raise ValueError(str(body.get("message", "Could not list Zoho invoices")))
+            invoices.extend(body.get("invoices") or [])
+            context = body.get("page_context") or {}
+            if not context.get("has_more_page") or len(invoices) >= MAX_BACKFILL_INVOICES:
+                break
+            page += 1
+    return invoices[:MAX_BACKFILL_INVOICES]
 
 
 def _zoho_date(value) -> date | None:

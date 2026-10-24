@@ -100,6 +100,19 @@ export default function AccountSettings(){
     }catch(e){setZohoError(e instanceof Error?e.message:"Could not disconnect")}
     finally{setZohoBusy(false)}
   }
+  async function syncNow(){
+    if(zohoBusy)return;
+    setZohoBusy(true);setZohoError("");setShownZohoFlag("sync");
+    try{
+      const response=await fetch("/api/portal/zoho-sync-now",{method:"POST"});
+      const result=await response.json();
+      if(!response.ok)throw new Error(result.detail||"Sync failed");
+      setZohoBanner(`Found ${result.found} invoice${result.found===1?"":"s"} in Zoho: `+
+        `${result.imported} imported, ${result.skipped} skipped (drafts or void).`);
+      await loadZoho();
+    }catch(e){setZohoError(e instanceof Error?e.message:"Sync failed")}
+    finally{setZohoBusy(false)}
+  }
   async function save(payload:Record<string,string>,message:string){
     if(busy)return;
     setBusy(true);setError("");setSuccess("");
@@ -139,8 +152,8 @@ export default function AccountSettings(){
         </form>
         {["owner","admin"].includes(settings.role)&&<section className="settings-card" aria-labelledby="zoho-title">
           <h2 id="zoho-title">Zoho Books live sync</h2>
-          {zohoBanner&&<p role="status" className={shownZohoFlag==="connected"?"settings-success":"settings-error"}>
-            {zohoBanner}</p>}
+          {zohoBanner&&<p role="status" className={["connected","sync"].includes(shownZohoFlag||"")?
+            "settings-success":"settings-error"}>{zohoBanner}</p>}
           {zohoError&&<p role="alert" className="settings-error">{zohoError}</p>}
           {!zoho&&<p className="settings-muted">Loading…</p>}
           {zoho&&!zoho.configured&&
@@ -158,6 +171,11 @@ export default function AccountSettings(){
               {zoho.last_synced_at?`, last ${new Date(zoho.last_synced_at).toLocaleString()}`:""}.</p>
             <label>Webhook URL — add this in Zoho Books under Settings → Automation → Webhooks
               <input readOnly value={zoho.webhook_url||""} onFocus={e=>e.target.select()}/></label>
+            <p className="settings-muted">Webhooks only cover invoices created or edited from now on. To
+              pull in invoices that already existed in Zoho before connecting, use Sync Now (safe to run
+              again any time — it won&apos;t duplicate anything already imported).</p>
+            <button type="button" disabled={zohoBusy} onClick={()=>void syncNow()}>
+              {zohoBusy?"Working…":"Sync Now"}</button>
             {(zoho.events||[]).length>0&&<div>
               <p className="settings-muted" style={{marginBottom:6}}>Recent deliveries</p>
               <ul className="fu-mini">{(zoho.events||[]).slice(0,8).map((e,i)=><li key={i}>
