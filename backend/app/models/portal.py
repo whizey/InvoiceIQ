@@ -174,3 +174,18 @@ class PortalZohoConnection(Base, UUIDPrimaryKeyMixin, CreatedAtMixin):
     connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     invoices_synced: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+
+class PortalZohoEvent(Base, UUIDPrimaryKeyMixin, CreatedAtMixin):
+    """One Zoho webhook delivery and what happened to it -- a draft invoice or an unreadable payload is
+    recorded here, not just silently dropped, so it shows up in the product instead of only in Zoho's own
+    webhook logs."""
+    __tablename__ = "portal_zoho_events"
+    __table_args__ = (Index("ix_portal_zoho_events_workspace", "workspace_id", "created_at"),)
+
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("portal_workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    invoice_number: Mapped[str | None] = mapped_column(String(64))
+    outcome: Mapped[str] = mapped_column(String(16), nullable=False)  # created | updated | skipped
+    reason: Mapped[str | None] = mapped_column(String(300))

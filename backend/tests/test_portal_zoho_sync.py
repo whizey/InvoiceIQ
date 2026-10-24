@@ -46,7 +46,7 @@ async def test_status_reports_unconfigured_and_disconnected_by_default(monkeypat
             assert status.status_code == 200
             assert status.json() == {"configured": False, "connected": False, "connected_at": None,
                                      "last_synced_at": None, "invoices_synced": 0, "webhook_url": None,
-                                     "api_domain": None}
+                                     "api_domain": None, "events": []}
     finally:
         async with async_session_factory() as db:
             await db.execute(delete(PortalZohoConnection).where(PortalZohoConnection.workspace_id.in_(workspace_ids)))
@@ -152,6 +152,17 @@ async def test_connect_then_callback_then_webhook_round_trip(monkeypatch):
             invoices_after = await client.get("/portal/invoices?q=ZB-1", headers=headers)
             assert invoices_after.json()["total"] == 1
             assert invoices_after.json()["invoices"][0]["paid"] == "5000.00"
+
+            # A draft invoice is skipped, not imported -- and that's visible, not silent.
+            skipped = await client.post(f"/portal/zoho-webhook/{secret}", json={"invoice": {
+                "invoice_number": "ZB-2", "customer_name": "Draft Co", "date": "2026-10-01",
+                "due_date": "2026-10-31", "total": "900.00", "balance": "900.00", "status": "draft"}})
+            assert skipped.status_code == 200 and skipped.json()["ok"] is False
+
+            events = (await client.get("/portal/zoho-status", headers=headers)).json()["events"]
+            assert [(e["invoice_number"], e["outcome"]) for e in events] == [
+                ("ZB-2", "skipped"), ("ZB-1", "updated"), ("ZB-1", "created")]
+            assert "draft" in events[0]["reason"]
 
             disconnect = await client.post("/portal/zoho-disconnect", headers=headers)
             assert disconnect.status_code == 200

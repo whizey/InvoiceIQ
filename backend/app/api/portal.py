@@ -28,7 +28,7 @@ from app.core.db import get_db
 from app.core.login_throttle import login_throttle, registration_limit
 from app.models.portal import (
     PortalWorkspace, PortalUser, PortalMembership, PortalSession, PortalInvoice, PortalCaseEvent,
-    PortalPayment, PortalNote, PortalReminder, PortalZohoConnection,
+    PortalPayment, PortalNote, PortalReminder, PortalZohoConnection, PortalZohoEvent,
 )
 from app.services import zoho_sync
 from app.ml.champion_serving import verified_contract
@@ -1071,7 +1071,7 @@ async def erase_workspace_data(db, workspace_id) -> int:
     await db.execute(delete(OutboxEvent).where(OutboxEvent.payload["data"]["workspace_id"].astext == key))
     await db.execute(delete(DeadLetterEvent).where(DeadLetterEvent.payload["data"]["workspace_id"].astext == key))
     await db.execute(delete(assistant_traces).where(assistant_traces.c.workspace_id == workspace_id))
-    for model in (PortalReminder, PortalNote, PortalCaseEvent, PortalPayment, PortalInvoice):
+    for model in (PortalReminder, PortalNote, PortalCaseEvent, PortalPayment, PortalInvoice, PortalZohoEvent):
         await db.execute(delete(model).where(model.workspace_id == workspace_id))
     return count
 
@@ -1210,12 +1210,16 @@ async def zoho_status(request: Request, subject=Depends(identity), db: AsyncSess
         scheme = request.headers.get("x-forwarded-proto", request.url.scheme).split(",")[0].strip()
         host = request.headers.get("host", request.url.netloc)
         webhook_url = f"{scheme}://{host}/portal/zoho-webhook/{connection.webhook_secret}"
+    events = (await db.scalars(select(PortalZohoEvent).where(PortalZohoEvent.workspace_id == workspace.id)
+                               .order_by(PortalZohoEvent.created_at.desc()).limit(20))).all()
     return {"configured": zoho_sync.configured(), "connected": connected,
             "connected_at": connection.connected_at.isoformat() if connected and connection.connected_at else None,
             "last_synced_at": connection.last_synced_at.isoformat()
                 if connection and connection.last_synced_at else None,
             "invoices_synced": connection.invoices_synced if connection else 0, "webhook_url": webhook_url,
-            "api_domain": connection.api_domain if connected else None}
+            "api_domain": connection.api_domain if connected else None,
+            "events": [{"invoice_number": e.invoice_number, "outcome": e.outcome, "reason": e.reason,
+                       "received_at": e.created_at.isoformat()} for e in events]}
 
 
 @router.post("/zoho-connect")
@@ -1302,8 +1306,14 @@ async def zoho_webhook(secret: str, payload: dict, db: AsyncSession = Depends(ge
     try:
         mapped = zoho_sync.map_invoice(payload)
     except ValueError as exc:
+        number = str((payload.get("invoice") or {}).get("invoice_number") or "") or None
+        db.add(PortalZohoEvent(workspace_id=workspace.id, invoice_number=number, outcome="skipped",
+                               reason=str(exc)[:300]))
+        await db.commit()
         return {"ok": False, "skipped": str(exc)}  # 200: a payload we understood and rejected, not a server error
     invoice, created, paid = await zoho_sync.upsert_invoice(db, workspace.id, mapped)
+    db.add(PortalZohoEvent(workspace_id=workspace.id, invoice_number=mapped["invoice_number"],
+                           outcome="created" if created else "updated"))
     connection.last_synced_at = datetime.now(timezone.utc)
     connection.invoices_synced += 1
     envelope = await TransactionalEventPublisher(db).publish(
