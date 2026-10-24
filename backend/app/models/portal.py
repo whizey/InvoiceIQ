@@ -170,6 +170,9 @@ class PortalZohoConnection(Base, UUIDPrimaryKeyMixin, CreatedAtMixin):
     # The regional API base Zoho's token response reports (e.g. www.zohoapis.in) -- read from the response,
     # never guessed from a setting, since it follows the account's own data centre.
     api_domain: Mapped[str | None] = mapped_column(String(120))
+    # The accounts-server the authorization code was issued from -- a refresh_token is only redeemable there,
+    # same reasoning as api_domain.
+    accounts_server: Mapped[str | None] = mapped_column(String(120))
     webhook_secret: Mapped[str | None] = mapped_column(String(64), unique=True)
     connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

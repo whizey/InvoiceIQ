@@ -7,11 +7,12 @@ runs until a Zoho account is connected, and nothing is connected until the three
 
 ## What this does and does not do
 
-It receives Zoho's webhook and keeps one invoice's number, customer, dates, total and balance in sync. It does
-not currently pull Zoho's existing invoice history on first connect (a backfill), does not sync payments
-recorded directly in Zoho beyond what the invoice's own balance reflects, and does not sync credit notes,
-estimates or any object other than invoices. The access and refresh tokens captured at connect time are stored
-for that future backfill; the webhook path itself doesn't need them, since Zoho is the one sending data to us.
+It receives Zoho's webhook and keeps one invoice's number, customer, dates, total and balance in sync. A
+webhook only ever fires on a *future* create or update, so it can never retroactively deliver invoices that
+already existed in Zoho before the webhook was connected -- that's what **Sync Now** is for (see below), a
+one-time pull using the Zoho Books API directly. Beyond that, it does not sync payments recorded directly in
+Zoho beyond what the invoice's own balance reflects, and does not sync credit notes, estimates or any object
+other than invoices.
 
 ## Why the webhook URL carries a secret
 
@@ -47,17 +48,12 @@ Note the **Client ID** and **Client Secret** it gives you.
 | `ZOHO_CLIENT_SECRET` | from the API Console |
 | `ZOHO_REDIRECT_URI` | the exact URI registered in step 1 |
 
-Two more exist with working defaults and rarely need changing: `ZOHO_ACCOUNTS_DOMAIN` (`accounts.zoho.in` by
-default, since this product's audience is Indian CAs; use `accounts.zoho.com`, `accounts.zoho.eu`, etc. for
-other data centres) and `ZOHO_API_DOMAIN` (`www.zohoapis.in`, with the matching regional variant).
+That's all that needs setting. The account's data centre (India, EU, ...) does **not** need configuring here —
+it's detected automatically from Zoho's own callback (the `accounts-server` parameter it reports after
+authorizing), not guessed from a setting, so this works for an account on any data centre out of the box.
 `FRONTEND_PUBLIC_URL` controls where the browser lands after authorizing — it already defaults to this
-project's live site.
-
-**This has to match the data centre the Zoho *account* actually authenticates against, not what its web apps
-show in the browser.** Zoho Books can display as `books.zoho.com` while the underlying account is provisioned
-on a regional data centre (India is a common case) — exchanging an authorization code against the wrong
-domain fails with `invalid_code` even though everything else about the setup is correct. If connecting fails
-that way, the account is very likely on a different data centre than these settings currently point at.
+project's live site, and `ZOHO_ACCOUNTS_DOMAIN` is only a fallback for the rare case Zoho omits that
+parameter, so it's almost never worth touching.
 
 Until `ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET` and `ZOHO_REDIRECT_URI` are all set, `/portal/zoho-status` reports
 `configured: false` and connecting is refused with a clear error — no Zoho account is required to run the rest
@@ -86,15 +82,28 @@ every invoice Zoho creates or updates for that organization reaches the workspac
 
 Disconnecting (also on the Settings page) deletes the connection and invalidates the old webhook secret
 immediately; the corresponding webhook in Zoho should be removed too, since it will otherwise get a 404 on
-every delivery.
+every delivery. Re-authorizing without disconnecting first (clicking Connect again, or a future token refresh)
+keeps the existing webhook secret, so it never breaks a URL already saved in Zoho.
+
+### 5. Pull in invoices that already existed
+
+A webhook only ever fires on a *future* create or update — it can't retroactively deliver invoices Zoho
+already had before the webhook was connected. The **Sync Now** button on the Settings page (`POST
+/portal/zoho-sync-now`) covers that gap: a one-time pull of every invoice in the account directly from the
+Zoho Books API (`GET /invoices`, paginated, capped at 2,000 per run — the same ceiling the CSV importer
+uses), refreshing the access token first if it's expired. It's safe to run more than once; re-importing an
+invoice number updates the existing row rather than duplicating it, exactly like a second webhook delivery
+would. Draft and void invoices are skipped here the same way they are on the webhook path.
 
 ## What arrives, and what's skipped
 
 Each delivery maps to one invoice: number, customer name, invoice date, due date, total and balance (amount
 paid is total minus balance). A void or draft invoice is accepted but not written anywhere — the webhook
-responds `200 {"ok": false, "skipped": "..."}` so Zoho doesn't retry it as a failure. The same is true of a
-payload Zoho sends in a shape this endpoint doesn't recognise (missing the invoice object, an unreadable date,
-a balance larger than the total): skipped, not an error, logged in the reason string.
+responds `200 {"ok": false, "skipped": "..."}` so Zoho doesn't retry it as a failure, and the reason is logged.
+The same is true of a payload Zoho sends in a shape this endpoint doesn't recognise (missing the invoice
+object, an unreadable date, a balance larger than the total). Every delivery, imported or skipped, shows up
+in the "Recent deliveries" list on the Settings page (the last 20), so there's no need to dig through Zoho's
+own webhook logs to see why something didn't sync.
 
 ## Events
 

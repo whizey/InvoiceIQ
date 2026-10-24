@@ -12,6 +12,21 @@ from app.core.db import async_session_factory, engine
 from app.main import app
 from app.models.portal import PortalUser, PortalWorkspace, PortalZohoConnection
 
+_real_get = AsyncClient.get
+
+
+def zoho_only_get(zoho_response):
+    """A GET patch answering only calls to Zoho's own domains with `zoho_response`; a call to our own
+    testserver (the test client's own request, since it is itself an AsyncClient) passes through to the real
+    implementation -- patching AsyncClient.get unconditionally would intercept both indistinguishably. The
+    test client calls with a path relative to its base_url ("/portal/..."); only an internal call to Zoho
+    uses an absolute URL, so that's what distinguishes the two here."""
+    async def fake_get(self, url, *args, **kwargs):
+        if not str(url).startswith("http"):
+            return await _real_get(self, url, *args, **kwargs)
+        return zoho_response
+    return fake_get
+
 
 async def register(client, tag, name):
     reg = await client.post("/portal/register", json={
@@ -114,7 +129,11 @@ async def test_connect_then_callback_then_webhook_round_trip(monkeypatch):
             mock_response.json.return_value = {"access_token": "tok", "refresh_token": "ref", "expires_in": 3600,
                                                "api_domain": "https://www.zohoapis.in"}
             mock_post = AsyncMock(return_value=mock_response)
-            with patch("httpx.AsyncClient.post", new=mock_post):
+            orgs_response = MagicMock(status_code=200, content=b"{}")
+            orgs_response.json.return_value = {"organizations": [{"organization_id": "999",
+                                                                   "is_default_org": True}]}
+            with patch("httpx.AsyncClient.post", new=mock_post), \
+                 patch("httpx.AsyncClient.get", new=zoho_only_get(orgs_response)):
                 # accounts-server is Zoho's own report of which data centre issued the code -- an
                 # account on any data centre must work, not just the one zoho_accounts_domain defaults to.
                 callback = await client.get("/portal/zoho-callback", params={
@@ -219,6 +238,90 @@ async def test_webhook_url_uses_the_public_https_scheme_not_the_internal_proxy_h
     finally:
         async with async_session_factory() as db:
             await db.execute(delete(PortalZohoConnection).where(PortalZohoConnection.workspace_id.in_(workspace_ids)))
+            if workspace_ids:
+                await db.execute(delete(PortalWorkspace).where(PortalWorkspace.id.in_(workspace_ids)))
+            if user_ids:
+                await db.execute(delete(PortalUser).where(PortalUser.id.in_(user_ids)))
+            await db.commit()
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_sync_now_pulls_invoices_that_predate_the_webhook(monkeypatch):
+    """A webhook only fires on a future create or update -- Sync Now is the only way invoices that already
+    existed in Zoho before connecting ever reach InvoiceIQ."""
+    monkeypatch.setenv("PUBLIC_READ_ONLY", "false")
+    monkeypatch.setenv("INVOICEIQ_PORTAL_ENABLED", "true")
+    configure(monkeypatch)
+    await engine.dispose()
+    tag = uuid.uuid4().hex
+    workspace_ids, user_ids = [], []
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
+            headers, workspace_id, user_id = await register(client, tag, "Zoho Backfill Co")
+            workspace_ids.append(workspace_id)
+            user_ids.append(user_id)
+
+            await client.post("/portal/zoho-connect", headers=headers)
+            async with async_session_factory() as db:
+                state = (await db.scalar(select(PortalZohoConnection).where(
+                    PortalZohoConnection.workspace_id == workspace_id))).oauth_state
+            token_response = MagicMock(status_code=200, content=b"{}")
+            token_response.json.return_value = {"access_token": "tok", "refresh_token": "ref",
+                                                "expires_in": 3600, "api_domain": "https://www.zohoapis.in"}
+            orgs_response = MagicMock(status_code=200, content=b"{}")
+            orgs_response.json.return_value = {"organizations": [{"organization_id": "999",
+                                                                   "is_default_org": True}]}
+            with patch("httpx.AsyncClient.post", new=AsyncMock(return_value=token_response)), \
+                 patch("httpx.AsyncClient.get", new=zoho_only_get(orgs_response)):
+                callback = await client.get("/portal/zoho-callback", params={
+                    "code": "c", "state": state, "accounts-server": "https://accounts.zoho.in"})
+            assert callback.status_code in (302, 307)
+
+            invoices_response = MagicMock(status_code=200, content=b"{}")
+            invoices_response.json.return_value = {"invoices": [
+                {"invoice_number": "OLD-1", "customer_name": "Pre-existing Co", "date": "2026-09-01",
+                 "due_date": "2026-09-30", "total": "2000.00", "balance": "2000.00", "status": "sent"},
+                {"invoice_number": "OLD-2", "customer_name": "Draft Co", "date": "2026-09-05",
+                 "due_date": "2026-10-05", "total": "500.00", "balance": "500.00", "status": "draft"},
+            ], "page_context": {"page": 1, "has_more_page": False}}
+            with patch("httpx.AsyncClient.get", new=AsyncMock(return_value=invoices_response)):
+                sync = await client.post("/portal/zoho-sync-now", headers=headers)
+            assert sync.status_code == 200
+            body = sync.json()
+            assert body == {"ok": True, "found": 2, "imported": 1, "skipped": 1, "scored": body["scored"]}
+
+            invoices = await client.get("/portal/invoices?q=OLD-1", headers=headers)
+            assert invoices.json()["total"] == 1
+            assert invoices.json()["invoices"][0]["amount"] == "2000.00"
+            assert (await client.get("/portal/invoices?q=OLD-2", headers=headers)).json()["total"] == 0
+    finally:
+        async with async_session_factory() as db:
+            await db.execute(delete(PortalZohoConnection).where(PortalZohoConnection.workspace_id.in_(workspace_ids)))
+            if workspace_ids:
+                await db.execute(delete(PortalWorkspace).where(PortalWorkspace.id.in_(workspace_ids)))
+            if user_ids:
+                await db.execute(delete(PortalUser).where(PortalUser.id.in_(user_ids)))
+            await db.commit()
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_sync_now_refuses_without_a_connection(monkeypatch):
+    monkeypatch.setenv("PUBLIC_READ_ONLY", "false")
+    monkeypatch.setenv("INVOICEIQ_PORTAL_ENABLED", "true")
+    await engine.dispose()
+    tag = uuid.uuid4().hex
+    workspace_ids, user_ids = [], []
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
+            headers, workspace_id, user_id = await register(client, tag, "Zoho No Connection Co")
+            workspace_ids.append(workspace_id)
+            user_ids.append(user_id)
+            response = await client.post("/portal/zoho-sync-now", headers=headers)
+            assert response.status_code == 409
+    finally:
+        async with async_session_factory() as db:
             if workspace_ids:
                 await db.execute(delete(PortalWorkspace).where(PortalWorkspace.id.in_(workspace_ids)))
             if user_ids:

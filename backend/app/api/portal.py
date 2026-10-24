@@ -1272,11 +1272,20 @@ async def zoho_callback(code: str = Query(default=""), state: str = Query(defaul
     connection.token_expires_at = (datetime.now(timezone.utc) + timedelta(seconds=expires_in)
                                    if expires_in else None)
     connection.api_domain = tokens.get("api_domain") or connection.api_domain
+    connection.accounts_server = (accounts_server or settings.zoho_accounts_domain).rstrip("/")
     # Keep the existing secret across a re-authorization (refreshing tokens, or clicking Connect again
     # without disconnecting first) -- only an explicit Disconnect should ever invalidate a webhook URL
     # already saved in Zoho Books.
     connection.webhook_secret = connection.webhook_secret or secrets.token_urlsafe(24)
     connection.connected_at = datetime.now(timezone.utc)
+    if not connection.zoho_organization_id and connection.api_domain:
+        try:
+            orgs = await zoho_sync.list_organizations(connection.access_token, connection.api_domain)
+            default_org = next((o for o in orgs if o.get("is_default_org")), orgs[0] if orgs else None)
+            if default_org:
+                connection.zoho_organization_id = str(default_org.get("organization_id") or "") or None
+        except ValueError:
+            pass  # non-fatal here: the webhook still works; Sync Now will look it up again when needed
     connection.oauth_state = None
     connection.oauth_state_created_at = None
     await db.commit()
@@ -1294,6 +1303,65 @@ async def zoho_disconnect(subject=Depends(identity), db: AsyncSession = Depends(
         await db.commit()
         _bump(workspace.id)
     return {"ok": True}
+
+
+@router.post("/zoho-sync-now")
+async def zoho_sync_now(subject=Depends(identity), db: AsyncSession = Depends(get_db)):
+    """A one-time pull of invoices that already existed in Zoho before the webhook was connected -- the
+    webhook only ever fires on a future create or update, so it can never retroactively deliver these."""
+    from app.core.config import settings
+
+    session, workspace = subject
+    await _require_importer(db, session, workspace)
+    connection = await db.scalar(select(PortalZohoConnection).where(
+        PortalZohoConnection.workspace_id == workspace.id))
+    if connection is None or not connection.access_token:
+        raise HTTPException(409, "Connect Zoho Books first")
+    if connection.token_expires_at and connection.token_expires_at <= datetime.now(timezone.utc):
+        if not connection.refresh_token:
+            raise HTTPException(409, "The Zoho connection expired; disconnect and reconnect")
+        try:
+            tokens = await zoho_sync.refresh_access_token(
+                connection.refresh_token, connection.accounts_server or settings.zoho_accounts_domain)
+        except ValueError as exc:
+            raise HTTPException(502, f"Could not refresh the Zoho connection: {exc}") from None
+        connection.access_token = tokens.get("access_token")
+        connection.token_expires_at = datetime.now(timezone.utc) + timedelta(
+            seconds=tokens.get("expires_in", 3600))
+        await db.commit()
+    if not connection.zoho_organization_id:
+        try:
+            orgs = await zoho_sync.list_organizations(connection.access_token, connection.api_domain)
+        except ValueError as exc:
+            raise HTTPException(502, f"Could not list Zoho organizations: {exc}") from None
+        default_org = next((o for o in orgs if o.get("is_default_org")), orgs[0] if orgs else None)
+        if default_org is None:
+            raise HTTPException(502, "No Zoho organization found on this account")
+        connection.zoho_organization_id = str(default_org.get("organization_id") or "") or None
+        await db.commit()
+    try:
+        raw_invoices = await zoho_sync.list_invoices(
+            connection.access_token, connection.api_domain, connection.zoho_organization_id)
+    except ValueError as exc:
+        raise HTTPException(502, f"Could not list Zoho invoices: {exc}") from None
+    imported = skipped = 0
+    for raw in raw_invoices:
+        try:
+            mapped = zoho_sync.map_invoice({"invoice": raw})
+        except ValueError:
+            skipped += 1
+            continue
+        await zoho_sync.upsert_invoice(db, workspace.id, mapped)
+        imported += 1
+    connection.last_synced_at = datetime.now(timezone.utc)
+    connection.invoices_synced += imported
+    try:
+        scored = (await score_workspace(db, workspace.id))["scored"]
+    except HTTPException:
+        scored = 0
+    await db.commit()
+    _bump(workspace.id)
+    return {"ok": True, "found": len(raw_invoices), "imported": imported, "skipped": skipped, "scored": scored}
 
 
 @router.post("/zoho-webhook/{secret}")

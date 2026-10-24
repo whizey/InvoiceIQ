@@ -109,3 +109,83 @@ def test_map_invoice_rejects_an_unusable_payload(overrides, reason):
 def test_map_invoice_rejects_a_payload_with_no_invoice_object():
     with pytest.raises(ValueError, match="no invoice object"):
         zoho_sync.map_invoice({"not_an_invoice": True})
+
+
+@pytest.mark.asyncio
+async def test_refresh_access_token_uses_the_stored_accounts_server(monkeypatch):
+    monkeypatch.setattr(settings, "zoho_client_id", "id")
+    monkeypatch.setattr(settings, "zoho_client_secret", "secret")
+    mock_response = MagicMock(status_code=200, content=b"{}")
+    mock_response.json.return_value = {"access_token": "new-tok", "expires_in": 3600}
+    mock_post = AsyncMock(return_value=mock_response)
+    with patch("httpx.AsyncClient.post", new=mock_post):
+        body = await zoho_sync.refresh_access_token("a-refresh-token", "https://accounts.zoho.in")
+    assert body["access_token"] == "new-tok"
+    assert mock_post.call_args[0][0] == "https://accounts.zoho.in/oauth/v2/token"
+
+
+@pytest.mark.asyncio
+async def test_refresh_access_token_raises_when_zoho_rejects_it(monkeypatch):
+    monkeypatch.setattr(settings, "zoho_client_id", "id")
+    monkeypatch.setattr(settings, "zoho_client_secret", "secret")
+    mock_response = MagicMock(status_code=400, content=b'{"error": "invalid_refresh_token"}')
+    mock_response.json.return_value = {"error": "invalid_refresh_token"}
+    with patch("httpx.AsyncClient.post", new=AsyncMock(return_value=mock_response)):
+        with pytest.raises(ValueError, match="invalid_refresh_token"):
+            await zoho_sync.refresh_access_token("a-stale-token", "https://accounts.zoho.in")
+
+
+@pytest.mark.asyncio
+async def test_list_organizations_returns_the_organizations_list():
+    mock_response = MagicMock(status_code=200, content=b"{}")
+    mock_response.json.return_value = {"organizations": [{"organization_id": "123", "is_default_org": True}]}
+    with patch("httpx.AsyncClient.get", new=AsyncMock(return_value=mock_response)):
+        orgs = await zoho_sync.list_organizations("a-token", "https://www.zohoapis.in")
+    assert orgs == [{"organization_id": "123", "is_default_org": True}]
+
+
+@pytest.mark.asyncio
+async def test_list_organizations_raises_on_failure():
+    mock_response = MagicMock(status_code=401, content=b'{"message": "invalid token"}')
+    mock_response.json.return_value = {"message": "invalid token"}
+    with patch("httpx.AsyncClient.get", new=AsyncMock(return_value=mock_response)):
+        with pytest.raises(ValueError, match="invalid token"):
+            await zoho_sync.list_organizations("a-bad-token", "https://www.zohoapis.in")
+
+
+@pytest.mark.asyncio
+async def test_list_invoices_follows_pagination_until_the_last_page():
+    page_one = MagicMock(status_code=200, content=b"{}")
+    page_one.json.return_value = {"invoices": [{"invoice_number": "A"}],
+                                  "page_context": {"page": 1, "has_more_page": True}}
+    page_two = MagicMock(status_code=200, content=b"{}")
+    page_two.json.return_value = {"invoices": [{"invoice_number": "B"}],
+                                  "page_context": {"page": 2, "has_more_page": False}}
+    mock_get = AsyncMock(side_effect=[page_one, page_two])
+    with patch("httpx.AsyncClient.get", new=mock_get):
+        invoices = await zoho_sync.list_invoices("a-token", "https://www.zohoapis.in", "123")
+    assert [i["invoice_number"] for i in invoices] == ["A", "B"]
+    assert mock_get.call_count == 2
+    assert mock_get.call_args_list[1].kwargs["params"]["page"] == 2
+
+
+@pytest.mark.asyncio
+async def test_list_invoices_stops_at_the_backfill_cap(monkeypatch):
+    monkeypatch.setattr(zoho_sync, "MAX_BACKFILL_INVOICES", 3)
+    page = MagicMock(status_code=200, content=b"{}")
+    page.json.return_value = {"invoices": [{"invoice_number": str(i)} for i in range(200)],
+                              "page_context": {"page": 1, "has_more_page": True}}
+    mock_get = AsyncMock(return_value=page)
+    with patch("httpx.AsyncClient.get", new=mock_get):
+        invoices = await zoho_sync.list_invoices("a-token", "https://www.zohoapis.in", "123")
+    assert len(invoices) == 3
+    assert mock_get.call_count == 1  # the cap is hit within the first page; no second request
+
+
+@pytest.mark.asyncio
+async def test_list_invoices_raises_on_failure():
+    mock_response = MagicMock(status_code=500, content=b'{"message": "server error"}')
+    mock_response.json.return_value = {"message": "server error"}
+    with patch("httpx.AsyncClient.get", new=AsyncMock(return_value=mock_response)):
+        with pytest.raises(ValueError, match="server error"):
+            await zoho_sync.list_invoices("a-token", "https://www.zohoapis.in", "123")
