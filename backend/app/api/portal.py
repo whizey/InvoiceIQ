@@ -1339,11 +1339,15 @@ async def zoho_sync_now(subject=Depends(identity), db: AsyncSession = Depends(ge
             raise HTTPException(502, "No Zoho organization found on this account")
         connection.zoho_organization_id = str(default_org.get("organization_id") or "") or None
         await db.commit()
-    try:
-        raw_invoices = await zoho_sync.list_invoices(
-            connection.access_token, connection.api_domain, connection.zoho_organization_id)
-    except ValueError as exc:
-        raise HTTPException(502, f"Could not list Zoho invoices: {exc}") from None
+    # Fetched concurrently -- each is its own slow round trip to Zoho, and the DB-side matching that needs
+    # them in order (payments need invoices upserted first) only starts once both have actually arrived.
+    invoices_result, payments_result = await asyncio.gather(
+        zoho_sync.list_invoices(connection.access_token, connection.api_domain, connection.zoho_organization_id),
+        zoho_sync.list_payments(connection.access_token, connection.api_domain, connection.zoho_organization_id),
+        return_exceptions=True)
+    if isinstance(invoices_result, BaseException):
+        raise HTTPException(502, f"Could not list Zoho invoices: {invoices_result}") from None
+    raw_invoices = invoices_result
     imported = skipped = 0
     for raw in raw_invoices:
         try:
@@ -1353,13 +1357,11 @@ async def zoho_sync_now(subject=Depends(identity), db: AsyncSession = Depends(ge
             continue
         await zoho_sync.upsert_invoice(db, workspace.id, mapped)
         imported += 1
-    # Payments after invoices, since matching a payment needs the invoice row to already exist. A failure
-    # here is reported, not fatal -- it must not discard an invoice backfill that already succeeded.
+    # A payments failure is reported, not fatal -- it must not discard an invoice backfill that succeeded.
     payments_found = payments_applied = payments_skipped = 0
-    payments_error = None
-    try:
-        raw_payments = await zoho_sync.list_payments(
-            connection.access_token, connection.api_domain, connection.zoho_organization_id)
+    payments_error = str(payments_result) if isinstance(payments_result, BaseException) else None
+    if payments_error is None:
+        raw_payments = payments_result
         payments_found = len(raw_payments)
         for raw in raw_payments:
             try:
@@ -1371,8 +1373,6 @@ async def zoho_sync_now(subject=Depends(identity), db: AsyncSession = Depends(ge
                 payments_applied += 1
             else:
                 payments_skipped += 1
-    except ValueError as exc:
-        payments_error = str(exc)
     connection.last_synced_at = datetime.now(timezone.utc)
     connection.invoices_synced += imported
     try:
