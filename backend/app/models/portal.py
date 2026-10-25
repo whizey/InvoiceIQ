@@ -79,6 +79,10 @@ class PortalInvoice(Base, UUIDPrimaryKeyMixin, CreatedAtMixin):
     amount_paid: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
     risk_probability: Mapped[float | None] = mapped_column(Numeric(7, 6))
     risk_provenance: Mapped[str | None] = mapped_column(String(80))
+    # Zoho's own invoice id (never the invoice_number, which is just a display label) -- the stable key a
+    # Zoho payment's allocation line refers back to, so a payment can be matched to the right row even if
+    # the invoice number were ever edited.
+    zoho_invoice_id: Mapped[str | None] = mapped_column(String(64))
 
 
 class PortalCaseEvent(Base, UUIDPrimaryKeyMixin):
@@ -96,9 +100,15 @@ class PortalCaseEvent(Base, UUIDPrimaryKeyMixin):
 
 
 class PortalPayment(Base, UUIDPrimaryKeyMixin):
-    """Dated, reconciled payment movement; never infer a payment date."""
+    """Dated, reconciled payment movement; never infer a payment date -- except the CSV importer's and Zoho's
+    own balance-delta fallback, which predate this rule and still mark their guesses in a warning rather than
+    pretending to know the real date. A row with `zoho_payment_id` set came from a real Zoho payment record
+    (webhook or Sync Now), not a guess."""
     __tablename__ = "portal_payments"
-    __table_args__ = (Index("ix_portal_payment_scoped_date", "workspace_id", "paid_on"),)
+    __table_args__ = (
+        Index("ix_portal_payment_scoped_date", "workspace_id", "paid_on"),
+        UniqueConstraint("workspace_id", "zoho_payment_id", "invoice_id", name="uq_portal_payment_zoho_id"),
+    )
 
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("portal_workspaces.id", ondelete="CASCADE"), nullable=False
@@ -108,6 +118,9 @@ class PortalPayment(Base, UUIDPrimaryKeyMixin):
     )
     paid_on: Mapped[date] = mapped_column(Date, nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    # Set only for a payment synced from Zoho (one row per invoice this payment was allocated against, since
+    # one Zoho payment can be split across several invoices); null for every other import path.
+    zoho_payment_id: Mapped[str | None] = mapped_column(String(64))
 
 
 class PortalNote(Base, UUIDPrimaryKeyMixin):

@@ -1353,6 +1353,26 @@ async def zoho_sync_now(subject=Depends(identity), db: AsyncSession = Depends(ge
             continue
         await zoho_sync.upsert_invoice(db, workspace.id, mapped)
         imported += 1
+    # Payments after invoices, since matching a payment needs the invoice row to already exist. A failure
+    # here is reported, not fatal -- it must not discard an invoice backfill that already succeeded.
+    payments_found = payments_applied = payments_skipped = 0
+    payments_error = None
+    try:
+        raw_payments = await zoho_sync.list_payments(
+            connection.access_token, connection.api_domain, connection.zoho_organization_id)
+        payments_found = len(raw_payments)
+        for raw in raw_payments:
+            try:
+                mapped_payment = zoho_sync.map_backfilled_payment(raw)
+            except ValueError:
+                payments_skipped += 1
+                continue
+            if await zoho_sync.upsert_backfilled_payment(db, workspace.id, mapped_payment):
+                payments_applied += 1
+            else:
+                payments_skipped += 1
+    except ValueError as exc:
+        payments_error = str(exc)
     connection.last_synced_at = datetime.now(timezone.utc)
     connection.invoices_synced += imported
     try:
@@ -1361,19 +1381,29 @@ async def zoho_sync_now(subject=Depends(identity), db: AsyncSession = Depends(ge
         scored = 0
     await db.commit()
     _bump(workspace.id)
-    return {"ok": True, "found": len(raw_invoices), "imported": imported, "skipped": skipped, "scored": scored}
+    return {"ok": True, "found": len(raw_invoices), "imported": imported, "skipped": skipped,
+            "payments_found": payments_found, "payments_applied": payments_applied,
+            "payments_skipped": payments_skipped, "payments_error": payments_error, "scored": scored}
 
 
 @router.post("/zoho-webhook/{secret}")
 async def zoho_webhook(secret: str, payload: dict, db: AsyncSession = Depends(get_db)):
-    """Public: Zoho posts here on every invoice create/update once connected. The secret in the URL is the only
-    authenticity check available -- Zoho's classic Books webhooks carry no signature in the body or headers."""
+    """Public: Zoho posts here on every invoice or payment create/update once connected -- two separate
+    webhooks in Zoho Books, one per module, can point at this same URL; the payload's own shape says which.
+    The secret in the URL is the only authenticity check available -- Zoho's classic Books webhooks carry no
+    signature in the body or headers."""
     connection = await db.scalar(select(PortalZohoConnection).where(PortalZohoConnection.webhook_secret == secret))
     if connection is None:
         raise HTTPException(404, "Unknown webhook")
     workspace = await db.get(PortalWorkspace, connection.workspace_id)
     if workspace is None:
         raise HTTPException(404, "Workspace not found")
+    if isinstance(payload, dict) and "payment" in payload:
+        return await _zoho_webhook_payment(db, workspace, connection, payload)
+    return await _zoho_webhook_invoice(db, workspace, connection, payload)
+
+
+async def _zoho_webhook_invoice(db, workspace, connection, payload):
     try:
         mapped = zoho_sync.map_invoice(payload)
     except ValueError as exc:
@@ -1401,6 +1431,31 @@ async def zoho_webhook(secret: str, payload: dict, db: AsyncSession = Depends(ge
     except Exception:  # noqa: BLE001 - the invoice is already saved; the outbox row stays pending
         pass
     return {"ok": True, "created": created, "paid": paid, "scored": scored}
+
+
+async def _zoho_webhook_payment(db, workspace, connection, payload):
+    try:
+        mapped = zoho_sync.map_payment(payload)
+    except ValueError as exc:
+        db.add(PortalZohoEvent(workspace_id=workspace.id, invoice_number=None, outcome="skipped",
+                               reason=str(exc)[:300]))
+        await db.commit()
+        return {"ok": False, "skipped": str(exc)}
+    result = await zoho_sync.upsert_payment(db, workspace.id, mapped)
+    first = await db.scalar(select(PortalInvoice.invoice_number).where(
+        PortalInvoice.workspace_id == workspace.id,
+        PortalInvoice.zoho_invoice_id == mapped["allocations"][0]["zoho_invoice_id"]))
+    db.add(PortalZohoEvent(workspace_id=workspace.id, invoice_number=first, outcome="payment",
+                           reason=None if not result["unmatched"] else
+                           f"{result['unmatched']} of {len(mapped['allocations'])} allocations unmatched"))
+    connection.last_synced_at = datetime.now(timezone.utc)
+    try:
+        scored = (await score_workspace(db, workspace.id))["scored"] if result["applied"] else 0
+    except HTTPException:
+        scored = 0
+    await db.commit()
+    _bump(workspace.id)
+    return {"ok": True, "applied": result["applied"], "unmatched": result["unmatched"], "scored": scored}
 
 
 from typing import Annotated  # noqa: E402

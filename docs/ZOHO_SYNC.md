@@ -10,9 +10,13 @@ runs until a Zoho account is connected, and nothing is connected until the three
 It receives Zoho's webhook and keeps one invoice's number, customer, dates, total and balance in sync. A
 webhook only ever fires on a *future* create or update, so it can never retroactively deliver invoices that
 already existed in Zoho before the webhook was connected -- that's what **Sync Now** is for (see below), a
-one-time pull using the Zoho Books API directly. Beyond that, it does not sync payments recorded directly in
-Zoho beyond what the invoice's own balance reflects, and does not sync credit notes, estimates or any object
-other than invoices.
+one-time pull using the Zoho Books API directly.
+
+Payments recorded in Zoho are also synced, as real dated records (not guessed from an invoice's balance
+moving) -- see step 4b. An invoice's `amount_paid` is kept in line with the sum of its actual payment records
+once any exist, falling back to inferring one payment from the balance change only for a workspace with no
+payment records synced at all. It does not sync credit notes, estimates, refunds or any object other than
+invoices and payments.
 
 ## Why the webhook URL carries a secret
 
@@ -85,25 +89,41 @@ immediately; the corresponding webhook in Zoho should be removed too, since it w
 every delivery. Re-authorizing without disconnecting first (clicking Connect again, or a future token refresh)
 keeps the existing webhook secret, so it never breaks a URL already saved in Zoho.
 
-### 5. Pull in invoices that already existed
+### 4b. Optionally, a second webhook for payments
 
-A webhook only ever fires on a *future* create or update — it can't retroactively deliver invoices Zoho
-already had before the webhook was connected. The **Sync Now** button on the Settings page (`POST
-/portal/zoho-sync-now`) covers that gap: a one-time pull of every invoice in the account directly from the
-Zoho Books API (`GET /invoices`, paginated, capped at 2,000 per run — the same ceiling the CSV importer
-uses), refreshing the access token first if it's expired. It's safe to run more than once; re-importing an
-invoice number updates the existing row rather than duplicating it, exactly like a second webhook delivery
-would. Draft and void invoices are skipped here the same way they are on the webhook path.
+The same webhook URL also understands a **Customer Payments** delivery -- the payload's own shape says which
+kind it is, so both can point at one URL without any extra configuration. In Zoho Books, create a second
+webhook (e.g. "InvoiceIQ Payment Sync"), module **Customer Payments**, triggered on payment creation (and
+update, if Zoho offers it), same URL as step 4. Once both are connected, a payment recorded against an
+invoice -- full, partial, or split across several invoices -- shows up as its own dated record within
+seconds, not just an inferred change in the invoice's balance. This one is optional: everything in step 4
+works fully without it, just with less payment-level detail.
+
+### 5. Pull in invoices (and payments) that already existed
+
+A webhook only ever fires on a *future* create or update — it can't retroactively deliver invoices or
+payments Zoho already had before the webhooks were connected. The **Sync Now** button on the Settings page
+(`POST /portal/zoho-sync-now`) covers that gap: a one-time pull of every invoice (`GET /invoices`) and every
+customer payment (`GET /customerpayments`) in the account directly from the Zoho Books API, paginated and
+capped at 2,000 each per run — the same ceiling the CSV importer uses — refreshing the access token first if
+it's expired. It's safe to run more than once; re-importing an invoice number or a payment updates the
+existing row rather than duplicating it, exactly like a second webhook delivery would. Draft and void
+invoices are skipped the same way they are on the webhook path. One limitation specific to the backfill path:
+Zoho's invoice-list endpoint for payments reports only one invoice per payment, so a *backfilled* payment that
+was actually split across several invoices in Zoho only reconciles against the one it names -- the live
+webhook path (4b) doesn't have this limit, since it carries the full per-invoice breakdown.
 
 ## What arrives, and what's skipped
 
-Each delivery maps to one invoice: number, customer name, invoice date, due date, total and balance (amount
-paid is total minus balance). A void or draft invoice is accepted but not written anywhere — the webhook
-responds `200 {"ok": false, "skipped": "..."}` so Zoho doesn't retry it as a failure, and the reason is logged.
-The same is true of a payload Zoho sends in a shape this endpoint doesn't recognise (missing the invoice
-object, an unreadable date, a balance larger than the total). Every delivery, imported or skipped, shows up
-in the "Recent deliveries" list on the Settings page (the last 20), so there's no need to dig through Zoho's
-own webhook logs to see why something didn't sync.
+Each invoice delivery maps to one invoice: number, customer name, invoice date, due date, total and balance.
+Each payment delivery maps to one or more invoice allocations: a payment id, a date, and the amount applied to
+each invoice it was recorded against. A void or draft invoice, or a payment allocated against an invoice this
+workspace hasn't synced, is accepted but not written anywhere — the webhook responds `200 {"ok": false, ...}` or
+`{"ok": true, "unmatched": ...}` so Zoho doesn't retry it as a failure, and the reason is logged. The same is
+true of a payload Zoho sends in a shape this endpoint doesn't recognise (missing the invoice or payment object,
+an unreadable date, a balance larger than the total). Every delivery, applied or skipped, shows up in the
+"Recent deliveries" list on the Settings page (the last 20), so there's no need to dig through Zoho's own
+webhook logs to see why something didn't sync.
 
 ## Events
 

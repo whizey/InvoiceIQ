@@ -6,7 +6,7 @@ import Link from "next/link";
 import PortalNavigation from "@/components/PortalNavigation";
 
 type Settings={email:string;full_name:string;company:string;role:string;session_expires_at:string};
-type ZohoEvent={invoice_number:string|null;outcome:"created"|"updated"|"skipped";reason:string|null;received_at:string};
+type ZohoEvent={invoice_number:string|null;outcome:"created"|"updated"|"skipped"|"payment";reason:string|null;received_at:string};
 type ZohoStatus={configured:boolean;connected:boolean;connected_at:string|null;last_synced_at:string|null;
   invoices_synced:number;webhook_url:string|null;api_domain:string|null;events?:ZohoEvent[]};
 const ZOHO_MESSAGES:Record<string,string>={
@@ -107,8 +107,10 @@ export default function AccountSettings(){
       const response=await fetch("/api/portal/zoho-sync-now",{method:"POST"});
       const result=await response.json();
       if(!response.ok)throw new Error(result.detail||"Sync failed");
+      const paymentsPart=result.payments_error?` Payments could not be synced (${result.payments_error}).`:
+        ` ${result.payments_applied} of ${result.payments_found} payment${result.payments_found===1?"":"s"} reconciled.`;
       setZohoBanner(`Found ${result.found} invoice${result.found===1?"":"s"} in Zoho: `+
-        `${result.imported} imported, ${result.skipped} skipped (drafts or void).`);
+        `${result.imported} imported, ${result.skipped} skipped (drafts or void).${paymentsPart}`);
       await loadZoho();
     }catch(e){setZohoError(e instanceof Error?e.message:"Sync failed")}
     finally{setZohoBusy(false)}
@@ -180,7 +182,8 @@ export default function AccountSettings(){
               <p className="settings-muted" style={{marginBottom:6}}>Recent deliveries</p>
               <ul className="fu-mini">{(zoho.events||[]).slice(0,8).map((e,i)=><li key={i}>
                 <strong>{e.invoice_number||"(no invoice number)"}</strong>
-                <span>{e.outcome==="skipped"?"Skipped":e.outcome==="created"?"Imported":"Updated"}
+                <span>{e.outcome==="skipped"?"Skipped":e.outcome==="created"?"Imported":
+                  e.outcome==="payment"?"Payment recorded":"Updated"}
                   {" · "}{new Date(e.received_at).toLocaleString()}</span>
                 {e.reason&&<em>{e.reason}</em>}
               </li>)}</ul>
