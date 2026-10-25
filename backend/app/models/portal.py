@@ -205,3 +205,17 @@ class PortalZohoEvent(Base, UUIDPrimaryKeyMixin, CreatedAtMixin):
     invoice_number: Mapped[str | None] = mapped_column(String(64))
     outcome: Mapped[str] = mapped_column(String(16), nullable=False)  # created | updated | skipped
     reason: Mapped[str | None] = mapped_column(String(300))
+
+
+class PortalDemoSession(Base, UUIDPrimaryKeyMixin, CreatedAtMixin):
+    """One visitor's isolated, ephemeral "watch it happen live" workspace -- a fresh showcase-kind workspace,
+    empty until played: Kaveri's own deterministic story is written into it one event at a time as the
+    visitor plays through it, through the same real import and scoring pipeline every other invoice goes
+    through, rather than being replayed from data that already existed. Swept (deleted, cascading its
+    invoices and payments with it) once old enough that nobody is still watching."""
+    __tablename__ = "portal_demo_sessions"
+
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("portal_workspaces.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    cursor: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

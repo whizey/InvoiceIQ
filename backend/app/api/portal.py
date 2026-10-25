@@ -28,9 +28,10 @@ from app.core.db import get_db
 from app.core.login_throttle import login_throttle, registration_limit
 from app.models.portal import (
     PortalWorkspace, PortalUser, PortalMembership, PortalSession, PortalInvoice, PortalCaseEvent,
-    PortalPayment, PortalNote, PortalReminder, PortalZohoConnection, PortalZohoEvent,
+    PortalPayment, PortalNote, PortalReminder, PortalZohoConnection, PortalZohoEvent, PortalDemoSession,
 )
 from app.services import zoho_sync
+from app.services import demo_simulation
 from app.ml.champion_serving import verified_contract
 from app.ml.payment_risk_model import PaymentRiskArtifactError
 from app.services.portal_risk import explain_invoice, provenance, score_workspace
@@ -187,8 +188,15 @@ async def identity(request: Request, db: AsyncSession = Depends(get_db)):
         if not member:
             raise HTTPException(403, "Workspace access denied")
     elif workspace.kind == "showcase":
-        if record.user_id is not None or record.workspace_id not in {SHOWCASE_ID, PUBLIC_LEDGER_ID}:
+        if record.user_id is not None:
             raise HTTPException(403, "Invalid showcase scope")
+        if record.workspace_id not in {SHOWCASE_ID, PUBLIC_LEDGER_ID}:
+            # Not one of the two fixed public workspaces -- the only other valid showcase scope is a live
+            # demo session's own ephemeral workspace, created through /demo-start.
+            is_demo = await db.scalar(select(PortalDemoSession.id).where(
+                PortalDemoSession.workspace_id == record.workspace_id))
+            if is_demo is None:
+                raise HTTPException(403, "Invalid showcase scope")
     else:
         raise HTTPException(403, "Unknown workspace type")
     if cacheable:
@@ -1167,6 +1175,59 @@ async def demo_timeline(subject=Depends(identity), db: AsyncSession = Depends(ge
     events.sort(key=lambda e: e["at"])
     return {"workspace": workspace.name, "generated": workspace.as_of is None,
             "total": len(events), "events": events[-DEMO_TIMELINE_MAX:]}
+
+
+DEMO_SESSION_TTL = timedelta(hours=2)  # how long an idle live-demo workspace survives before the next sweep
+
+
+@router.post("/demo-start")
+async def demo_start(db: AsyncSession = Depends(get_db)):
+    """A fresh, isolated "watch it happen live" workspace: Kaveri's own deterministic story, written into the
+    database one event at a time as the visitor plays through it -- not replayed from data that already
+    existed. Sweeps workspaces idle long enough that nobody is still watching, so this never grows unbounded."""
+    if os.getenv("INVOICEIQ_PORTAL_SHOWCASE", "").lower() != "true":
+        raise HTTPException(404, "Public showcase unavailable")
+    stale_cutoff = datetime.now(timezone.utc) - DEMO_SESSION_TTL
+    stale_ids = (await db.scalars(select(PortalDemoSession.workspace_id).where(
+        PortalDemoSession.created_at < stale_cutoff))).all()
+    for workspace_id in stale_ids:
+        stale_workspace = await db.get(PortalWorkspace, workspace_id)
+        if stale_workspace is not None:
+            await db.delete(stale_workspace)
+    workspace = PortalWorkspace(name="Kaveri Industrial Supplies (live demo)", kind="showcase")
+    db.add(workspace)
+    await db.flush()
+    db.add(PortalDemoSession(workspace_id=workspace.id))
+    result = await issue(db, workspace.id, None)
+    await db.commit()
+    return {**result, "workspace": workspace.name, "kind": workspace.kind}
+
+
+@router.post("/demo-tick")
+async def demo_tick(count: int = Query(default=1, ge=1, le=20),
+                               subject=Depends(identity), db: AsyncSession = Depends(get_db)):
+    """Writes the next `count` events of this session's playback into the database for real, through the same
+    import and scoring pipeline every other invoice goes through."""
+    session, workspace = subject
+    demo = await db.scalar(select(PortalDemoSession).where(PortalDemoSession.workspace_id == workspace.id))
+    if demo is None:
+        raise HTTPException(403, "Not a live demo workspace")
+    events = demo_simulation.build_events(date.today())
+    batch = events[demo.cursor:demo.cursor + count]
+    for event in batch:
+        await demo_simulation.apply_event(db, workspace.id, event)
+    demo.cursor += len(batch)
+    try:
+        scored = (await score_workspace(db, workspace.id))["scored"] if batch else 0
+    except HTTPException:
+        scored = 0
+    await db.commit()
+    _bump(workspace.id)
+    return {"events": [{"at": str(e["at"]), "kind": e["kind"], "invoice": e["number"],
+                       "counterparty": e.get("account"),
+                       "amount": str(e["total"] if e["kind"] == "invoice" else e["amount"]),
+                       "due_date": str(e["due"]) if e["kind"] == "invoice" else None} for e in batch],
+            "cursor": demo.cursor, "total": len(events), "done": demo.cursor >= len(events), "scored": scored}
 
 
 @router.get("/example-export")
