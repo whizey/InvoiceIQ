@@ -355,6 +355,42 @@ async def test_sync_now_refuses_without_a_connection(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_sync_now_refuses_cleanly_for_a_connection_missing_api_domain(monkeypatch):
+    """A connection made before data-centre auto-detection shipped never got api_domain populated -- Sync
+    Now must refuse with a clear error, not crash with AttributeError on a None domain (as it did live)."""
+    monkeypatch.setenv("PUBLIC_READ_ONLY", "false")
+    monkeypatch.setenv("INVOICEIQ_PORTAL_ENABLED", "true")
+    configure(monkeypatch)
+    await engine.dispose()
+    tag = uuid.uuid4().hex
+    workspace_ids, user_ids = [], []
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
+            headers, workspace_id, user_id = await register(client, tag, "Zoho Legacy Connection Co")
+            workspace_ids.append(workspace_id)
+            user_ids.append(user_id)
+            await connected(client, headers, workspace_id)
+            async with async_session_factory() as db:
+                connection = await db.scalar(select(PortalZohoConnection).where(
+                    PortalZohoConnection.workspace_id == workspace_id))
+                connection.api_domain = None  # simulate a pre-auto-detection connection
+                await db.commit()
+
+            response = await client.post("/portal/zoho-sync-now", headers=headers)
+            assert response.status_code == 409
+            assert "reconnect" in response.json()["detail"].lower()
+    finally:
+        async with async_session_factory() as db:
+            await db.execute(delete(PortalZohoConnection).where(PortalZohoConnection.workspace_id.in_(workspace_ids)))
+            if workspace_ids:
+                await db.execute(delete(PortalWorkspace).where(PortalWorkspace.id.in_(workspace_ids)))
+            if user_ids:
+                await db.execute(delete(PortalUser).where(PortalUser.id.in_(user_ids)))
+            await db.commit()
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_payment_webhook_reconciles_a_real_payment_against_its_invoice(monkeypatch):
     monkeypatch.setenv("PUBLIC_READ_ONLY", "false")
     monkeypatch.setenv("INVOICEIQ_PORTAL_ENABLED", "true")

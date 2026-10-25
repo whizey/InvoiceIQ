@@ -1317,6 +1317,11 @@ async def zoho_sync_now(subject=Depends(identity), db: AsyncSession = Depends(ge
         PortalZohoConnection.workspace_id == workspace.id))
     if connection is None or not connection.access_token:
         raise HTTPException(409, "Connect Zoho Books first")
+    if not connection.api_domain:
+        # A connection made before data-centre auto-detection existed never got this populated. Every Zoho
+        # API call below needs it, so surface a clear, actionable error instead of crashing on a None domain.
+        raise HTTPException(409, "This connection predates automatic data-centre detection -- "
+                                 "disconnect and reconnect Zoho Books to refresh it.")
     if connection.token_expires_at and connection.token_expires_at <= datetime.now(timezone.utc):
         if not connection.refresh_token:
             raise HTTPException(409, "The Zoho connection expired; disconnect and reconnect")
@@ -1326,6 +1331,7 @@ async def zoho_sync_now(subject=Depends(identity), db: AsyncSession = Depends(ge
         except ValueError as exc:
             raise HTTPException(502, f"Could not refresh the Zoho connection: {exc}") from None
         connection.access_token = tokens.get("access_token")
+        connection.api_domain = tokens.get("api_domain") or connection.api_domain
         connection.token_expires_at = datetime.now(timezone.utc) + timedelta(
             seconds=tokens.get("expires_in", 3600))
         await db.commit()
