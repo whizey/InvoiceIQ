@@ -1138,6 +1138,37 @@ async def _require_importer(db, session, workspace):
         raise HTTPException(403, "Import permission required")
 
 
+DEMO_TIMELINE_MAX = 300  # a bounded, predictable size for the client-side playback, not the whole year's history
+
+
+@router.get("/demo-timeline")
+async def demo_timeline(subject=Depends(identity), db: AsyncSession = Depends(get_db)):
+    """A chronological replay of this showcase workspace's own generated history -- invoices created and
+    payments received, in the order they actually happened -- for the interactive "watch it happen" demo.
+    Customer workspaces have no synthetic history to replay, so this is showcase-only. The invoices and
+    payments here already went through the real import and scoring pipeline when the workspace was seeded;
+    this endpoint only orders and replays what's already in the database, it invents nothing."""
+    session, workspace = subject
+    if workspace.kind != "showcase":
+        raise HTTPException(403, "The demo timeline is only available on a showcase workspace")
+    invoice_rows = (await db.execute(select(
+        PortalInvoice.invoice_number, PortalInvoice.counterparty, PortalInvoice.issue_date,
+        PortalInvoice.due_date, PortalInvoice.amount_total
+    ).where(PortalInvoice.workspace_id == workspace.id))).all()
+    payment_rows = (await db.execute(select(
+        PortalPayment.paid_on, PortalPayment.amount, PortalInvoice.invoice_number, PortalInvoice.counterparty
+    ).join(PortalInvoice, PortalInvoice.id == PortalPayment.invoice_id)
+        .where(PortalPayment.workspace_id == workspace.id))).all()
+    events = [{"at": str(row.issue_date), "kind": "invoice", "invoice": row.invoice_number,
+              "counterparty": row.counterparty, "amount": str(row.amount_total),
+              "due_date": str(row.due_date)} for row in invoice_rows]
+    events += [{"at": str(row.paid_on), "kind": "payment", "invoice": row.invoice_number,
+               "counterparty": row.counterparty, "amount": str(row.amount)} for row in payment_rows]
+    events.sort(key=lambda e: e["at"])
+    return {"workspace": workspace.name, "generated": workspace.as_of is None,
+            "total": len(events), "events": events[-DEMO_TIMELINE_MAX:]}
+
+
 @router.get("/example-export")
 async def example_export(format: str = Query(default="zoho", pattern="^(zoho|tally)$"), subject=Depends(identity)):
     """The public business as a Zoho Books or Tally export, to try the importer with a real file layout."""

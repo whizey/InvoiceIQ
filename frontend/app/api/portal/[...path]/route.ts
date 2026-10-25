@@ -2,7 +2,7 @@ import {NextRequest} from "next/server";
 import {cookies} from "next/headers";
 import {backendBase} from "../../../../lib/backend-base";
 export const dynamic = "force-dynamic";
-const allowedGet = new Set(["me", "overview", "invoices", "settings", "intelligence", "recovery-summary","alerts","assistant-traces","assistant-reliability","notes","follow-ups","example-export","reminders","zoho-status"]);
+const allowedGet = new Set(["me", "overview", "invoices", "settings", "intelligence", "recovery-summary","alerts","assistant-traces","assistant-reliability","notes","follow-ups","example-export","reminders","zoho-status","demo-timeline"]);
 const allowedPost = new Set(["register", "login", "showcase", "decisions", "import", "score", "assistant", "assistant-stream", "transcribe", "notes", "import-preview", "import-file", "reminder-draft", "reminders", "erase", "zoho-connect", "zoho-disconnect", "zoho-sync-now"]);
 const cookieName = "invoiceiq_portal_session";
 type Params = {params: Promise<{path: string[]}>};

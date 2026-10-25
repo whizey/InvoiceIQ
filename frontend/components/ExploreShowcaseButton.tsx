@@ -4,7 +4,8 @@ import {useState} from "react";
 
 type Ledger="kaveri"|"public-2016";
 
-export default function ExploreShowcaseButton({ledger="kaveri",label="Explore the product →"}:{ledger?:Ledger;label?:string}){
+export default function ExploreShowcaseButton({ledger="kaveri",label="Explore the product →",destination="/follow-ups"}:
+  {ledger?:Ledger;label?:string;destination?:string}){
   const router=useRouter();
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
@@ -27,7 +28,7 @@ export default function ExploreShowcaseButton({ledger="kaveri",label="Explore th
       for(const path of ["follow-ups","overview","recovery-summary","invoices?q=&page=1&page_size=25&sort=posting_desc"])
         void fetch("/api/portal/"+path,{cache:"no-store"}).catch(()=>{});
       for(const page of ["/invoices","/cases","/approvals","/assistant"])router.prefetch(page);
-      router.push("/follow-ups");
+      router.push(destination);
       router.refresh();
     }catch(e){
       setError(e instanceof Error?e.message:"Could not open the showcase");
