@@ -73,8 +73,9 @@ async def test_exchange_code_raises_when_zoho_rejects_the_code(monkeypatch):
 
 
 def zoho_invoice(**overrides):
-    body = {"invoice_number": "INV-9", "customer_name": "Acme Co", "date": "2026-10-01",
-            "due_date": "2026-10-31", "total": "10000.00", "balance": "4000.00", "status": "sent"}
+    body = {"invoice_id": "4317942000000039021", "invoice_number": "INV-9", "customer_name": "Acme Co",
+            "date": "2026-10-01", "due_date": "2026-10-31", "total": "10000.00", "balance": "4000.00",
+            "status": "sent"}
     body.update(overrides)
     return {"invoice": body}
 
@@ -83,7 +84,7 @@ def test_map_invoice_reads_the_amount_paid_as_total_minus_balance():
     mapped = zoho_sync.map_invoice(zoho_invoice())
     assert mapped == {"invoice_number": "INV-9", "counterparty": "Acme Co", "issue_date": date(2026, 10, 1),
                       "due_date": date(2026, 10, 31), "amount_total": Decimal("10000.00"),
-                      "amount_paid": Decimal("6000.00")}
+                      "amount_paid": Decimal("6000.00"), "zoho_invoice_id": "4317942000000039021"}
 
 
 def test_map_invoice_defaults_the_due_date_when_zoho_omits_it():
@@ -189,3 +190,94 @@ async def test_list_invoices_raises_on_failure():
     with patch("httpx.AsyncClient.get", new=AsyncMock(return_value=mock_response)):
         with pytest.raises(ValueError, match="server error"):
             await zoho_sync.list_invoices("a-token", "https://www.zohoapis.in", "123")
+
+
+def zoho_payment(**overrides):
+    body = {"payment_id": "900001", "date": "2026-10-20",
+            "invoices": [{"invoice_id": "4317942000000039021", "amount_applied": "1000.00"}]}
+    body.update(overrides)
+    return {"payment": body}
+
+
+def test_map_payment_reads_every_invoice_allocation():
+    mapped = zoho_sync.map_payment(zoho_payment(invoices=[
+        {"invoice_id": "A1", "amount_applied": "400.00"},
+        {"invoice_id": "A2", "amount_applied": "600.00"},
+    ]))
+    assert mapped == {"zoho_payment_id": "900001", "paid_on": date(2026, 10, 20),
+                      "allocations": [{"zoho_invoice_id": "A1", "amount": Decimal("400.00")},
+                                     {"zoho_invoice_id": "A2", "amount": Decimal("600.00")}]}
+
+
+def test_map_payment_drops_an_unusable_allocation_line_but_keeps_the_rest():
+    mapped = zoho_sync.map_payment(zoho_payment(invoices=[
+        {"invoice_id": "", "amount_applied": "400.00"},  # no invoice id: dropped
+        {"invoice_id": "A2", "amount_applied": "0"},  # zero applied: dropped
+        {"invoice_id": "A4", "amount_applied": "not-a-number"},  # unparseable: dropped
+        {"invoice_id": "A3", "amount_applied": "600.00"},
+    ]))
+    assert mapped["allocations"] == [{"zoho_invoice_id": "A3", "amount": Decimal("600.00")}]
+
+
+@pytest.mark.parametrize("overrides,reason", [
+    ({"payment_id": ""}, "Missing payment id"),
+    ({"date": "not-a-date"}, "payment date"),
+    ({"invoices": []}, "not allocated"),
+    ({"invoices": [{"invoice_id": "", "amount_applied": "0"}]}, "not allocated"),
+])
+def test_map_payment_rejects_an_unusable_payload(overrides, reason):
+    with pytest.raises(ValueError, match=reason):
+        zoho_sync.map_payment(zoho_payment(**overrides))
+
+
+def test_map_payment_rejects_a_payload_with_no_payment_object():
+    with pytest.raises(ValueError, match="no payment object"):
+        zoho_sync.map_payment({"invoice": {}})
+
+
+@pytest.mark.asyncio
+async def test_list_payments_follows_pagination_until_the_last_page():
+    page_one = MagicMock(status_code=200, content=b"{}")
+    page_one.json.return_value = {"customer_payments": [{"payment_id": "1"}],
+                                  "page_context": {"page": 1, "has_more_page": True}}
+    page_two = MagicMock(status_code=200, content=b"{}")
+    page_two.json.return_value = {"customer_payments": [{"payment_id": "2"}],
+                                  "page_context": {"page": 2, "has_more_page": False}}
+    mock_get = AsyncMock(side_effect=[page_one, page_two])
+    with patch("httpx.AsyncClient.get", new=mock_get):
+        payments = await zoho_sync.list_payments("a-token", "https://www.zohoapis.in", "123")
+    assert [p["payment_id"] for p in payments] == ["1", "2"]
+    assert mock_get.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_list_payments_raises_on_failure():
+    mock_response = MagicMock(status_code=401, content=b'{"message": "invalid token"}')
+    mock_response.json.return_value = {"message": "invalid token"}
+    with patch("httpx.AsyncClient.get", new=AsyncMock(return_value=mock_response)):
+        with pytest.raises(ValueError, match="invalid token"):
+            await zoho_sync.list_payments("a-bad-token", "https://www.zohoapis.in", "123")
+
+
+def zoho_backfilled_payment(**overrides):
+    body = {"payment_id": "900002", "invoice_number": "INV-1", "date": "2026-10-20", "amount": "500.00"}
+    body.update(overrides)
+    return body
+
+
+def test_map_backfilled_payment_reads_the_single_invoice_allocation():
+    mapped = zoho_sync.map_backfilled_payment(zoho_backfilled_payment())
+    assert mapped == {"zoho_payment_id": "900002", "paid_on": date(2026, 10, 20),
+                      "invoice_number": "INV-1", "amount": Decimal("500.00")}
+
+
+@pytest.mark.parametrize("overrides,reason", [
+    ({"payment_id": ""}, "Missing payment id"),
+    ({"invoice_number": ""}, "Missing payment id"),
+    ({"date": "not-a-date"}, "payment date"),
+    ({"amount": "not-a-number"}, "not a number"),
+    ({"amount": "0"}, "zero or negative"),
+])
+def test_map_backfilled_payment_rejects_an_unusable_row(overrides, reason):
+    with pytest.raises(ValueError, match=reason):
+        zoho_sync.map_backfilled_payment(zoho_backfilled_payment(**overrides))
