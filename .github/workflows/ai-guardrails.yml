@@ -95,7 +95,7 @@ jobs:
           python -m app.agents.assistant_eval "${specs[@]}" --runs 1 --out-dir "$RUNNER_TEMP/assistant-eval"
           python -m app.agents.assistant_eval "$RUNNER_TEMP/assistant-eval/summary.json" --summary \
             --out-dir "$RUNNER_TEMP/assistant-eval" >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: assistant-live-eval

@@ -43,7 +43,7 @@ jobs:
           ls -lh invoiceiq.dump.gpg
       - name: Keep for seven days
         if: steps.config.outputs.ready == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: invoiceiq-db-${{ github.run_id }}
           path: invoiceiq.dump.gpg
