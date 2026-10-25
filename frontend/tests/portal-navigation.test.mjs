@@ -12,7 +12,8 @@ test("workspace entry opens the follow-up list directly",()=>{
   assert.ok(!home.includes('href="/platform"'));
   assert.ok(entry.includes("/api/portal/showcase"));
   assert.ok(entry.includes("/api/portal/me"));
-  assert.ok(entry.includes('router.push("/follow-ups")'));
+  assert.ok(entry.includes('destination="/follow-ups"'));
+  assert.ok(entry.includes("router.push(destination)"));
   assert.ok(redirect.includes('redirect(hasPortalSession?"/follow-ups":"/home")'));
   assert.ok(auth.includes('router.push("/follow-ups")'));
 });
