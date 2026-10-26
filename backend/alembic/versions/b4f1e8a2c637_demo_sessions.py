@@ -1,5 +1,5 @@
-"""One ephemeral, isolated workspace per "watch it happen live" visitor, with a cursor into Kaveri's
-deterministic story.
+"""A cursor into a new customer workspace's guided onboarding walkthrough -- Kaveri's deterministic story,
+written in one event at a time as the owner plays through it.
 
 Revision ID: b4f1e8a2c637
 Revises: a3e5f82c9d16

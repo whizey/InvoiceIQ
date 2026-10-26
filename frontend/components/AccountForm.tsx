@@ -9,7 +9,7 @@ export default function AccountForm({mode}:{mode:"register"|"login"}){
   const payload=Object.fromEntries(new FormData(event.currentTarget).entries());
   try{const r=await fetch("/api/portal/"+mode,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
    const data=await r.json();if(!r.ok)throw new Error(data.detail||"Unable to continue");
-   router.push("/follow-ups");router.refresh();
+   router.push(mode==="register"?"/onboarding":"/follow-ups");router.refresh();
   }catch(e){setError(e instanceof Error?e.message:"Request failed")}finally{setLoading(false)}
  }
  const register=mode==="register";

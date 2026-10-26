@@ -3,7 +3,7 @@ import {cookies} from "next/headers";
 import {backendBase} from "../../../../lib/backend-base";
 export const dynamic = "force-dynamic";
 const allowedGet = new Set(["me", "overview", "invoices", "settings", "intelligence", "recovery-summary","alerts","assistant-traces","assistant-reliability","notes","follow-ups","example-export","reminders","zoho-status","demo-timeline"]);
-const allowedPost = new Set(["register", "login", "showcase", "decisions", "import", "score", "assistant", "assistant-stream", "transcribe", "notes", "import-preview", "import-file", "reminder-draft", "reminders", "erase", "zoho-connect", "zoho-disconnect", "zoho-sync-now", "demo-start", "demo-tick"]);
+const allowedPost = new Set(["register", "login", "showcase", "decisions", "import", "score", "assistant", "assistant-stream", "transcribe", "notes", "import-preview", "import-file", "reminder-draft", "reminders", "erase", "zoho-connect", "zoho-disconnect", "zoho-sync-now", "onboarding-tick"]);
 const cookieName = "invoiceiq_portal_session";
 type Params = {params: Promise<{path: string[]}>};
 async function handler(req: NextRequest, context: Params, method: "GET"|"POST"|"PATCH"|"DELETE") {
@@ -21,12 +21,12 @@ async function handler(req: NextRequest, context: Params, method: "GET"|"POST"|"
   if (method!=="GET" && (!expectedOrigin||req.headers.get("origin")!==expectedOrigin))
     return Response.json({detail:"Origin not allowed"},{status:403});
   const token=(await cookies()).get(cookieName)?.value;
-  if ((allowedGet.has(action)||["decisions","score","session","assistant","assistant-stream","transcribe","notes","import-preview","import-file","reminder-draft","reminders","erase","zoho-connect","zoho-disconnect","zoho-sync-now","demo-tick"].includes(action)) && !token)
+  if ((allowedGet.has(action)||["decisions","score","session","assistant","assistant-stream","transcribe","notes","import-preview","import-file","reminder-draft","reminders","erase","zoho-connect","zoho-disconnect","zoho-sync-now","onboarding-tick"].includes(action)) && !token)
     return Response.json({detail:"Sign in required"},{status:401});
   const body=(method==="POST" && action!=="showcase")||method==="PATCH" ? await req.text():undefined;
   if (body && body.length>(action==="import"?262144:action==="import-preview"||action==="import-file"?3500000:action==="assistant"||action==="assistant-stream"?16384:action==="transcribe"?1000000:action==="reminders"?8192:4096)) return Response.json({detail:"Payload too large"},{status:413});
   try {
-    const query=["invoices","assistant-reliability","notes","example-export","showcase","demo-tick"].includes(action)?req.nextUrl.search:"";
+    const query=["invoices","assistant-reliability","notes","example-export","showcase","onboarding-tick"].includes(action)?req.nextUrl.search:"";
     const upstream=await fetch(backendBase()+"/portal/"+path.map(encodeURIComponent).join("/")+query,{
       method,cache:"no-store",signal:AbortSignal.timeout(action==="assistant"||action==="assistant-stream"||action==="import-file"||action==="reminder-draft"||action==="zoho-sync-now"?60000:action==="transcribe"?60000:15000),
       headers:{...(token?{Authorization:"Bearer "+token}:{}),...(body?{"Content-Type":"application/json"}:{})},
@@ -37,7 +37,7 @@ async function handler(req: NextRequest, context: Params, method: "GET"|"POST"|"
       return new Response(upstream.body,{headers:{"Content-Type":"text/event-stream","Cache-Control":"no-cache, no-transform",
         "X-Accel-Buffering":"no"}});
     const data=await upstream.json().catch(()=>({detail:"Invalid upstream response"}));
-    if (upstream.ok && ["register","login","showcase","demo-start"].includes(action)) {
+    if (upstream.ok && ["register","login","showcase"].includes(action)) {
       if (typeof data.token!=="string" || !data.token.startsWith("iqp_"))
         return Response.json({detail:"Invalid session"},{status:503});
       // Lax, not Strict: the Zoho OAuth callback redirects the browser back here as a top-level GET that

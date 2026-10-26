@@ -1,6 +1,7 @@
-"""The live "watch it happen" simulation: a visitor's own isolated, ephemeral copy of Kaveri's deterministic
-story, written into the database one event at a time instead of all at once, through the same real import and
-scoring pipeline every other invoice and payment goes through.
+"""The onboarding walkthrough: a brand-new, real customer workspace filled with Kaveri's deterministic sample
+story one event at a time instead of all at once, through the same real import and scoring pipeline every
+other invoice and payment goes through -- so a new signup can see the product work before importing their own
+ledger, rather than landing on an empty page.
 
 Deliberately reuses app/seed/showcase_seed.py's existing, already-reviewed generator rather than writing a
 second one: the story is still Kaveri Industrial Supplies, just revealed progressively instead of in bulk, and

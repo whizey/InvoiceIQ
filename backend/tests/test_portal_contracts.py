@@ -44,9 +44,6 @@ async def test_wrong_workspace_session_denied():
                 return SimpleNamespace(kind="showcase")
             return None
 
-        async def scalar(self, *args, **kwargs):
-            return None  # not a live-demo session's workspace either
-
     with pytest.raises(HTTPException) as exc:
         await identity(request("iqp_opaque"), DB())
     assert exc.value.status_code == 403

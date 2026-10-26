@@ -1,7 +1,6 @@
 "use client";
 import {useCallback,useEffect,useRef,useState} from "react";
 import {useRouter} from "next/navigation";
-import Link from "next/link";
 import PortalNavigation from "@/components/PortalNavigation";
 
 type Event={at:string;kind:"invoice"|"payment";invoice:string;counterparty:string;amount:string;due_date?:string};
@@ -63,8 +62,7 @@ export default function DemoTimeline(){
         <strong>Synthetic demo data</strong> — every invoice and payment below already happened in
         {" "}{timeline.workspace}&apos;s seeded history and went through the real scoring pipeline when it was
         created; this page only replays it in order, at a pace you control. None of it is live or newly
-        generated on this visit. <Link href="/demo/live" className="fu-link">
-        Prefer to watch genuinely new events happen live instead? →</Link>
+        generated on this visit.
       </p>}
       {error&&<p role="alert" className="portal-notice-error">{error}</p>}
       {!timeline&&!error&&<p role="status">Loading…</p>}

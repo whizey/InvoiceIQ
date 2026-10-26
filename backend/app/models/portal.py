@@ -208,11 +208,10 @@ class PortalZohoEvent(Base, UUIDPrimaryKeyMixin, CreatedAtMixin):
 
 
 class PortalDemoSession(Base, UUIDPrimaryKeyMixin, CreatedAtMixin):
-    """One visitor's isolated, ephemeral "watch it happen live" workspace -- a fresh showcase-kind workspace,
-    empty until played: Kaveri's own deterministic story is written into it one event at a time as the
-    visitor plays through it, through the same real import and scoring pipeline every other invoice goes
-    through, rather than being replayed from data that already existed. Swept (deleted, cascading its
-    invoices and payments with it) once old enough that nobody is still watching."""
+    """A cursor into a brand-new customer workspace's guided "watch it fill up" onboarding walkthrough --
+    Kaveri's own deterministic story, written into the real workspace one event at a time as the owner plays
+    through it, through the same real import and scoring pipeline every other invoice goes through, rather
+    than being loaded all at once. Deleted along with the workspace, like everything else in it."""
     __tablename__ = "portal_demo_sessions"
 
     workspace_id: Mapped[uuid.UUID] = mapped_column(
