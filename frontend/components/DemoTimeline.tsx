@@ -27,9 +27,9 @@ export default function DemoTimeline(){
         const response=await fetch("/api/portal/demo-timeline",{cache:"no-store"});
         if(response.status===401){router.replace("/home");return}
         const payload=await response.json();
-        if(!response.ok)throw new Error(payload.detail||"The demo isn't available for this workspace");
+        if(!response.ok)throw new Error(payload.detail||"This replay isn't available for this workspace");
         if(active)setTimeline(payload);
-      }catch(e){if(active)setError(e instanceof Error?e.message:"The demo isn't available for this workspace")}
+      }catch(e){if(active)setError(e instanceof Error?e.message:"This replay isn't available for this workspace")}
     })();
     return()=>{active=false};
   },[router]);
@@ -59,7 +59,7 @@ export default function DemoTimeline(){
       <p className="settings-eyebrow">{timeline?.workspace||"Workspace"} / Watch it happen</p>
       <h1 className="fu-title">A replay of this business&apos;s own history</h1>
       {timeline&&<p className="fu-sub" role="status">
-        <strong>Synthetic demo data</strong> — every invoice and payment below already happened in
+        <strong>Synthetic sample data</strong> — every invoice and payment below already happened in
         {" "}{timeline.workspace}&apos;s seeded history and went through the real scoring pipeline when it was
         created; this page only replays it in order, at a pace you control. None of it is live or newly
         generated on this visit.

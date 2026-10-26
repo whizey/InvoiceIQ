@@ -1151,7 +1151,7 @@ async def demo_timeline(subject=Depends(identity), db: AsyncSession = Depends(ge
     this endpoint only orders and replays what's already in the database, it invents nothing."""
     session, workspace = subject
     if workspace.kind != "showcase":
-        raise HTTPException(403, "The demo timeline is only available on a showcase workspace")
+        raise HTTPException(403, "This replay is only available on a showcase workspace")
     invoice_rows = (await db.execute(select(
         PortalInvoice.invoice_number, PortalInvoice.counterparty, PortalInvoice.issue_date,
         PortalInvoice.due_date, PortalInvoice.amount_total
