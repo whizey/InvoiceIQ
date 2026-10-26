@@ -207,12 +207,12 @@ class PortalZohoEvent(Base, UUIDPrimaryKeyMixin, CreatedAtMixin):
     reason: Mapped[str | None] = mapped_column(String(300))
 
 
-class PortalDemoSession(Base, UUIDPrimaryKeyMixin, CreatedAtMixin):
+class PortalOnboardingProgress(Base, UUIDPrimaryKeyMixin, CreatedAtMixin):
     """A cursor into a brand-new customer workspace's guided "watch it fill up" onboarding walkthrough --
     Kaveri's own deterministic story, written into the real workspace one event at a time as the owner plays
     through it, through the same real import and scoring pipeline every other invoice goes through, rather
     than being loaded all at once. Deleted along with the workspace, like everything else in it."""
-    __tablename__ = "portal_demo_sessions"
+    __tablename__ = "portal_onboarding_progress"
 
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("portal_workspaces.id", ondelete="CASCADE"), nullable=False, unique=True

@@ -15,7 +15,7 @@ depends_on = None
 
 def upgrade():
     op.create_table(
-        "portal_demo_sessions",
+        "portal_onboarding_progress",
         sa.Column("id", sa.UUID(), primary_key=True),
         sa.Column("workspace_id", sa.UUID(), sa.ForeignKey("portal_workspaces.id", ondelete="CASCADE"),
                   nullable=False, unique=True),
@@ -25,4 +25,4 @@ def upgrade():
 
 
 def downgrade():
-    op.drop_table("portal_demo_sessions")
+    op.drop_table("portal_onboarding_progress")

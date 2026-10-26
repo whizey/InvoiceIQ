@@ -12,7 +12,7 @@ const shortDate=(iso:string)=>new Date(iso+"T00:00:00Z").toLocaleDateString("en-
 
 /** Replays a showcase workspace's own already-seeded history, in order -- it shows what already happened,
  * at a pace you control, rather than fabricating new events on each visit. */
-export default function DemoTimeline(){
+export default function ReplayTimeline(){
   const router=useRouter();
   const [timeline,setTimeline]=useState<Timeline|null>(null);
   const [error,setError]=useState("");
@@ -24,7 +24,7 @@ export default function DemoTimeline(){
     let active=true;
     (async()=>{
       try{
-        const response=await fetch("/api/portal/demo-timeline",{cache:"no-store"});
+        const response=await fetch("/api/portal/replay-timeline",{cache:"no-store"});
         if(response.status===401){router.replace("/home");return}
         const payload=await response.json();
         if(!response.ok)throw new Error(payload.detail||"This replay isn't available for this workspace");
@@ -59,7 +59,7 @@ export default function DemoTimeline(){
       <p className="settings-eyebrow">{timeline?.workspace||"Workspace"} / Watch it happen</p>
       <h1 className="fu-title">A replay of this business&apos;s own history</h1>
       {timeline&&<p className="fu-sub" role="status">
-        <strong>Synthetic sample data</strong> — every invoice and payment below already happened in
+        <strong>Sample data</strong> — every invoice and payment below already happened in
         {" "}{timeline.workspace}&apos;s seeded history and went through the real scoring pipeline when it was
         created; this page only replays it in order, at a pace you control. None of it is live or newly
         generated on this visit.
@@ -79,8 +79,8 @@ export default function DemoTimeline(){
           </label>
           <span className="fu-muted">{revealed} of {timeline.events.length} events{done?" — done":""}</span>
         </div>
-        <section aria-labelledby="demo-feed" className="fu-panel">
-          <h2 id="demo-feed" className="fu-h2">Activity</h2>
+        <section aria-labelledby="replay-feed" className="fu-panel">
+          <h2 id="replay-feed" className="fu-h2">Activity</h2>
           {shown.length===0&&<p className="fu-muted">Press Play or Step to begin.</p>}
           <ol className="fu-list" style={{display:"flex",flexDirection:"column-reverse",gap:0}}>
             {shown.slice(-60).map((e,i)=><li key={`${e.kind}-${e.invoice}-${e.at}-${i}`}
