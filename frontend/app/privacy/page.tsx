@@ -38,7 +38,5 @@ export default function PrivacyPage(){
       account and workspace, from <Link href="/settings">Settings</Link>. Deletion is immediate and cannot be undone. Database backups
       are kept for at most seven days, after which deleted data is gone from them too.</p>
 
-    <h2>Questions</h2>
-    <p>Open an issue on the project&apos;s <a href="https://github.com/whizey/InvoiceIQ/issues">GitHub page</a>.</p>
   </main>;
 }
