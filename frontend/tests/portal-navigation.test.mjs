@@ -15,7 +15,7 @@ test("workspace entry opens the follow-up list directly",()=>{
   assert.ok(entry.includes('destination="/follow-ups"'));
   assert.ok(entry.includes("router.push(destination)"));
   assert.ok(redirect.includes('redirect(hasPortalSession?"/follow-ups":"/home")'));
-  assert.ok(auth.includes('router.push("/follow-ups")'));
+  assert.ok(auth.includes('router.push(mode==="register"?"/onboarding":"/follow-ups")'));
 });
 test("browser history back control works across SaaS routes",()=>{
   const nav=read("../components/PortalNavigation.tsx");

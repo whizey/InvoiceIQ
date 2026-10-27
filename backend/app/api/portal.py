@@ -28,9 +28,10 @@ from app.core.db import get_db
 from app.core.login_throttle import login_throttle, registration_limit
 from app.models.portal import (
     PortalWorkspace, PortalUser, PortalMembership, PortalSession, PortalInvoice, PortalCaseEvent,
-    PortalPayment, PortalNote, PortalReminder, PortalZohoConnection, PortalZohoEvent,
+    PortalPayment, PortalNote, PortalReminder, PortalZohoConnection, PortalZohoEvent, PortalOnboardingProgress,
 )
 from app.services import zoho_sync
+from app.services import onboarding_walkthrough
 from app.ml.champion_serving import verified_contract
 from app.ml.payment_risk_model import PaymentRiskArtifactError
 from app.services.portal_risk import explain_invoice, provenance, score_workspace
@@ -1138,19 +1139,19 @@ async def _require_importer(db, session, workspace):
         raise HTTPException(403, "Import permission required")
 
 
-DEMO_TIMELINE_MAX = 300  # a bounded, predictable size for the client-side playback, not the whole year's history
+REPLAY_TIMELINE_MAX = 300  # a bounded, predictable size for the client-side playback, not the whole year's history
 
 
-@router.get("/demo-timeline")
-async def demo_timeline(subject=Depends(identity), db: AsyncSession = Depends(get_db)):
+@router.get("/replay-timeline")
+async def replay_timeline(subject=Depends(identity), db: AsyncSession = Depends(get_db)):
     """A chronological replay of this showcase workspace's own generated history -- invoices created and
-    payments received, in the order they actually happened -- for the interactive "watch it happen" demo.
-    Customer workspaces have no synthetic history to replay, so this is showcase-only. The invoices and
+    payments received, in the order they actually happened -- for the interactive "watch it happen" page.
+    Customer workspaces have no generated history to replay, so this is showcase-only. The invoices and
     payments here already went through the real import and scoring pipeline when the workspace was seeded;
     this endpoint only orders and replays what's already in the database, it invents nothing."""
     session, workspace = subject
     if workspace.kind != "showcase":
-        raise HTTPException(403, "The demo timeline is only available on a showcase workspace")
+        raise HTTPException(403, "This replay is only available on a showcase workspace")
     invoice_rows = (await db.execute(select(
         PortalInvoice.invoice_number, PortalInvoice.counterparty, PortalInvoice.issue_date,
         PortalInvoice.due_date, PortalInvoice.amount_total
@@ -1166,7 +1167,42 @@ async def demo_timeline(subject=Depends(identity), db: AsyncSession = Depends(ge
                "counterparty": row.counterparty, "amount": str(row.amount)} for row in payment_rows]
     events.sort(key=lambda e: e["at"])
     return {"workspace": workspace.name, "generated": workspace.as_of is None,
-            "total": len(events), "events": events[-DEMO_TIMELINE_MAX:]}
+            "total": len(events), "events": events[-REPLAY_TIMELINE_MAX:]}
+
+
+@router.post("/onboarding-tick")
+async def onboarding_tick(count: int = Query(default=1, ge=1, le=20),
+                          subject=Depends(identity), db: AsyncSession = Depends(get_db)):
+    """Writes the next `count` events of a brand-new workspace's own guided walkthrough into the database for
+    real, through the same import and scoring pipeline every other invoice goes through -- a skippable way to
+    see the product work with sample data before importing a real ledger. Customer-only: a showcase workspace
+    (the public Kaveri business or the 2015 ledger) already has its own real history and is never written into."""
+    session, workspace = subject
+    if workspace.kind != "customer":
+        raise HTTPException(403, "Onboarding is only available on your own workspace")
+    progress = await db.scalar(select(PortalOnboardingProgress).where(
+        PortalOnboardingProgress.workspace_id == workspace.id))
+    if progress is None:
+        progress = PortalOnboardingProgress(workspace_id=workspace.id)
+        db.add(progress)
+        await db.flush()
+    events = onboarding_walkthrough.build_events(workspace.today())
+    batch = events[progress.cursor:progress.cursor + count]
+    for event in batch:
+        await onboarding_walkthrough.apply_event(db, workspace.id, event)
+    progress.cursor += len(batch)
+    try:
+        scored = (await score_workspace(db, workspace.id))["scored"] if batch else 0
+    except HTTPException:
+        scored = 0
+    await db.commit()
+    _bump(workspace.id)
+    return {"events": [{"at": str(e["at"]), "kind": e["kind"], "invoice": e["number"],
+                       "counterparty": e.get("account"),
+                       "amount": str(e["total"] if e["kind"] == "invoice" else e["amount"]),
+                       "due_date": str(e["due"]) if e["kind"] == "invoice" else None} for e in batch],
+            "cursor": progress.cursor, "total": len(events), "done": progress.cursor >= len(events),
+            "scored": scored}
 
 
 @router.get("/example-export")

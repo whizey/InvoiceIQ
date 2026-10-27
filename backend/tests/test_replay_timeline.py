@@ -1,4 +1,4 @@
-"""GET /portal/demo-timeline: a chronological replay of a showcase workspace's own generated history --
+"""GET /portal/replay-timeline: a chronological replay of a showcase workspace's own generated history --
 invoices and payments already in the database, ordered, not fabricated fresh on each request."""
 import uuid
 from datetime import date, timedelta
@@ -15,7 +15,7 @@ from app.main import app
 
 
 @pytest.mark.asyncio
-async def test_demo_timeline_orders_invoices_and_payments_chronologically(monkeypatch):
+async def test_replay_timeline_orders_invoices_and_payments_chronologically(monkeypatch):
     monkeypatch.setenv("PUBLIC_READ_ONLY", "false")
     monkeypatch.setenv("INVOICEIQ_PORTAL_ENABLED", "true")
     await engine.dispose()
@@ -24,7 +24,7 @@ async def test_demo_timeline_orders_invoices_and_payments_chronologically(monkey
     today = date.today()
     try:
         async with async_session_factory() as db:
-            workspace = PortalWorkspace(id=workspace_id, name="Demo Co", kind="showcase")
+            workspace = PortalWorkspace(id=workspace_id, name="Replay Co", kind="showcase")
             db.add(workspace)
             await db.flush()
             later = PortalInvoice(workspace_id=workspace_id, invoice_number="D-2", counterparty="Later Co",
@@ -42,11 +42,11 @@ async def test_demo_timeline_orders_invoices_and_payments_chronologically(monkey
             token = (await portal.issue(db, workspace_id, None))["token"]
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
-            response = await client.get("/portal/demo-timeline",
+            response = await client.get("/portal/replay-timeline",
                                         headers={"Authorization": f"Bearer {token}"})
         assert response.status_code == 200
         body = response.json()
-        assert body["workspace"] == "Demo Co" and body["total"] == 3
+        assert body["workspace"] == "Replay Co" and body["total"] == 3
         kinds = [(e["kind"], e["invoice"]) for e in body["events"]]
         # Earlier invoice (D-1) first, then the later invoice (D-2), then the payment against D-1 -- real
         # chronological order, not creation order (D-2 was added to the session before the D-1 payment).
@@ -59,7 +59,7 @@ async def test_demo_timeline_orders_invoices_and_payments_chronologically(monkey
 
 
 @pytest.mark.asyncio
-async def test_demo_timeline_refuses_a_customer_workspace(monkeypatch):
+async def test_replay_timeline_refuses_a_customer_workspace(monkeypatch):
     monkeypatch.setenv("PUBLIC_READ_ONLY", "false")
     monkeypatch.setenv("INVOICEIQ_PORTAL_ENABLED", "true")
     await engine.dispose()
@@ -68,9 +68,9 @@ async def test_demo_timeline_refuses_a_customer_workspace(monkeypatch):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
             reg = await client.post("/portal/register", json={
                 "email": f"owner-{tag}@example.invalid", "full_name": "Test Owner",
-                "company": "Demo Timeline Refusal Co", "password": "A-strong-unique-long-password-37"})
+                "company": "Replay Timeline Refusal Co", "password": "A-strong-unique-long-password-37"})
             headers = {"Authorization": f"Bearer {reg.json()['token']}"}
-            response = await client.get("/portal/demo-timeline", headers=headers)
+            response = await client.get("/portal/replay-timeline", headers=headers)
             assert response.status_code == 403
     finally:
         await engine.dispose()
