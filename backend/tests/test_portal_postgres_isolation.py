@@ -136,6 +136,14 @@ async def test_portal_customer_journeys_reconcile_and_isolate(monkeypatch):
                 "invoice_id": invoice_b, "decision": "APPROVE", "note": "Cross-tenant attempt",
             })
             assert forbidden.status_code == 404
+            foreign_notes = await client.get("/portal/notes", headers=sessions[0],
+                                             params={"invoice_id": invoice_b})
+            assert foreign_notes.status_code == 200
+            assert foreign_notes.json()["notes"] == []
+            forbidden_note = await client.post("/portal/notes", headers=sessions[0], json={
+                "invoice_id": invoice_b, "kind": "internal", "body": "Cross-tenant attempt",
+            })
+            assert forbidden_note.status_code == 404
             allowed = await client.post("/portal/decisions", headers=sessions[0], json={
                 "invoice_id": invoice_a, "decision": "ESCALATE", "note": "Manual internal review",
             })

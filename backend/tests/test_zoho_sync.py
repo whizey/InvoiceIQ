@@ -281,3 +281,30 @@ def test_map_backfilled_payment_reads_the_single_invoice_allocation():
 def test_map_backfilled_payment_rejects_an_unusable_row(overrides, reason):
     with pytest.raises(ValueError, match=reason):
         zoho_sync.map_backfilled_payment(zoho_backfilled_payment(**overrides))
+
+
+def test_zoho_endpoint_validation_blocks_credentials_to_untrusted_hosts():
+    from app.services.zoho_sync import ACCOUNT_HOSTS, API_HOSTS, trusted_origin
+
+    assert trusted_origin("https://accounts.zoho.in/", ACCOUNT_HOSTS) == "https://accounts.zoho.in"
+    assert trusted_origin("https://www.zohoapis.in", API_HOSTS) == "https://www.zohoapis.in"
+    for endpoint in ("http://accounts.zoho.in", "https://accounts.zoho.in.evil.example",
+                     "https://accounts.zoho.in@evil.example", "https://accounts.zoho.in:443",
+                     "https://accounts.zoho.in/redirect", "https://127.0.0.1"):
+        with pytest.raises(ValueError, match="Untrusted Zoho endpoint"):
+            trusted_origin(endpoint, ACCOUNT_HOSTS)
+
+
+def test_books_webhook_signature_covers_sorted_query_and_exact_json_bytes():
+    import base64
+    import hashlib
+    import hmac
+
+    body = b'{"invoice":{"invoice_number":"INV-1"}}'
+    key = "ExampleSigningKey123456"
+    signed = b"ab" + body
+    signature = base64.b64encode(hmac.new(key.encode(), signed, hashlib.sha256).digest()).decode()
+    assert zoho_sync.valid_webhook_signature(key, signature, [("a", "b")], body)
+    assert not zoho_sync.valid_webhook_signature(key, signature, [("a", "b")], body + b" ")
+    assert not zoho_sync.valid_webhook_signature(key, signature, [("a", "b"), ("a", "b")], body)
+    assert not zoho_sync.valid_webhook_signature(key, None, [("a", "b")], body)

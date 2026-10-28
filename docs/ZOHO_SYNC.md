@@ -18,13 +18,13 @@ once any exist, falling back to inferring one payment from the balance change on
 payment records synced at all. It does not sync credit notes, estimates, refunds or any object other than
 invoices and payments.
 
-## Why the webhook URL carries a secret
+## Webhook authentication
 
-Zoho's classic Books webhooks (the kind configured from a module's settings, not the newer signed
-"notifications" API) POST the resource JSON with no signature. There is nothing in the request body or headers
-that proves it came from Zoho and not from anyone who guessed the URL. So the only check available is a random
-secret embedded in the URL path itself, generated when the connection completes and never reused. Treat that
-URL like a password: anyone who has it can create and update invoices in the workspace it belongs to.
+The webhook URL contains a random workspace secret. Treat it like a password. Zoho Books also supports an
+optional signing key and sends an `X-Zoho-Webhook-Signature` header when that key is configured. InvoiceIQ
+can verify the HMAC-SHA256 signature against the raw request body and reject unsigned or altered deliveries.
+The signing key is independent of the URL secret. Existing connections continue to accept their current
+webhooks until signing is enabled for that workspace.
 
 ## Setting it up
 
@@ -84,10 +84,25 @@ and choose **Invoices** as the module with the triggers for invoice creation and
 varies by account type — look for "New Invoice" and "Invoice Status Change" or similar). Save it. From then on,
 every invoice Zoho creates or updates for that organization reaches the workspace within seconds.
 
+To enable signed delivery for a connected workspace, an owner or admin should:
+
+1. Call authenticated `POST /portal/zoho-signing-setup` and copy the returned `signing_secret` directly into
+   Zoho Books' **Secret** field for each InvoiceIQ webhook. The endpoint returns the same key on later calls.
+   Keep the key out of logs, tickets, and source control.
+2. Save and test both invoice and payment webhooks in Zoho Books. Confirm Zoho sends the
+   `X-Zoho-Webhook-Signature` header on each delivery.
+3. Call authenticated `POST /portal/zoho-signing-enable`. From that point, unsigned or invalid deliveries
+   receive HTTP 401, and repeated signed payloads are acknowledged without applying them twice.
+
+These endpoints are available through the same-origin frontend portal API or the authenticated backend API.
+Enabling signing before configuring **every** Zoho webhook that uses this URL will interrupt those deliveries.
+The URL secret must remain private even after signing is enabled.
+
 Disconnecting (also on the Settings page) deletes the connection and invalidates the old webhook secret
 immediately; the corresponding webhook in Zoho should be removed too, since it will otherwise get a 404 on
-every delivery. Re-authorizing without disconnecting first (clicking Connect again, or a future token refresh)
-keeps the existing webhook secret, so it never breaks a URL already saved in Zoho.
+every delivery. It also clears signed-delivery replay records. Re-authorizing without disconnecting first
+(clicking Connect again, or a future token refresh) keeps the existing webhook secret and signing settings,
+so it never breaks a URL already saved in Zoho.
 
 ### 4b. Optionally, a second webhook for payments
 

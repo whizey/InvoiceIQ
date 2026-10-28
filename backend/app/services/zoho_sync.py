@@ -4,20 +4,51 @@ Going forward, Zoho pushes to us, so the webhook path needs no polling. The acce
 the "Sync Now" backfill (pulling invoices that already existed in Zoho before the webhook was connected,
 which a webhook -- firing only on future create/update events -- can never retroactively deliver on its own).
 
-Zoho's classic Books webhooks are unsigned: the POST body carries no signature to verify. The only authenticity
-check available is a secret in the URL itself (see PortalZohoConnection.webhook_secret), never in the body or a
-header, since both are attacker-controlled on an unsigned request.
+This integration currently authenticates Books webhooks with a secret URL. Zoho Books also documents an
+optional signing secret; adopting that requires updating each tenant's webhook configuration and endpoint.
 """
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
-from urllib.parse import urlencode
+import base64
+import hashlib
+import hmac
+from urllib.parse import urlencode, urlsplit
 
 from app.core.config import settings
 
 SCOPE = "ZohoBooks.fullaccess.READ"
 SKIP_STATUSES = {"void", "draft"}
+ACCOUNT_HOSTS = frozenset({"accounts.zoho.com", "accounts.zoho.eu", "accounts.zoho.in",
+    "accounts.zoho.com.au", "accounts.zoho.jp", "accounts.zohocloud.ca",
+    "accounts.zoho.sa", "accounts.zoho.com.cn"})
+API_HOSTS = frozenset({f"{prefix}zohoapis{suffix}" for prefix in ("", "www.")
+    for suffix in (".com", ".eu", ".in", ".com.au", ".jp", ".ca", ".sa", ".com.cn")})
+
+
+def valid_webhook_signature(secret: str, signature: str | None, query_items, raw_body: bytes) -> bool:
+    """Zoho Books signs sorted query pairs followed by the exact raw JSON payload."""
+    if not signature or len(signature) > 100:
+        return False
+    items = list(query_items)
+    if len({key for key, _ in items}) != len(items):
+        return False
+    signed = "".join(key + value for key, value in sorted(items)).encode() + raw_body
+    expected = base64.b64encode(hmac.new(secret.encode(), signed, hashlib.sha256).digest()).decode()
+    return hmac.compare_digest(expected, signature)
+
+
+def trusted_origin(value: str, hosts: frozenset[str]) -> str:
+    """Reject untrusted OAuth callback and token-response hosts before sending credentials."""
+    try:
+        parsed = urlsplit(value)
+        if (parsed.scheme != "https" or parsed.hostname not in hosts or parsed.netloc != parsed.hostname
+                or parsed.path not in ("", "/") or parsed.query or parsed.fragment):
+            raise ValueError
+    except (TypeError, ValueError):
+        raise ValueError("Untrusted Zoho endpoint") from None
+    return f"https://{parsed.hostname}"
 
 
 def configured() -> bool:
@@ -39,7 +70,7 @@ async def exchange_code(code: str, accounts_server: str | None) -> dict:
     centre's token endpoint). Raises ValueError on failure."""
     import httpx
 
-    server = (accounts_server or settings.zoho_accounts_domain).rstrip("/")
+    server = trusted_origin(accounts_server or settings.zoho_accounts_domain, ACCOUNT_HOSTS)
     params = {"grant_type": "authorization_code", "client_id": settings.zoho_client_id,
               "client_secret": settings.zoho_client_secret, "redirect_uri": settings.zoho_redirect_uri,
               "code": code}
@@ -60,7 +91,7 @@ async def refresh_access_token(refresh_token: str, accounts_server: str) -> dict
     params = {"grant_type": "refresh_token", "client_id": settings.zoho_client_id,
               "client_secret": settings.zoho_client_secret, "refresh_token": refresh_token}
     async with httpx.AsyncClient(timeout=10) as client:
-        response = await client.post(f"{accounts_server.rstrip('/')}/oauth/v2/token", params=params)
+        response = await client.post(f"{trusted_origin(accounts_server, ACCOUNT_HOSTS)}/oauth/v2/token", params=params)
     body = response.json() if response.content else {}
     if response.status_code != 200 or "access_token" not in body:
         raise ValueError(str(body.get("error", "Zoho rejected the refresh token")))
@@ -72,7 +103,7 @@ async def list_organizations(access_token: str, api_domain: str) -> list[dict]:
     import httpx
 
     async with httpx.AsyncClient(timeout=15) as client:
-        response = await client.get(f"{api_domain.rstrip('/')}/books/v3/organizations",
+        response = await client.get(f"{trusted_origin(api_domain, API_HOSTS)}/books/v3/organizations",
                                     headers={"Authorization": f"Zoho-oauthtoken {access_token}"})
     body = response.json() if response.content else {}
     if response.status_code != 200:
@@ -94,7 +125,7 @@ async def list_invoices(access_token: str, api_domain: str, organization_id: str
     page = 1
     async with httpx.AsyncClient(timeout=20) as client:
         while True:
-            response = await client.get(f"{api_domain.rstrip('/')}/books/v3/invoices",
+            response = await client.get(f"{trusted_origin(api_domain, API_HOSTS)}/books/v3/invoices",
                 params={"organization_id": organization_id, "page": page, "per_page": INVOICES_PER_PAGE},
                 headers={"Authorization": f"Zoho-oauthtoken {access_token}"})
             body = response.json() if response.content else {}
@@ -268,7 +299,7 @@ async def list_payments(access_token: str, api_domain: str, organization_id: str
     page = 1
     async with httpx.AsyncClient(timeout=20) as client:
         while True:
-            response = await client.get(f"{api_domain.rstrip('/')}/books/v3/customerpayments",
+            response = await client.get(f"{trusted_origin(api_domain, API_HOSTS)}/books/v3/customerpayments",
                 params={"organization_id": organization_id, "page": page, "per_page": INVOICES_PER_PAGE},
                 headers={"Authorization": f"Zoho-oauthtoken {access_token}"})
             body = response.json() if response.content else {}
