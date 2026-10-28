@@ -69,6 +69,12 @@ def test_json_formatter_redacts_credentials_and_contact_details():
     assert "[REDACTED]" in formatted
 
 
+def test_json_formatter_redacts_webhook_secret_in_request_path():
+    formatted = JSONFormatter().format(_record(path="/portal/zoho-webhook/disposable-test-webhook-secret"))
+    assert "disposable-test-webhook-secret" not in formatted
+    assert "/portal/zoho-webhook/[REDACTED]" in formatted
+
+
 def test_configure_langsmith_is_a_noop_when_disabled(monkeypatch):
     monkeypatch.setattr(settings, "langchain_tracing_v2", False)
     monkeypatch.delenv("LANGCHAIN_TRACING_V2", raising=False)

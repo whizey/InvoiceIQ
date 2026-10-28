@@ -20,6 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import RedirectResponse, StreamingResponse
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import delete, func, select, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
@@ -28,7 +29,8 @@ from app.core.db import get_db
 from app.core.login_throttle import login_throttle, registration_limit
 from app.models.portal import (
     PortalWorkspace, PortalUser, PortalMembership, PortalSession, PortalInvoice, PortalCaseEvent,
-    PortalPayment, PortalNote, PortalReminder, PortalZohoConnection, PortalZohoEvent, PortalOnboardingProgress,
+    PortalPayment, PortalNote, PortalReminder, PortalZohoConnection, PortalZohoEvent,
+    PortalZohoWebhookDelivery, PortalOnboardingProgress,
 )
 from app.services import zoho_sync
 from app.services import onboarding_walkthrough
@@ -1072,7 +1074,8 @@ async def erase_workspace_data(db, workspace_id) -> int:
     await db.execute(delete(OutboxEvent).where(OutboxEvent.payload["data"]["workspace_id"].astext == key))
     await db.execute(delete(DeadLetterEvent).where(DeadLetterEvent.payload["data"]["workspace_id"].astext == key))
     await db.execute(delete(assistant_traces).where(assistant_traces.c.workspace_id == workspace_id))
-    for model in (PortalReminder, PortalNote, PortalCaseEvent, PortalPayment, PortalInvoice, PortalZohoEvent):
+    for model in (PortalReminder, PortalNote, PortalCaseEvent, PortalPayment, PortalInvoice,
+                  PortalZohoEvent, PortalZohoWebhookDelivery):
         await db.execute(delete(model).where(model.workspace_id == workspace_id))
     return count
 
@@ -1338,8 +1341,13 @@ async def zoho_callback(code: str = Query(default=""), state: str = Query(defaul
     expires_in = tokens.get("expires_in")
     connection.token_expires_at = (datetime.now(timezone.utc) + timedelta(seconds=expires_in)
                                    if expires_in else None)
-    connection.api_domain = tokens.get("api_domain") or connection.api_domain
-    connection.accounts_server = (accounts_server or settings.zoho_accounts_domain).rstrip("/")
+    try:
+        api_domain = zoho_sync.trusted_origin(tokens["api_domain"], zoho_sync.API_HOSTS) if tokens.get("api_domain") else None
+        accounts_origin = zoho_sync.trusted_origin(accounts_server or settings.zoho_accounts_domain, zoho_sync.ACCOUNT_HOSTS)
+    except ValueError:
+        return RedirectResponse(f"{frontend}?zoho=error")
+    connection.api_domain = api_domain or connection.api_domain
+    connection.accounts_server = accounts_origin
     # Keep the existing secret across a re-authorization (refreshing tokens, or clicking Connect again
     # without disconnecting first) -- only an explicit Disconnect should ever invalidate a webhook URL
     # already saved in Zoho Books.
@@ -1366,10 +1374,43 @@ async def zoho_disconnect(subject=Depends(identity), db: AsyncSession = Depends(
     connection = await db.scalar(select(PortalZohoConnection).where(
         PortalZohoConnection.workspace_id == workspace.id))
     if connection:
+        await db.execute(delete(PortalZohoWebhookDelivery).where(
+            PortalZohoWebhookDelivery.workspace_id == workspace.id))
         await db.delete(connection)
         await db.commit()
         _bump(workspace.id)
     return {"ok": True}
+
+
+@router.post("/zoho-signing-setup")
+async def zoho_signing_setup(subject=Depends(identity), db: AsyncSession = Depends(get_db)):
+    """Give an importer the independent signing key to enter in Zoho Books."""
+    session, workspace = subject
+    await _require_importer(db, session, workspace)
+    connection = await db.scalar(select(PortalZohoConnection).where(
+        PortalZohoConnection.workspace_id == workspace.id))
+    if connection is None or not connection.webhook_secret:
+        raise HTTPException(409, "Connect Zoho before configuring webhook signing")
+    if not connection.webhook_signing_secret:
+        alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+        connection.webhook_signing_secret = "".join(secrets.choice(alphabet) for _ in range(40))
+        await db.commit()
+    return {"signing_secret": connection.webhook_signing_secret,
+            "signature_required": connection.webhook_signature_required}
+
+
+@router.post("/zoho-signing-enable")
+async def zoho_signing_enable(subject=Depends(identity), db: AsyncSession = Depends(get_db)):
+    """Enable verification only after the matching key has been saved in Zoho Books."""
+    session, workspace = subject
+    await _require_importer(db, session, workspace)
+    connection = await db.scalar(select(PortalZohoConnection).where(
+        PortalZohoConnection.workspace_id == workspace.id))
+    if connection is None or not connection.webhook_signing_secret:
+        raise HTTPException(409, "Configure a Zoho signing key first")
+    connection.webhook_signature_required = True
+    await db.commit()
+    return {"signature_required": True}
 
 
 @router.post("/zoho-sync-now")
@@ -1460,14 +1501,25 @@ async def zoho_sync_now(subject=Depends(identity), db: AsyncSession = Depends(ge
 
 
 @router.post("/zoho-webhook/{secret}")
-async def zoho_webhook(secret: str, payload: dict, db: AsyncSession = Depends(get_db)):
+async def zoho_webhook(secret: str, payload: dict, request: Request, db: AsyncSession = Depends(get_db)):
     """Public: Zoho posts here on every invoice or payment create/update once connected -- two separate
     webhooks in Zoho Books, one per module, can point at this same URL; the payload's own shape says which.
-    The secret in the URL is the only authenticity check available -- Zoho's classic Books webhooks carry no
-    signature in the body or headers."""
+    This integration currently authenticates with the secret URL. Signed delivery requires configuring
+    Zoho's optional webhook signing secret and migrating existing tenant webhooks."""
     connection = await db.scalar(select(PortalZohoConnection).where(PortalZohoConnection.webhook_secret == secret))
     if connection is None:
         raise HTTPException(404, "Unknown webhook")
+    if connection.webhook_signature_required:
+        raw_body = await request.body()
+        if not zoho_sync.valid_webhook_signature(connection.webhook_signing_secret or "",
+                request.headers.get("x-zoho-webhook-signature"), request.query_params.multi_items(), raw_body):
+            raise HTTPException(401, "Invalid webhook signature")
+        digest = hashlib.sha256(raw_body).hexdigest()
+        recorded = await db.scalar(insert(PortalZohoWebhookDelivery).values(
+            workspace_id=connection.workspace_id, digest=digest).on_conflict_do_nothing(
+            index_elements=["workspace_id", "digest"]).returning(PortalZohoWebhookDelivery.id))
+        if recorded is None:
+            return {"ok": True, "duplicate": True}
     workspace = await db.get(PortalWorkspace, connection.workspace_id)
     if workspace is None:
         raise HTTPException(404, "Workspace not found")

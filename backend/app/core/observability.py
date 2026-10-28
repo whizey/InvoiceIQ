@@ -37,6 +37,7 @@ _STANDARD_ATTRS = set(logging.LogRecord("", 0, "", 0, "", (), None).__dict__.key
 _REQUEST_ID = re.compile(r"[A-Za-z0-9._-]{1,64}\Z")
 _URI_CREDENTIAL = re.compile(r"([a-z][a-z0-9+.-]*://[^/\s:@]+:)[^@\s/]+(@)", re.IGNORECASE)
 _BEARER = re.compile(r"(\bBearer\s+)[^\s\"']+", re.IGNORECASE)
+_WEBHOOK_SECRET_PATH = re.compile(r"(/portal/zoho-webhook/)[^/?\s]+")
 _SECRET_ASSIGNMENT = re.compile(r"\b((?:password|api[_-]?key|token|secret)\s*[=:]\s*)[^\s,;]+", re.IGNORECASE)
 _CONTACT = re.compile(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}")
 _SECRET_KEYS = {"password", "api_key", "token", "secret", "authorization", "database_url"}
@@ -46,6 +47,7 @@ def _safe_log_value(value, depth: int = 0):
     if depth > 8:
         return "[REDACTED]"
     if isinstance(value, str):
+        value = _WEBHOOK_SECRET_PATH.sub(r"\1[REDACTED]", value)
         value = _URI_CREDENTIAL.sub(r"\1[REDACTED]\2", value)
         value = _BEARER.sub(r"\1[REDACTED]", value)
         value = _SECRET_ASSIGNMENT.sub(r"\1[REDACTED]", value)
@@ -96,7 +98,8 @@ def scrub_error_event(event: dict, hint=None) -> dict:
     """Keep only what helps fix the error: method, path and the stack. No bodies, query strings, cookies,
     headers or user details leave the server (the privacy page promises this)."""
     request = event.get("request") or {}
-    event["request"] = {"method": request.get("method"), "url": (request.get("url") or "").split("?")[0]}
+    event["request"] = {"method": request.get("method"),
+                        "url": _safe_log_value((request.get("url") or "").split("?")[0])}
     event.pop("user", None)
     for frame_list in [e.get("stacktrace", {}).get("frames", []) for e in (event.get("exception") or {}).get("values", [])]:
         for frame in frame_list:

@@ -17,3 +17,10 @@ def test_reports_drop_bodies_queries_cookies_users_and_local_variables():
 def test_nothing_is_configured_without_a_dsn(monkeypatch):
     monkeypatch.delenv("SENTRY_DSN", raising=False)
     assert configure_error_tracking() is False
+
+
+def test_error_reports_redact_webhook_secret_from_url():
+    event = {"request": {"method": "POST",
+                         "url": "https://api.example/portal/zoho-webhook/disposable-test-webhook-secret?source=test"}}
+    clean = scrub_error_event(event)
+    assert clean["request"]["url"] == "https://api.example/portal/zoho-webhook/[REDACTED]"

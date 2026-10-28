@@ -165,9 +165,7 @@ class PortalReminder(Base, UUIDPrimaryKeyMixin):
 
 
 class PortalZohoConnection(Base, UUIDPrimaryKeyMixin, CreatedAtMixin):
-    """One Zoho Books organization streaming invoices into a workspace by webhook. `webhook_secret` is the only
-    authenticity check Zoho's classic webhooks offer (the POST itself carries no signature), so it lives in the
-    callback URL path, never in the request body or a header."""
+    """One Zoho Books organization streaming invoices into a workspace by webhook."""
     __tablename__ = "portal_zoho_connections"
 
     workspace_id: Mapped[uuid.UUID] = mapped_column(
@@ -187,9 +185,18 @@ class PortalZohoConnection(Base, UUIDPrimaryKeyMixin, CreatedAtMixin):
     # same reasoning as api_domain.
     accounts_server: Mapped[str | None] = mapped_column(String(120))
     webhook_secret: Mapped[str | None] = mapped_column(String(64), unique=True)
+    webhook_signing_secret: Mapped[str | None] = mapped_column(String(50))
+    webhook_signature_required: Mapped[bool] = mapped_column(default=False, nullable=False)
     connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     invoices_synced: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+
+class PortalZohoWebhookDelivery(Base, UUIDPrimaryKeyMixin, CreatedAtMixin):
+    __tablename__ = "portal_zoho_webhook_deliveries"
+    workspace_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("portal_workspaces.id", ondelete="CASCADE"), nullable=False)
+    digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    __table_args__ = (UniqueConstraint("workspace_id", "digest"),)
 
 
 class PortalZohoEvent(Base, UUIDPrimaryKeyMixin, CreatedAtMixin):

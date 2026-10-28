@@ -1,5 +1,7 @@
-"""The Zoho integration endpoints: connect issues a one-time state, the callback redeems it, and the webhook
-upserts invoices by the secret in its own URL (Zoho's classic webhooks carry no signature to check instead)."""
+"""Zoho integration: OAuth, unsigned compatibility, signed webhooks, and invoice upserts."""
+import base64
+import hashlib
+import hmac
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -63,6 +65,51 @@ async def connected(client, headers, workspace_id) -> str:
     assert callback.status_code in (302, 307)
     status = await client.get("/portal/zoho-status", headers=headers)
     return status.json()["webhook_url"].rsplit("/", 1)[1]
+
+
+@pytest.mark.asyncio
+async def test_signed_webhook_rejects_forgery_and_replay(monkeypatch):
+    monkeypatch.setenv("PUBLIC_READ_ONLY", "false")
+    monkeypatch.setenv("INVOICEIQ_PORTAL_ENABLED", "true")
+    configure(monkeypatch)
+    await engine.dispose()
+    workspace_ids, user_ids = [], []
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
+            owner, workspace_id, user_id = await register(client, uuid.uuid4().hex, "Signed Webhook Co")
+            workspace_ids.append(workspace_id)
+            user_ids.append(user_id)
+            secret = await connected(client, owner, workspace_id)
+            assert (await client.post("/portal/zoho-signing-setup")).status_code == 401
+            setup = await client.post("/portal/zoho-signing-setup", headers=owner)
+            assert setup.status_code == 200 and setup.json()["signature_required"] is False
+            key = setup.json()["signing_secret"]
+            assert len(key) == 40 and key != secret
+            assert (await client.post("/portal/zoho-signing-enable", headers=owner)).status_code == 200
+
+            body = (b'{"invoice":{"invoice_number":"SIGNED-1","customer_name":"Signed Co",'
+                    b'"date":"2026-10-01","due_date":"2026-10-31","total":"500.00",'
+                    b'"balance":"500.00","status":"sent"}}')
+            url = f"/portal/zoho-webhook/{secret}"
+            assert (await client.post(url, content=body, headers={"Content-Type": "application/json"})).status_code == 401
+            signed = base64.b64encode(hmac.new(key.encode(), body, hashlib.sha256).digest()).decode()
+            headers = {"Content-Type": "application/json", "X-Zoho-Webhook-Signature": signed}
+            assert (await client.post(url, content=body + b" ", headers=headers)).status_code == 401
+            first = await client.post(url, content=body, headers=headers)
+            assert first.status_code == 200 and first.json()["created"] is True
+            duplicate = await client.post(url, content=body, headers=headers)
+            assert duplicate.status_code == 200 and duplicate.json() == {"ok": True, "duplicate": True}
+            invoices = (await client.get("/portal/invoices?q=SIGNED-1", headers=owner)).json()
+            assert invoices["total"] == 1
+            assert (await client.post("/portal/zoho-disconnect", headers=owner)).status_code == 200
+    finally:
+        async with async_session_factory() as db:
+            if workspace_ids:
+                await db.execute(delete(PortalWorkspace).where(PortalWorkspace.id.in_(workspace_ids)))
+            if user_ids:
+                await db.execute(delete(PortalUser).where(PortalUser.id.in_(user_ids)))
+            await db.commit()
+        await engine.dispose()
 
 
 @pytest.mark.asyncio
