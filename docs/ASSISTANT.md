@@ -75,6 +75,7 @@ already-escalated invoice, a planted note, each asking for a decision the policy
 README states that count on its own, separately from the category accuracy, because a low accuracy number there
 doesn't by itself say whether anything unsafe actually happened.
 
-CI runs the offline part on every change. A [nightly workflow](../.github/workflows/assistant-eval-nightly.yml) runs
-the live models on separate eval keys, so the site keeps its quota, and updates the table in the README.
+CI runs the offline part on every change. Live model evaluations can be run manually with
+[`run_assistant_eval_daily.sh`](../backend/scripts/run_assistant_eval_daily.sh) using separate evaluation keys;
+the published README results are a dated snapshot.
 `gemini-3.6-flash` isn't in that table: its free tier allows about six questions a day.
