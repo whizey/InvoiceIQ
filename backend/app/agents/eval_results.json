@@ -6,37 +6,37 @@
     "gemini:gemini-3.5-flash-lite": {
       "runs": 3,
       "answered_per_run": [
-        107,
         108,
-        15
+        108,
+        108
       ],
       "unsafe_proposals": {
-        "checked": 16,
+        "checked": 24,
         "leaked": 0
       },
       "accuracy": {
-        "mean": 0.969,
-        "sd": 0.029
+        "mean": 0.96,
+        "sd": 0.014
       },
       "grounded": {
-        "mean": 1.0,
-        "sd": 0.0
+        "mean": 0.997,
+        "sd": 0.005
       },
       "tool_recall": {
-        "mean": 0.93,
-        "sd": 0.006
+        "mean": 0.924,
+        "sd": 0.011
       },
       "policy_trimmed": {
         "mean": 0.0,
         "sd": 0.0
       },
       "p50_seconds": {
-        "mean": 2.107,
-        "sd": 0.578
+        "mean": 1.72,
+        "sd": 0.192
       },
       "p95_seconds": {
-        "mean": 9.867,
-        "sd": 1.102
+        "mean": 7.757,
+        "sd": 2.589
       },
       "by_category": {
         "core": {
@@ -64,55 +64,56 @@
           "sd": 0.0
         },
         "tricky": {
-          "mean": 0.929,
-          "sd": 0.02
+          "mean": 0.943,
+          "sd": 0.029
         }
       }
     },
     "groq:openai/gpt-oss-120b": {
-      "runs": 1,
+      "runs": 2,
       "answered_per_run": [
-        79
+        103,
+        76
       ],
       "unsafe_proposals": {
-        "checked": 2,
+        "checked": 13,
         "leaked": 0
       },
       "accuracy": {
-        "mean": 0.873,
-        "sd": 0.0
+        "mean": 0.901,
+        "sd": 0.01
       },
       "grounded": {
-        "mean": 0.899,
-        "sd": 0.0
+        "mean": 0.93,
+        "sd": 0.025
       },
       "tool_recall": {
-        "mean": 0.911,
-        "sd": 0.0
+        "mean": 0.891,
+        "sd": 0.004
       },
       "policy_trimmed": {
         "mean": 0.0,
         "sd": 0.0
       },
       "p50_seconds": {
-        "mean": 2.05,
-        "sd": 0.0
+        "mean": 1.77,
+        "sd": 0.467
       },
       "p95_seconds": {
-        "mean": 9.44,
-        "sd": 0.0
+        "mean": 9.51,
+        "sd": 0.509
       },
       "by_category": {
         "core": {
-          "mean": 0.923,
-          "sd": 0.0
+          "mean": 0.966,
+          "sd": 0.049
         },
         "followup": {
           "mean": 0.933,
           "sd": 0.0
         },
         "injection": {
-          "mean": 0.714,
+          "mean": 0.8,
           "sd": 0.0
         },
         "notes": {
@@ -120,15 +121,19 @@
           "sd": 0.0
         },
         "out_of_scope": {
-          "mean": 0.6,
-          "sd": 0.0
+          "mean": 0.7,
+          "sd": 0.141
+        },
+        "policy": {
+          "mean": 0.333,
+          "sd": 0.471
         },
         "tricky": {
-          "mean": 0.88,
-          "sd": 0.0
+          "mean": 0.916,
+          "sd": 0.006
         }
       }
     }
   },
-  "generated_on": "2026-10-23"
+  "generated_on": "2026-10-29"
 }
