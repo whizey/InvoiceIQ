@@ -1,6 +1,7 @@
 """The portal read cache: shared showcase data is computed once, visitor data stays per visitor."""
 import asyncio
 import uuid
+from datetime import date
 from types import SimpleNamespace
 
 from app.api import portal
@@ -8,7 +9,7 @@ from app.api import portal
 
 def test_shared_entries_serve_every_visitor_and_writes_invalidate(monkeypatch):
     monkeypatch.setattr(portal, "_cache", {})
-    workspace = SimpleNamespace(id=uuid.uuid4(), kind="showcase")
+    workspace = SimpleNamespace(id=uuid.uuid4(), kind="showcase", today=date.today)
     alice, bob = SimpleNamespace(token_digest="a"), SimpleNamespace(token_digest="b")
     builds = []
 
@@ -32,7 +33,7 @@ def test_shared_entries_serve_every_visitor_and_writes_invalidate(monkeypatch):
 
 def test_ttl_expires_entries(monkeypatch):
     monkeypatch.setattr(portal, "_cache", {})
-    workspace, visitor = SimpleNamespace(id=uuid.uuid4(), kind="customer"), SimpleNamespace(token_digest="x")
+    workspace, visitor = SimpleNamespace(id=uuid.uuid4(), kind="customer", today=date.today), SimpleNamespace(token_digest="x")
     clock = iter([100.0, 105.0, 131.0, 131.0])  # store, check after 5 s, check after 31 s, store again
     monkeypatch.setattr(portal, "time", SimpleNamespace(monotonic=lambda: next(clock)))  # the portal's clock only
     calls = []
