@@ -14,12 +14,6 @@ Live at **https://invoiceiq-ai.vercel.app**. No sign-up needed to look around.
 This is the live site, not a mock-up: open "More" in the nav, go to Approvals, click a status to filter the real
 queue underneath it. Nothing in that recording is staged.
 
-### At a glance
-
-| 1,998 | 939 | 0.706 vs 0.520 | 0 of 18 | 2 | 0 |
-|:---:|:---:|:---:|:---:|:---:|:---:|
-| real invoices loaded for the Model page's comparison | automated backend tests, 85% coverage | model vs simple-average AUC on invoices neither had seen | times a forbidden action got approved, across every eval safety check | import formats supported (Tally, Zoho Books) | invented numbers let through into a reminder draft |
-
 ## Trying it
 
 The home page has two ways in:
@@ -36,36 +30,34 @@ anyone. There's a [walkthrough video](frontend/public/walkthrough/invoiceiq-walk
 To use your own invoices, create a workspace and upload a Zoho Books invoice export or Tally's Bills Receivable
 report.
 
-## What it does
-
-### Follow-ups
+## Follow-ups
 
 This is the page you land on. Overdue invoices are sorted by amount × chance of paying late × days
 overdue, and each one has a short reason taken from what's on record: a dispute, a part payment, something the
 customer said or promised, or how late they normally pay ("₹69k, 51 days overdue, usually pays 46 days late").
 Disputed invoices are kept out of the list.
 
-### Who's likely to pay late
+## Who's likely to pay late
 
 The score starts simple: each customer's share of late payments over their last six settled
 invoices, using only what was known when the invoice was raised. There's also a LightGBM model, but a workspace
 only uses it if it ranks that workspace's own last six months better than the simple average. The Model page shows
 both scores and a calibration table either way.
 
-### Cash forecast
+## Cash forecast
 
 For each open invoice, the chance it gets paid in each of the next eight weeks, given how late it
 already is. This comes from a Kaplan-Meier curve of days-from-due-date-to-payment fitted on the workspace's own
 history. The page also shows how the same forecast did over the last six four-week periods, and the range is
 widened to match.
 
-### Importing
+## Importing
 
 CSV or Excel exports from Zoho Books and Tally. It finds the header row (Tally puts the company name and
 date range above it), reads Indian dates and "Dr/Cr" amounts, and lets you fix the column mapping. You see a preview
 first, including which rows will be skipped and why.
 
-### Reminders
+## Reminders
 
 An email or WhatsApp draft in English or Hinglish. The model only gets the invoice's facts, and a
 draft that mentions any number not in those facts is thrown away (after one retry it falls back to a template). You
@@ -73,7 +65,7 @@ edit it and send it yourself, then mark it sent. It won't let you remind a dispu
 twice in three days, and it flags balances over ₹5 lakh or more than 60 days late for a manager. The log records
 whether a payment came in within two weeks.
 
-### Everything else
+## Everything else
 
 There's also a receivables dashboard, review and approval queues, an [assistant](docs/ASSISTANT.md) that answers
 questions about the ledger (every figure it states is checked against the data), and account settings including
@@ -146,18 +138,12 @@ Fixture `assistant-eval-v3`, results as of 2026-10-23. Mean ± sample standard d
 
 ## How it's built
 
-```mermaid
-flowchart LR
-  Browser --> Web["Next.js on Vercel<br/>pages + API proxy"]
-  Web -->|server side| API["FastAPI on a<br/>Hugging Face Space"]
-  API --> DB[(PostgreSQL<br/>Supabase)]
-  API --> Models[LightGBM model<br/>+ survival curves]
-  API --> LLM[Gemini / Groq]
-  API --> Outbox[Event outbox] --> Worker[Worker or Kafka]
-```
+The browser only ever talks to a Next.js app on Vercel, which forwards a fixed list of routes server-side to a
+FastAPI backend on a Hugging Face Space. That backend reads and writes a PostgreSQL database on Supabase, calls a
+LightGBM model and survival curves for scoring, calls Gemini or Groq for the assistant and reminder drafts, and
+writes decisions to an event outbox that a worker (or Kafka) applies.
 
-- The browser only talks to the Next.js app. It forwards a fixed list of API routes server-side, and the session
-  token lives in an HTTP-only cookie.
+- The session token lives in an HTTP-only cookie.
 - Every query in the API is scoped to the caller's workspace. Visitors to the public workspaces only see their own
   changes.
 - Decisions write an event row in the same transaction; a worker applies it. Kafka can carry those events (the
@@ -190,7 +176,7 @@ cd backend && ruff check . && ./scripts/run_full_tests.sh --coverage   # needs t
 cd frontend && npm ci && npm run lint && npm test && npm run build
 ```
 
-The backend suite (about 939 tests) runs against a real PostgreSQL and CI requires 80% coverage. CI also runs the
+The backend suite (about 939 tests, at 85% coverage) runs against a real PostgreSQL and CI requires 80%. CI also runs the
 assistant's offline eval, migrations up and down, dependency audits and a secret scan. Merging to `main` deploys the
 API and the site.
 
