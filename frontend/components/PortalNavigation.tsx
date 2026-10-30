@@ -17,6 +17,7 @@ export default function PortalNavigation(){
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
   const [moreOpen,setMoreOpen]=useState(false);
+  const [counts,setCounts]=useState<{cases:number;approvals:number}|null>(null);
   const moreRef=useRef<HTMLDivElement>(null);
   const [shownFor,setShownFor]=useState(pathname);
   if(pathname!==shownFor){setShownFor(pathname);setMoreOpen(false)} // close the menu when a link in it navigates
@@ -42,6 +43,23 @@ export default function PortalNavigation(){
     document.addEventListener("mousedown",onDown);document.addEventListener("keydown",onKey);
     return()=>{document.removeEventListener("mousedown",onDown);document.removeEventListener("keydown",onKey)};
   },[moreOpen]);
+  useEffect(()=>{
+    const controller=new AbortController();
+    const load=async()=>{
+      try{
+        const response=await fetch("/api/portal/recovery-summary",{cache:"no-store",signal:controller.signal});
+        if(!response.ok)return;
+        const data=await response.json();
+        const awaiting=data?.kpis?.awaiting_review;
+        const overdue=data?.kpis?.overdue_open;
+        if(awaiting!=null&&overdue!=null&&Number.isFinite(Number(awaiting))&&Number.isFinite(Number(overdue)))
+          setCounts({cases:Number(overdue),approvals:Number(awaiting)});
+      }catch{ /* The navigation still works if the summary is unavailable. */ }
+    };
+    void load();
+    window.addEventListener("invoiceiq:recovery-updated",load);
+    return()=>{controller.abort();window.removeEventListener("invoiceiq:recovery-updated",load)};
+  },[pathname]);
   const primary=[
     {href:"/follow-ups",label:"Follow-ups"},
     {href:"/invoices",label:"Invoices"},
@@ -49,8 +67,8 @@ export default function PortalNavigation(){
   ];
   const more=[
     {href:"/workspace-dashboard",label:"Analytics"},
-    {href:"/cases",label:"Cases"},
-    {href:"/approvals",label:"Approvals"},
+    {href:"/cases",label:"Cases",count:counts?.cases},
+    {href:"/approvals",label:"Approvals",count:counts?.approvals},
     {href:"/assistant",label:"AI assistant"},
     {href:"/model",label:"Model"},
   ];
@@ -76,14 +94,15 @@ export default function PortalNavigation(){
       <div ref={moreRef} style={{position:"relative"}}>
         <button type="button" aria-haspopup="true" aria-expanded={moreOpen} onClick={()=>setMoreOpen(v=>!v)}
           style={{...linkStyle(inMore||moreOpen),border:0,cursor:"pointer",font:"inherit",display:"flex",alignItems:"center",gap:4}}>
-          More <span aria-hidden="true" style={{fontSize:10}}>{moreOpen?"▲":"▼"}</span>
+          More {counts&&counts.approvals>0&&<span title={`${counts.approvals} awaiting review`} style={{fontSize:11,background:inMore||moreOpen?"#fff":"#161616",color:inMore||moreOpen?"#161616":"#fff",borderRadius:10,padding:"1px 6px"}}>{counts.approvals}</span>}
+          <span aria-hidden="true" style={{fontSize:10}}>{moreOpen?"▲":"▼"}</span>
         </button>
         {moreOpen&&<div aria-label="More destinations" style={{
           position:"absolute",top:"calc(100% + 6px)",right:0,background:"#fff",border:"1px solid #dededb",
           borderRadius:9,boxShadow:"0 10px 28px rgba(0,0,0,.12)",padding:6,display:"grid",gap:2,minWidth:160,zIndex:30}}>
           {more.map(link=><Link key={link.href} href={link.href}
             aria-current={pathname===link.href?"page":undefined}
-            style={{...linkStyle(pathname===link.href),display:"block",whiteSpace:"nowrap"}}>{link.label}</Link>)}
+            style={{...linkStyle(pathname===link.href),display:"flex",justifyContent:"space-between",gap:12,whiteSpace:"nowrap"}}>{link.label}{link.count!=null&&<span>{link.count}</span>}</Link>)}
         </div>}
       </div>
       <button type="button" disabled={busy} onClick={signOut}

@@ -1,31 +1,26 @@
 "use client";
 
 import {useEffect, useState} from "react";
+import {formatInrCompact} from "@/lib/format-inr";
+import {formatBusinessDate} from "@/lib/format-date";
 
 type Kpis={awaiting_review:number;awaiting_exposure:string;approved:number;rejected:number;escalated:number;
   reviewed:number;escalated_exposure:string;case_exposure:string;paid_since_decision:number;paid_since_amount:string;overdue_open:number};
-type Summary={kind:"showcase"|"customer";kpis:Kpis;status_breakdown:{status:string;count:number;amount:string}[];
+type Summary={kind:"showcase"|"customer";as_of:string;fixed_as_of:boolean;kpis:Kpis;status_breakdown:{status:string;count:number;amount:string}[];
   weekly_decisions:{week:string;approved:number;escalated:number;rejected:number}[]};
 export type RecoveryView="dashboard"|"cases"|"approvals";
-
-function inr(value:string|number){
-  const n=Number(value);
-  if(n>=1e7)return`₹${(n/1e7).toFixed(2)}Cr`;
-  if(n>=1e5)return`₹${(n/1e5).toFixed(2)}L`;
-  return`₹${Math.round(n).toLocaleString("en-IN")}`;
-}
 
 const STATUS_COLOR:Record<string,string>={"Awaiting review":"#d4d4d1",Approved:"#0b0b0b",Escalated:"#c2410c",Rejected:"#a3a3a0"};
 
 function BarChart({rows,money,onPick}:{rows:{label:string;value:number}[];money?:boolean;onPick?:(label:string)=>void}){
   const max=Math.max(1,...rows.map(r=>r.value));
-  return <div className="rp-bars" role="img" aria-label={rows.map(r=>`${r.label}: ${money?inr(r.value):r.value}`).join(", ")}>
+  return <div className="rp-bars" role="img" aria-label={rows.map(r=>`${r.label}: ${money?formatInrCompact(r.value):r.value}`).join(", ")}>
     {rows.map(r=><div key={r.label} className={onPick?"rp-bar-row rp-pick":"rp-bar-row"}
       {...(onPick?{role:"button",tabIndex:0,title:`List ${r.label.toLowerCase()} invoices`,onClick:()=>onPick(r.label),
         onKeyDown:(e:React.KeyboardEvent)=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();onPick(r.label)}}}:{})}>
       <span>{r.label}</span>
       <div className="rp-track"><div className="rp-fill" style={{width:`${(r.value/max)*100}%`,background:STATUS_COLOR[r.label]??"#0b0b0b"}}/></div>
-      <strong>{money?inr(r.value):r.value}</strong>
+      <strong>{money?formatInrCompact(r.value):r.value}</strong>
     </div>)}
   </div>;
 }
@@ -61,18 +56,18 @@ export default function RecoveryCharts({view,refreshKey,onPick}:{view:RecoveryVi
   const k=data?.kpis;
   const status=data?.status_breakdown??[];
   const of=k?` of ${k.overdue_open} overdue`:"";
-  const paid=k?[["PAID SINCE A DECISION",k.paid_since_decision,`${inr(k.paid_since_amount)} came in after the decision`]]:[];
+  const paid=k?[["PAID SINCE A DECISION",k.paid_since_decision,`${formatInrCompact(k.paid_since_amount)} came in after the decision`]]:[];
   const kpis=!k?[]:view==="approvals"
-    ?[["ESCALATED",k.escalated,`${inr(k.escalated_exposure)} still owed${of}`],
-      ["AWAITING REVIEW",k.awaiting_review,`${inr(k.awaiting_exposure)} still owed${of}`],
+    ?[["ESCALATED",k.escalated,`${formatInrCompact(k.escalated_exposure)} still owed${of}`],
+      ["AWAITING REVIEW",k.awaiting_review,`${formatInrCompact(k.awaiting_exposure)} still owed${of}`],
       ["FOLLOWING UP",k.approved,"approved for follow-up, still owed"],...paid]
-    :[["AWAITING REVIEW",k.awaiting_review,`${inr(k.awaiting_exposure)} still owed${of}`],
+    :[["AWAITING REVIEW",k.awaiting_review,`${formatInrCompact(k.awaiting_exposure)} still owed${of}`],
       ["FOLLOWING UP",k.approved,"approved for follow-up, still owed"],
-      ["ESCALATED",k.escalated,`${inr(k.escalated_exposure)} still owed`],...paid];
+      ["ESCALATED",k.escalated,`${formatInrCompact(k.escalated_exposure)} still owed`],...paid];
   return <section className={view==="dashboard"?"rp":"rp rp-embedded"} id="recovery-pipeline" aria-labelledby={`rp-title-${view}`}>
     <header><p className="settings-eyebrow">{view==="dashboard"?"Recovery & approvals":"Overview"}</p>
       <h2 id={`rp-title-${view}`}>{view==="approvals"?"Decision overview":view==="cases"?"Case overview":"Recovery pipeline"}</h2>
-      <p>{view==="dashboard"?"As of today, across all overdue invoices still owed; the date range above does not apply. ":""}
+      <p>{view==="dashboard"?`As of ${data?.as_of?formatBusinessDate(data.as_of):"the current business date"}, across all overdue invoices still owed; the date range above does not apply. `:""}
         The latest decision on each invoice sets its status{onPick?"; choose a status to list its invoices":""}. Money that came in after a decision is shown separately; it is not proof the decision caused it.</p></header>
     {error&&<p className="portal-notice-error" role="alert">{error}</p>}
     {!data&&!error&&<p role="status" className="rp-muted">Loading recovery summary…</p>}

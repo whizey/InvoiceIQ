@@ -6,6 +6,7 @@ import PortalNavigation from "@/components/PortalNavigation";
 import Term from "@/components/Term";
 import CashForecast,{type Cash} from "@/components/CashForecast";
 import ReminderPanel from "@/components/ReminderPanel";
+import {formatInrCompact} from "@/lib/format-inr";
 
 type Reason={days_late:number;kind:string;text:string};
 type Item={id:string;number:string;counterparty:string;due_date:string;balance:string;days_overdue:number;
@@ -17,8 +18,8 @@ type FollowUpData={as_of:string;workspace:string;generated:boolean;historical:bo
   totals:{to_chase:number;overdue_amount:string;on_hold:number;due_soon_amount:string};
   chase:Item[];on_hold:Item[];due_soon:Item[]};
 
-const rupees=(s:string)=>"₹"+Number(s).toLocaleString("en-IN",{maximumFractionDigits:0});
 const pct=(n:number)=>Math.round(n*100)+"%";
+const riskBand=(n:number)=>n>=0.8?"High late risk":n>=0.5?"Moderate late risk":"Lower late risk";
 const SHOWN=25;
 type Sent={id:string;invoice_id:string;invoice:string;customer:string;channel:string;sent_at:string;
   payment:{paid_on:string;amount:string;days_after:number}|null};
@@ -68,8 +69,8 @@ export default function FollowUps(){
       <p className="settings-eyebrow">{data?.workspace||"Workspace"} / Follow-ups</p>
       <h1 className="fu-title">{data&&data.historical?`Who to chase, as of ${longDate(data.as_of)}`:"Who to chase today"}</h1>
       {data&&<p className="fu-sub">
-        <strong>{data.totals.to_chase}</strong> overdue invoices, <strong>{rupees(data.totals.overdue_amount)}</strong> to collect.
-        Ranked by amount × chance of paying late × days overdue. As of {data.as_of}.
+        <strong>{data.totals.to_chase}</strong> overdue invoices, <strong>{formatInrCompact(data.totals.overdue_amount)}</strong> to collect.
+        Ranked by amount × chance of paying late × days overdue. Risk bands keep similar scores readable; the exact chance is in each label’s tooltip. Equal chances are ordered mainly by amount and days overdue. As of {longDate(data.as_of)}.
       </p>}
       {error&&<p role="alert" className="portal-notice-error">{error}</p>}
       {!data&&!error&&<div role="status" aria-label="Loading follow-ups" className="ops-skeleton">
@@ -89,7 +90,7 @@ export default function FollowUps(){
               {open===item.id&&<ReminderPanel invoiceId={item.id} onSent={()=>void loadSent()}/>}
             </div>
             <div className="fu-side">
-              <span className="fu-chance" title="Chance this invoice is paid late">{pct(item.chance_late)} likely late</span>
+              <span className="fu-chance" title={`${pct(item.chance_late)} estimated chance of late payment`} aria-label={`${riskBand(item.chance_late)}: ${pct(item.chance_late)} estimated chance of late payment`}>{riskBand(item.chance_late)}</span>
               <button type="button" className="fu-review" aria-expanded={open===item.id}
                 onClick={()=>setOpen(v=>v===item.id?null:item.id)}>{open===item.id?"Close":"Remind"}</button>
               <Link className="fu-review" href={`/invoices?q=${encodeURIComponent(item.number)}`}>Review</Link>
@@ -103,19 +104,19 @@ export default function FollowUps(){
             <h2 id="fu-soon" className="fu-h2">{data.historical?`Due in the week after ${longDate(data.as_of)}`:"Due this week"}</h2>
             {data.due_soon.length===0?<p className="fu-muted">Nothing falls due in the next 7 days.</p>:
               <ul className="fu-mini">{data.due_soon.slice(0,8).map(item=><li key={item.id}>
-                <strong>{item.counterparty}</strong><span>{item.summary}</span><em>{pct(item.chance_late)} likely late</em></li>)}</ul>}
+                <strong>{item.counterparty}</strong><span>{item.summary}</span><em title={`${pct(item.chance_late)} estimated chance of late payment`} aria-label={`${riskBand(item.chance_late)}: ${pct(item.chance_late)} estimated chance of late payment`}>{riskBand(item.chance_late)}</em></li>)}</ul>}
           </section>
           {data.on_hold.length>0&&<section aria-labelledby="fu-hold" className="fu-panel">
             <h2 id="fu-hold" className="fu-h2">On hold: disputed</h2>
             <ul className="fu-mini">{data.on_hold.map(item=><li key={item.id}>
-              <strong>{item.counterparty}</strong><span>{rupees(item.balance)} · {item.number}</span><em>{item.late_reason?.text}</em></li>)}</ul>
+              <strong>{item.counterparty}</strong><span>{formatInrCompact(item.balance)} · {item.number}</span><em>{item.late_reason?.text}</em></li>)}</ul>
           </section>}
           {sent&&sent.summary.sent>0&&<section aria-labelledby="fu-sent" className="fu-panel">
             <h2 id="fu-sent" className="fu-h2">Reminders sent</h2>
             {sent.summary.judged>0&&<p className="fu-verdict">{sent.summary.followed_by_payment} of {sent.summary.judged} were followed by a payment within two weeks.</p>}
             <ul className="fu-mini">{sent.reminders.slice(0,6).map(r=><li key={r.id}>
               <strong>{r.customer}</strong><span>{r.invoice} · {r.channel==="whatsapp"?"WhatsApp":"Email"} · {shortDate(r.sent_at)}</span>
-              <em>{r.payment?`Paid ${rupees(r.payment.amount)} ${r.payment.days_after} days later`:"No payment yet"}</em></li>)}</ul>
+              <em>{r.payment?`Paid ${formatInrCompact(r.payment.amount)} ${r.payment.days_after} ${r.payment.days_after===1?"day":"days"} later`:"No payment yet"}</em></li>)}</ul>
           </section>}
           <section aria-labelledby="fu-how" className="fu-panel">
             <h2 id="fu-how" className="fu-h2">How the <Term k="risk">chance of paying late</Term> is worked out</h2>

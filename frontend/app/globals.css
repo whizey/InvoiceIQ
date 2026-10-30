@@ -246,8 +246,9 @@ html, body {
 .fu-reason{margin:4px 0 0;font-size:13px;color:#4a4a48;line-height:1.45}
 .fu-side{display:grid;gap:8px;justify-items:end}
 .fu-chance{font-size:12px;color:#555;white-space:nowrap}
-.fu-review{font-size:13px;border:1px solid #ddd;border-radius:6px;padding:7px 12px;color:#171717;text-decoration:none;background:#fff}
-.fu-review:hover{border-color:#171717}
+.fu-review{font-size:13px;border:0;border-radius:6px;padding:5px 7px;color:#525252;text-decoration:none;background:transparent}
+.fu-review:hover{text-decoration:underline;color:#171717;background:#f7f7f5}
+.fu-review:focus-visible{outline:2px solid #171717;outline-offset:2px}
 .fu-more{margin-top:12px;border:1px solid #ddd;background:#fff;border-radius:7px;padding:9px 14px;cursor:pointer}
 .fu-mini{list-style:none;margin:0;padding:0;display:grid;gap:10px;font-size:13px}
 .fu-mini li{display:grid;gap:2px;padding-top:10px;border-top:1px solid #ececea}
@@ -295,7 +296,7 @@ html, body {
 .cf-bar{fill:#C2410C;opacity:.55}.cf-on{opacity:.9}
 .cf-range{stroke:#171717;stroke-width:1.5}
 .cf-chart g:focus{outline:none}.cf-chart g:focus .cf-bar{opacity:.9}
-.cf-tip{position:absolute;top:-6px;transform:translate(-50%,-100%);background:#171717;color:#fff;border-radius:7px;padding:7px 10px;font-size:12px;display:grid;gap:2px;pointer-events:none;white-space:nowrap}
+.cf-tip{position:absolute;top:8px;transform:translateX(-50%);background:#171717;color:#fff;border-radius:7px;padding:7px 10px;font-size:12px;display:grid;gap:2px;pointer-events:none;white-space:nowrap}
 .cf-table{margin-top:8px;font-size:13px}.cf-table summary{cursor:pointer;color:#555}
 .cf-table table{border-collapse:collapse;margin-top:8px}.cf-table td,.cf-table th{padding:5px 14px 5px 0;text-align:left;border-bottom:1px solid #ececea}
 /* Reminders */

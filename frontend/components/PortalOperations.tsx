@@ -8,19 +8,20 @@ import InvoiceNotes from "@/components/InvoiceNotes";
 import LedgerImport from "@/components/LedgerImport";
 import Term from "@/components/Term";
 import {DECISION_WORDS} from "@/lib/glossary";
+import {formatInrCompact} from "@/lib/format-inr";
+import {formatBusinessDate} from "@/lib/format-date";
 import type {PortalFilters} from "@/lib/portal-filters";
 
 type LateReason={days_late:number;kind:string;text:string};
 type Invoice={id:string;number:string;counterparty:string;due_date:string;amount:string;paid:string;balance:string;risk_probability:string|null;late_reason:LateReason|null};
 type Event={id:string;invoice_id:string;decision:string;note:string;created_at:string};
 type Metrics={invoiced:string;open:string;overdue:string;overdue_share:string;collected:string;score_coverage:number;invoice_count:number};
-type Overview={workspace:string;kind:"showcase"|"customer";provenance:string;actions:Event[];metrics:Metrics};
+type Overview={workspace:string;kind:"showcase"|"customer";as_of:string;fixed_as_of:boolean;provenance:string;actions:Event[];metrics:Metrics};
 type InvoicePage={invoices:Invoice[];total:number;page:number;page_size:number};
 type Section="invoices"|"cases"|"approvals";
 type ListStatus="all"|"overdue"|"awaiting"|"escalated";
 const STATUS_WORDS:Record<ListStatus,string>={all:"invoices",overdue:"overdue invoices",awaiting:"overdue invoices awaiting review",escalated:"escalated invoices"};
 const PICK:Record<string,ListStatus>={"Awaiting review":"awaiting",Escalated:"escalated"};
-const rupees=(s:string)=>"₹"+Number(s).toLocaleString("en-IN",{maximumFractionDigits:2});
 
 export default function PortalOperations({section,initialFilters}:{section:Section;initialFilters:PortalFilters}){
   const router=useRouter();
@@ -32,7 +33,7 @@ export default function PortalOperations({section,initialFilters}:{section:Secti
   const [query,setQuery]=useState(initialFilters.q);
   const [page,setPage]=useState(initialFilters.page);
   const [sort,setSort]=useState(initialFilters.sort);
-  const [status,setStatus]=useState<ListStatus>(section==="cases"?"awaiting":section==="approvals"?"escalated":"all");
+  const [status,setStatus]=useState<ListStatus>(section==="cases"?"overdue":section==="approvals"?"awaiting":"all");
   const [reload,setReload]=useState(0);
   const [success,setSuccess]=useState("");
   const [selected,setSelected]=useState<Invoice|null>(null);
@@ -86,7 +87,7 @@ export default function PortalOperations({section,initialFilters}:{section:Secti
         body:JSON.stringify({invoice_id:selected.id,decision:choice,note:note.trim()})});
       const payload=await r.json();
       if(!r.ok)throw new Error(payload.detail||"Decision was not recorded");
-      setSelected(null);setNote("");await load();setSuccess("Decision recorded in the audit history.");
+      setSelected(null);setNote("");await load();setReload(value=>value+1);window.dispatchEvent(new Event("invoiceiq:recovery-updated"));setSuccess("Decision recorded in the audit history.");
     }catch(e){setError(e instanceof Error?e.message:"Decision failed")}
     finally{setBusy(false)}
   }
@@ -97,6 +98,11 @@ export default function PortalOperations({section,initialFilters}:{section:Secti
       <p style={{fontSize:11,letterSpacing:2,textTransform:"uppercase",color:"#777"}}>Workspace / {title}</p>
       <h1 style={{fontSize:"clamp(30px,4vw,46px)",letterSpacing:"-.045em",margin:"10px 0"}}>{title}</h1>
       <p style={{color:"#6c6c6c",marginBottom:26,fontSize:13}}>{data?.workspace||"Loading workspace"}</p>
+      {data&&<p style={{padding:"11px 14px",background:"#fff",border:"1px solid #dededb",borderRadius:8,color:"#525252",fontSize:12,lineHeight:1.5}}>
+        {data.fixed_as_of?`Historical ledger fixed at ${formatBusinessDate(data.as_of)}; signing in again shows the same records.`:
+          data.kind==="showcase"?"Sample workspace: signing in again shows the same invoices and starting review counts. Counts change when you record a review; overdue status can change as dates advance.":
+          "Figures come from your workspace records. They change when invoices or payments are imported or synced, or when a review decision is recorded."}
+      </p>}
       {loading&&<div role="status" aria-label="Loading records" className="ops-skeleton">
         <div className="sk sk-panel"><span className="sk-line w40"/>{Array.from({length:7},(_,i)=><span key={i} className="sk-line"/>)}</div>
         <div className="sk sk-panel"><span className="sk-line w60"/>{Array.from({length:5},(_,i)=><span key={i} className="sk-line"/>)}</div>
@@ -110,11 +116,11 @@ export default function PortalOperations({section,initialFilters}:{section:Secti
       {data&&<>
         {section==="invoices"&&<div className="inv-kpis">
           <div><small>INVOICES</small><strong>{data.metrics.invoice_count.toLocaleString("en-IN")}</strong><span>loaded in this workspace</span></div>
-          <div><small>STILL OWED</small><strong>{rupees(data.metrics.open)}</strong><span>unpaid, as of today</span></div>
-          <div><small>OVERDUE</small><strong>{rupees(data.metrics.overdue)}</strong><span>owed and past due</span></div>
+          <div><small>STILL OWED</small><strong>{formatInrCompact(data.metrics.open)}</strong><span>unpaid, as of {formatBusinessDate(data.as_of)}</span></div>
+          <div><small>OVERDUE</small><strong>{formatInrCompact(data.metrics.overdue)}</strong><span>owed and past due</span></div>
           <div><small>SHARE LATE</small><strong>{data.metrics.overdue_share}%</strong><span>of what&apos;s owed</span></div>
-          <div><small>COLLECTED</small><strong>{rupees(data.metrics.collected)}</strong><span>received to date</span></div>
-          <div><small>RISK SCORED</small><strong>{data.metrics.score_coverage.toLocaleString("en-IN")} / {data.metrics.invoice_count.toLocaleString("en-IN")}</strong><span>invoices with a score</span></div>
+          <div><small>COLLECTED</small><strong>{formatInrCompact(data.metrics.collected)}</strong><span>received to date</span></div>
+          <div><small>RISK SCORE COVERAGE</small><strong>{data.metrics.invoice_count===0?"No invoices":data.metrics.score_coverage===data.metrics.invoice_count?"All scored":`${data.metrics.score_coverage.toLocaleString("en-IN")} scored`}</strong><span>of {data.metrics.invoice_count.toLocaleString("en-IN")} invoices · coverage, not accuracy</span></div>
         </div>}
         {section==="invoices"&&<LedgerImport canImport={data.kind==="customer"}
           onImported={()=>{void load();setReload(value=>value+1)}}/>}
@@ -142,7 +148,7 @@ export default function PortalOperations({section,initialFilters}:{section:Secti
                 <th key={s} style={{textAlign:"left",padding:"14px 8px",borderBottom:"1px solid #ddd"}}>{k?<Term k={k}>{s}</Term>:s}</th>)}</tr></thead>
               <tbody>{invoices.map(inv=><tr key={inv.id}>
                 <td data-label="Invoice" style={cell}>{inv.number}</td><td data-label="Customer" style={cell}>{inv.counterparty}</td>
-                <td data-label="Due date" style={cell}>{inv.due_date}</td><td data-label="Outstanding" style={cell}>{rupees(inv.balance)}</td>
+                <td data-label="Due date" style={cell}>{inv.due_date}</td><td data-label="Outstanding" style={cell}>{formatInrCompact(inv.balance)}</td>
                 <td data-label="Why it's late" style={reasonCell}>{inv.late_reason?<><strong>{inv.late_reason.days_late} days overdue.</strong> {inv.late_reason.text}</>:<span style={{color:"#8a8a87"}}>{Number(inv.balance)>0?"Not due yet":"Paid"}</span>}</td>
                 <td data-label="Late-payment risk" style={cell}>{inv.risk_probability===null?"Not scored":Math.round(Number(inv.risk_probability)*100)+"% chance of late payment"}</td>
                 <td data-label="Action" style={cell}><button onClick={()=>{setSelected(inv);setNote("");}}
