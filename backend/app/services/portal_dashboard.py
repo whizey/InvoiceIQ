@@ -345,7 +345,7 @@ def compute_portal_dashboard(invoices, payments, event_ids, q, workspace, *, tod
         "generated_at": datetime.now(timezone.utc),
         "as_of": as_of, "start_date": q.start_date, "end_date": q.end_date,
         "timezone": "UTC", "workspace": workspace.name, "workspace_kind": workspace.kind,
-        "fixed_as_of": workspace.as_of is not None, "currency": "INR",
+        "fixed_as_of": getattr(workspace, "as_of", None) is not None, "currency": "INR",
         "currency_verified": True,
         "currency_note": ("INR ledger, no currency conversion."
                           if workspace.kind == "showcase" else "Customer-imported INR amounts, no currency conversion."),
