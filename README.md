@@ -123,8 +123,8 @@ More detail, including what didn't work, is in [docs/CASE_STUDY.md](docs/CASE_ST
 evaluation are in [docs/ML_MODELS.md](docs/ML_MODELS.md); `python -m app.ml.baseline_comparison` reproduces the
 table above.
 
-The assistant is scored on 108 hand-written questions, three runs per model. Free-tier limits mean the runs fill in
-over a few days:
+The assistant is scored on 108 hand-written questions, up to three runs per model. These are dated evaluation
+results, gathered over multiple days because of free-tier limits:
 
 <!-- assistant-eval:start -->
 | Model | Runs | Cases answered | Accuracy | Figures verified | Tool recall | Median / p95 time |
@@ -139,7 +139,7 @@ over a few days:
 
 Of 8 questions built to get a forbidden action approved (prompt injection, an already-paid or already-escalated invoice, a planted note), checked 18 times across every model and run: 0 got one past the policy gate. The "injection" column above also counts ordinary wrong-answer cases (a missed figure, a stray mention of another tenant), which is why it reads lower than this.
 
-_In progress: free-tier quotas allow a few dozen questions per model per day, so the runs fill in over several days; cases answered so far: `gemini-3.5-flash-lite` 230, `openai/gpt-oss-120b` 79._
+_Recorded answers: `gemini-3.5-flash-lite` 230, `openai/gpt-oss-120b` 79. Live evaluations are no longer scheduled automatically._
 
 Fixture `assistant-eval-v3`, results as of 2026-10-23. Mean ± sample standard deviation across runs.
 <!-- assistant-eval:end -->
