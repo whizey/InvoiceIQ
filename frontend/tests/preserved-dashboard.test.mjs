@@ -31,6 +31,24 @@ test('the six cards and chart titles keep their order and plain-language labels'
  assert.ok(!html.includes('sample numbers'));
  assert.ok(!html.includes('Math.random'));
 });
+test('dashboard dates and balance bridge labels stay readable',()=>{
+ const data={as_of:'2026-10-30',generated_at:'2026-10-30T00:00:00Z',currency:'INR',workspace_kind:'showcase',fixed_as_of:false,
+   metrics:{invoice_count:0,company_count:0,open:36700000},series:[{period:'2026-09',invoiced:847000,collected:0,open:0}],
+   aging:[],risk:[],top:[],daily:[],due:[],invoices:[],chart_notes:{},historical_available:true,
+   bridge:{start_date:'2026-10-01',end_date:'2026-10-30',opening:36700000,invoiced:847000,collected:1000000,written_off:0,closing:36547000}};
+ const view=api.vals({state:{data},props:{},query:new URLSearchParams()});
+ assert.equal(view.asOf,'30 Oct 2026');
+ assert.match(view.status,/Report generated/);
+ assert.match(view.sourceNote,/Sample workspace/);
+ assert.match(api.vals({state:{data:{...data,fixed_as_of:true}},props:{},query:new URLSearchParams()}).sourceNote,/Historical ledger/);
+ assert.match(api.vals({state:{data:{...data,workspace_kind:'customer'}},props:{},query:new URLSearchParams()}).sourceNote,/imported or synced/);
+ assert.equal(view.bars[0].label,'Sep 26');
+ assert.equal(view.bridgeInvoicedLabelBottom,52+view.bridgeInvoicedHeight+8);
+ assert.equal(view.bridgeCollectedLabelBottom,78+view.bridgeCollectedHeight+8);
+ assert.ok(view.bridgeStartLabelBottom<210);
+ const html=fs.readFileSync(new URL('../public/reference/overview/index.html',import.meta.url),'utf8');
+ assert.ok(!html.includes('{{t.id}}'));
+});
 test('invoice table columns retained',()=>{
  const html=fs.readFileSync(new URL('../public/reference/invoices/index.html',import.meta.url),'utf8');
  const headings=Array.from(html.matchAll(/<th\b[^>]*>(.*?)<\/th>/g),m=>m[1]).slice(1,12);

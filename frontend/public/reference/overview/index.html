@@ -112,6 +112,8 @@ table.t tr:last-child td{border-bottom:0}
 
   <div style="padding: 24px 32px 48px; display: flex; flex-direction: column; gap: 20px">
 
+    <p style="margin: 0; padding: 11px 14px; border: 1px solid #D9D9D6; border-radius: 8px; background: #FAFAF9; color: #525252; font-size: 12px; line-height: 1.5">{{sourceNote}}</p>
+
     <section aria-label="Key metrics" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px">
       <sc-for list="{{kpis}}" as="k" hint-placeholder-count="6">
         <article class="card" style="padding: 16px 16px 14px; display: flex; flex-direction: column; gap: 8px; min-height: 196px">
@@ -205,15 +207,18 @@ table.t tr:last-child td{border-bottom:0}
           <h2 style="margin: 0; font-size: 15px; font-weight: 600">Balance bridge</h2>
           <div style="font-size: 12px; color: #6B6B6B">{{bridgeNote}}</div>
         </div>
-        <div style="display: flex; align-items: flex-end; gap: 12px; height: 200px; border-bottom: 1px solid #0B0B0B; padding: 0 4px">
-          <div style="flex: 1; height: 100%; position: relative"><div style="position: absolute; left: 0; right: 0; bottom: 0; height: {{bridgeStartHeight}}px; background: #0B0B0B"></div><div class="num" style="position: absolute; left: 0; right: 0; bottom: 58px; text-align: center; font-size: 12px; font-weight: 600">{{bridgeStart}}</div></div>
-          <div style="flex: 1; height: 100%; position: relative"><div style="position: absolute; left: 0; right: 0; bottom: 52px; height: {{bridgeInvoicedHeight}}px; background: #FFFFFF; border: 1.5px solid #0B0B0B"></div><div class="num" style="position: absolute; left: 0; right: 0; bottom: 181px; text-align: center; font-size: 12px; font-weight: 600">{{bridgeInvoiced}}</div></div>
-          <div style="flex: 1; height: 100%; position: relative"><div style="position: absolute; left: 0; right: 0; bottom: 78px; height: {{bridgeCollectedHeight}}px; background: repeating-linear-gradient(135deg, #8A8A87 0 2px, #FFFFFF 2px 6px); border: 1.5px solid #8A8A87"></div><div class="num" style="position: absolute; left: 0; right: 0; bottom: 181px; text-align: center; font-size: 12px; font-weight: 600">{{bridgeCollected}}</div></div>
-          <div style="flex: 1; height: 100%; position: relative"><div style="position: absolute; left: 0; right: 0; bottom: 0; height: {{bridgeWriteOffHeight}}px; background: #F0F0EE; border: 1.5px dashed #BDBDBA"></div><div class="num" style="position: absolute; left: 0; right: 0; bottom: 84px; text-align: center; font-size: 12px; color: #525252">{{bridgeWriteOff}}</div></div>
-          <div style="flex: 1; height: 100%; position: relative"><div style="position: absolute; left: 0; right: 0; bottom: 0; height: {{bridgeEndHeight}}px; background: {{accent}}"></div><div class="num" style="position: absolute; left: 0; right: 0; bottom: 84px; text-align: center; font-size: 12px; font-weight: 600">{{bridgeEnd}}</div></div>
+        <div style="display: flex; align-items: flex-end; gap: 12px; height: 210px; border-bottom: 1px solid #0B0B0B; padding: 0 4px">
+          <div style="flex: 1; height: 100%; position: relative"><div style="position: absolute; left: 0; right: 0; bottom: 0; height: {{bridgeStartHeight}}px; background: #0B0B0B"></div><div class="num" style="position: absolute; left: 0; right: 0; bottom: {{bridgeStartLabelBottom}}px; text-align: center; font-size: 12px; font-weight: 600">{{bridgeStart}}</div></div>
+          <div style="flex: 1; height: 100%; position: relative"><div style="position: absolute; left: 0; right: 0; bottom: 52px; height: {{bridgeInvoicedHeight}}px; background: #D4D4D1; border: 1.5px solid #0B0B0B"></div><div class="num" style="position: absolute; left: 0; right: 0; bottom: {{bridgeInvoicedLabelBottom}}px; text-align: center; font-size: 12px; font-weight: 600">{{bridgeInvoiced}}</div></div>
+          <div style="flex: 1; height: 100%; position: relative"><div style="position: absolute; left: 0; right: 0; bottom: 78px; height: {{bridgeCollectedHeight}}px; background: repeating-linear-gradient(135deg, #8A8A87 0 2px, #FFFFFF 2px 6px); border: 1.5px solid #8A8A87"></div><div class="num" style="position: absolute; left: 0; right: 0; bottom: {{bridgeCollectedLabelBottom}}px; text-align: center; font-size: 12px; font-weight: 600">{{bridgeCollected}}</div></div>
+          <div style="flex: 1; height: 100%; position: relative"><div style="position: absolute; left: 0; right: 0; bottom: 0; height: {{bridgeWriteOffHeight}}px; background: #F0F0EE; border: 1.5px dashed #BDBDBA"></div><div class="num" style="position: absolute; left: 0; right: 0; bottom: {{bridgeWriteOffLabelBottom}}px; text-align: center; font-size: 12px; color: #525252">{{bridgeWriteOff}}</div></div>
+          <div style="flex: 1; height: 100%; position: relative"><div style="position: absolute; left: 0; right: 0; bottom: 0; height: {{bridgeEndHeight}}px; background: {{accent}}"></div><div class="num" style="position: absolute; left: 0; right: 0; bottom: {{bridgeEndLabelBottom}}px; text-align: center; font-size: 12px; font-weight: 600">{{bridgeEnd}}</div></div>
         </div>
         <div style="display: flex; gap: 12px; padding: 0 4px; font-size: 11.5px; color: #525252">
           <span style="flex: 1; text-align: center">{{bridgeStartLabel}}</span><span style="flex: 1; text-align: center">Invoiced</span><span style="flex: 1; text-align: center">Collected</span><span style="flex: 1; text-align: center">Written off</span><span style="flex: 1; text-align: center">{{bridgeEndLabel}}</span>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px 16px; color: #6B6B6B; font-size: 11px" aria-label="Balance bridge key">
+          <span>Solid bars: balances and invoiced</span><span>Hatched: collected cash</span><span>Dashed: write-offs</span>
         </div>
       </section>
 
@@ -253,7 +258,7 @@ table.t tr:last-child td{border-bottom:0}
           <tbody>
             <sc-for list="{{top}}" as="t" hint-placeholder-count="7">
               <tr>
-                <td style="padding-left: 22px"><div style="font-weight: 500">{{t.name}}</div><div class="mono" style="font-size: 11px; color: #6B6B6B">{{t.id}} · {{t.inv}}</div></td>
+                <td style="padding-left: 22px"><div style="font-weight: 500">{{t.name}}</div><div class="mono" style="font-size: 11px; color: #6B6B6B">{{t.inv}}</div></td>
                 <td class="r num">{{t.open}}</td>
                 <td class="r num" style="font-weight: 600">{{t.od}}</td>
                 <td><div style="height: 8px; background: #F0F0EE; border-radius: 2px"><div style="height: 100%; width: {{t.share}}%; background: #0B0B0B; border-radius: 2px"></div></div></td>

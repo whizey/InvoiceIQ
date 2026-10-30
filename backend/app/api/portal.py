@@ -70,7 +70,8 @@ async def _cached(workspace, session, name: str, extra, build, *, shared: bool =
     except ``shared`` ones whose result is the same for every visitor, so only the first one pays the
     database round trips. ``ttl`` shortens expiry for data written outside a request (approval alerts)."""
     per_visitor = workspace.kind == "showcase" and not shared
-    key = (workspace.id, _versions.get(workspace.id, 0), session.token_digest if per_visitor else "", name, extra)
+    key = (workspace.id, workspace.today(), _versions.get(workspace.id, 0),
+           session.token_digest if per_visitor else "", name, extra)
     hit = _cache.get(key)
     if hit and time.monotonic() - hit[0] < (ttl or CACHE_TTL_SECONDS):
         return hit[1]
@@ -406,6 +407,7 @@ async def _overview(db, session, workspace):
     events = (await db.scalars(select(PortalCaseEvent).where(*event_scope)
                                .order_by(PortalCaseEvent.created_at.desc()).limit(100))).all()
     return {"workspace": workspace.name, "kind": workspace.kind,
+            "as_of": str(today), "fixed_as_of": workspace.as_of is not None,
             "provenance": "Shared workspace" if workspace.kind == "showcase" else "Customer workspace",
             "metrics": {"invoiced": str(invoiced), "open": str(open_balance), "overdue": str(overdue),
                         "overdue_share": str(round(overdue / open_balance * 100, 2)) if open_balance else "0",
@@ -432,7 +434,9 @@ async def portal_recovery_summary(subject=Depends(identity), db: AsyncSession = 
 
     async def build():
         invoices, events = await _records(db, session, workspace)
-        return {"workspace": workspace.name, "kind": workspace.kind, **recovery_summary(invoices, events, workspace.today())}
+        return {"workspace": workspace.name, "kind": workspace.kind,
+                "as_of": str(workspace.today()), "fixed_as_of": workspace.as_of is not None,
+                **recovery_summary(invoices, events, workspace.today())}
     return await _cached(workspace, session, "recovery", None, build)
 
 

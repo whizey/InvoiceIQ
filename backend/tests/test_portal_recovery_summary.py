@@ -44,6 +44,28 @@ def test_empty_workspace_has_zero_kpis():
     assert kpis["reviewed"] == 0 and kpis["awaiting_review"] == 0
 
 
+@pytest.mark.asyncio
+async def test_portal_cache_recomputes_on_business_date_rollover(monkeypatch):
+    from app.api import portal
+
+    monkeypatch.setattr(portal, "_cache", {})
+    monkeypatch.setattr(portal, "_versions", {})
+    business_day = [date(2026, 10, 30)]
+    workspace = NS(id=uuid.uuid4(), kind="showcase", today=lambda: business_day[0])
+    session = NS(token_digest="visitor")
+    calls = 0
+
+    async def build():
+        nonlocal calls
+        calls += 1
+        return calls
+
+    assert await portal._cached(workspace, session, "dashboard", "selection", build) == 1
+    assert await portal._cached(workspace, session, "dashboard", "selection", build) == 1
+    business_day[0] += timedelta(days=1)
+    assert await portal._cached(workspace, session, "dashboard", "selection", build) == 2
+
+
 def test_reply_text_handles_string_and_content_blocks():
     from app.agents.finance_agent import reply_text
     assert reply_text("  hi ") == "hi"

@@ -17,6 +17,11 @@
     const valueText = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(scaled);
     return negative + '₹' + valueText + (verified ? suffix : suffix ? ' ' + suffix : '') + (verified ? '' : '*');
   }
+  function readableDate(value) {
+    if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(String(value))) return value || '—';
+    return new Date(value + 'T00:00:00Z').toLocaleDateString('en-IN',
+      { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  }
   function range(preset, asOf) {
     const end = new Date(asOf + 'T00:00:00Z'), start = new Date(end);
     if (preset === 'All data') return { start_date: '', end_date: '' };
@@ -42,7 +47,8 @@
     const n = value => value == null || !Number.isFinite(Number(value)) ? missing : Number(value).toLocaleString('en-IN');
     const status = logic.state.error || (logic.state.loading ? (d ? 'Updating source data… Previous results shown.' : 'Loading source data…') : d?.historical_source_connected === false
       ? 'Partial results · historical source unavailable'
-      : d ? 'Synced ' + new Date(d.generated_at).toLocaleString('en-IN') : 'Connecting…');
+      : d ? 'Report generated ' + new Date(d.generated_at).toLocaleString('en-IN',
+        { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Connecting…');
     const base = [
       ['THIS PERIOD',fmt(m.invoiced),n(m.invoice_count)+' invoices · '+n(m.company_count)+' customers','Everything invoiced in the selected period. Cancelled invoices are left out.',{status:'all'},'View invoices'],
       ['AS OF DATE',fmt(m.open),n(m.open_count)+' unpaid invoices','What customers still have to pay, as of '+(d?.as_of || 'the selected date')+'.',{status:'outstanding'},'View open'],
@@ -100,7 +106,8 @@
     const bridge=scenarioData?.bridge||portalBridge;
     const bridgeValues=bridgeKeys.map(key=>Number(bridge?.[key]||0));
     const bridgeMax=Math.max(1,...bridgeValues);
-    const bridgeHeight=bridgeValues.map(n=>bridge?Math.max(3,120*n/bridgeMax):0);
+    const bridgeHeight=bridgeValues.map(n=>bridge?Math.max(3,100*n/bridgeMax):0);
+    const bridgeLabelBottom=bridgeHeight.map((height,i)=>([0,52,78,0,0][i]+height+8));
     const bridgeText=bridgeValues.map(n=>bridge?money(n,'INR',true,true):missing);
     const dayLabel=iso=>iso?new Date(iso+'T00:00:00Z').toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'2-digit',timeZone:'UTC'}):'';
     const bridgeStartLabel=portalBridge?'Open '+dayLabel(new Date(Date.parse(d.bridge.start_date+'T00:00:00Z')-86400000).toISOString().slice(0,10)):'Open 30 Jun';
@@ -131,6 +138,7 @@
       bridgeStartLabel,bridgeEndLabel,bridgeNote:bridgeNote,
       bridgeStart:bridgeText[0],bridgeInvoiced:bridgeText[1],bridgeCollected:bridgeText[2],bridgeWriteOff:bridgeText[3],bridgeEnd:bridgeText[4],
       bridgeStartHeight:bridgeHeight[0],bridgeInvoicedHeight:bridgeHeight[1],bridgeCollectedHeight:bridgeHeight[2],bridgeWriteOffHeight:bridgeHeight[3],bridgeEndHeight:bridgeHeight[4],
+      bridgeStartLabelBottom:bridgeLabelBottom[0],bridgeInvoicedLabelBottom:bridgeLabelBottom[1],bridgeCollectedLabelBottom:bridgeLabelBottom[2],bridgeWriteOffLabelBottom:bridgeLabelBottom[3],bridgeEndLabelBottom:bridgeLabelBottom[4],
       approvalsWaiting:pipeline?String(pipeline.awaiting)+' awaiting review · View →':'Unavailable · Review →',
       allocationCollectedPct:allocationPct.collected,allocationNotDuePct:allocationPct.not_due,
       allocationOverduePct:allocationPct.overdue,allocationWriteOffPct:allocationPct.written_off,
@@ -167,7 +175,12 @@
         : 'Historic B2B records end in 2016; later cutoff movement is from clearly identified illustrative operations.',
       sourceDegraded:d?.historical_source_connected===false,
       sourceAlert:'Historical Neon data is temporarily unavailable; figures shown only include illustrative operating records. Do not treat this as the complete dataset.',
-      asOf:d?.as_of||new Date().toISOString().slice(0,10),summary:d?(!logic.state.loading&&m.invoice_count===0?'No data for this selection. ':'')+n(m.invoice_count)+' invoices from '+n(m.company_count)+' companies. '+d.historical_reason:logic.state.error||'Loading original source records…',
+      asOf:readableDate(d?.as_of||new Date().toISOString().slice(0,10)),
+      sourceNote:d?.fixed_as_of?'Historical ledger: this view is fixed at '+readableDate(d.as_of)+' and receives no new transactions.':
+        d?.workspace_kind==='showcase'?'Sample workspace: reopening the dashboard does not create invoices or payments. Figures change only with recorded sample actions or as invoices age.':
+        d?.workspace_kind==='customer'?'Figures come from stored invoices and payments. They update when records are imported or synced; reopening the dashboard alone creates no new activity.':
+        'This report uses stored records. Reopening it does not create new activity.',
+      summary:d?(!logic.state.loading&&m.invoice_count===0?'No data for this selection. ':'')+n(m.invoice_count)+' invoices from '+n(m.company_count)+' companies. '+d.historical_reason:logic.state.error||'Loading original source records…',
       currencyNote:d?.currency_note||'No currency conversion performed.',calendarNote:d?.chart_notes.calendar||'Calendar policy not yet loaded.',
       openTotal:fmt(m.open),overdueTotal:fmt(m.overdue),billedTotal:allocation?money(billed,'INR',true,true):fmt(m.billed),invoiceCount:n(m.invoice_count),companyCount:n(m.company_count),medianInvoice:fmt(m.median_invoice),partialCount:n(m.partial_count),openCount:n(m.open_count),unpaidCount:m.open_count==null?missing:n(m.open_count-m.partial_count),overdueCount:n(m.overdue_count),settledCount:n(m.settled_count),cancelledCount:n(m.cancelled_count),writtenOffCount:n(m.written_off_count),
       riskNote:d?.historical_available?n(m.scored_open)+' of '+n(m.open_count)+' open invoices scored. '+n(m.open_count-m.scored_open)+' not scored.':'Open-invoice risk population unavailable without historical balances.',
@@ -263,12 +276,8 @@
       return 'Q' + Math.ceil(month / 3) + ' ' + year;
     }
     if (grain === 'month') {
-      return new Date(Date.UTC(year, month - 1, 1))
-        .toLocaleDateString('en-GB', {
-          month: 'short',
-          year: '2-digit',
-          timeZone: 'UTC'
-        });
+      return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month - 1]
+        + ' ' + String(year).slice(-2);
     }
 
     return String(period);

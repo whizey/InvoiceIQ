@@ -50,10 +50,10 @@ export default function ReferenceFrame({ page, portal = false }: { page: Page; p
       detach();
       const doc=iframe.contentDocument;
       if(!doc)return;
-      if(page==="overview"&&!doc.getElementById("portal-kpi-spacing")){
+      if(!doc.getElementById("portal-frame-style")){
         const style=doc.createElement("style");
-        style.id="portal-kpi-spacing";
-        style.textContent='@media (min-width: 900px) and (max-width: 1700px) { section[aria-label="Key metrics"] { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; } } @media (max-width: 760px) { nav[aria-label="Primary"] { display: none !important; } }';
+        style.id="portal-frame-style";
+        style.textContent='nav[aria-label="Primary"] { display: none !important; } @media (min-width: 900px) and (max-width: 1700px) { section[aria-label="Key metrics"] { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; } }';
         doc.head.append(style);
       }
       // Size the overview frame to its content so the dashboard and the recovery

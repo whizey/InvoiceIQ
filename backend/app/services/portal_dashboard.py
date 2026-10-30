@@ -344,7 +344,8 @@ def compute_portal_dashboard(invoices, payments, event_ids, q, workspace, *, tod
     output = {
         "generated_at": datetime.now(timezone.utc),
         "as_of": as_of, "start_date": q.start_date, "end_date": q.end_date,
-        "timezone": "UTC", "workspace": workspace.name, "currency": "INR",
+        "timezone": "UTC", "workspace": workspace.name, "workspace_kind": workspace.kind,
+        "fixed_as_of": workspace.as_of is not None, "currency": "INR",
         "currency_verified": True,
         "currency_note": ("INR ledger, no currency conversion."
                           if workspace.kind == "showcase" else "Customer-imported INR amounts, no currency conversion."),
@@ -359,7 +360,7 @@ def compute_portal_dashboard(invoices, payments, event_ids, q, workspace, *, tod
         "chart_notes": {
             "open_line": "Period-end open balance reconstructed from all selected postings and dated payments.",
             "bridge": "Opening balance + invoices posted − receipts = closing balance, from the dated ledger. No write-off ledger is held, so write-offs show as zero.",
-            "pipeline": "Visitor review decisions are not external collections executions.",
+            "pipeline": "These are decisions recorded in InvoiceIQ. No messages are sent and no payments are collected here.",
             "calendar": "Contractual due dates; banking holidays and grace periods not verified.",
             "settlement": "No verified settlement/grace-day policy for histogram.",
             "allocation": "No audited write-off or credit ledger; totals do not infer losses.",
