@@ -122,6 +122,8 @@ class PreservedDashboard(BaseModel):
     end_date: date | None
     timezone: str
     workspace: str
+    workspace_kind: Literal["showcase", "customer"] | None = None
+    fixed_as_of: bool = False
     currency: str
     currency_verified: bool
     currency_note: str
