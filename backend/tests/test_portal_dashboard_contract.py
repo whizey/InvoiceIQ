@@ -6,6 +6,18 @@ from types import SimpleNamespace
 from app.services.portal_dashboard import invoice_state, metric_of, period_start, permitted
 
 
+def test_portal_source_metadata_survives_response_serialization():
+    from app.schemas.preserved_dashboard import DashboardSelection, PreservedDashboard
+    from app.services.portal_dashboard import compute_portal_dashboard
+
+    day = date(2026, 10, 30)
+    workspace = SimpleNamespace(id="workspace", name="Sample", kind="showcase", as_of=day)
+    output = compute_portal_dashboard([], [], set(), DashboardSelection(), workspace, today=day)
+    response = PreservedDashboard(**output).model_dump(mode="json")
+    assert response["workspace_kind"] == "showcase"
+    assert response["fixed_as_of"] is True
+
+
 def invoice(*, amount="1000", posted=None, due=None):
     day = date(2026, 10, 15)
     return SimpleNamespace(id="inv", workspace_id="tenant", invoice_number="INV-1",
