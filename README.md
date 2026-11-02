@@ -195,8 +195,7 @@ API and the site.
   people at once is the comfortable maximum.
 - Model quotas are free-tier too; the assistant can be slow or fall back to rules when they run out.
 - No email verification or password reset yet.
-- It has not been used by a real business yet. That's the next step: one CA or family business for a month,
-  measuring time spent on follow-ups and whether payments came in sooner.
+- It has not been used by a real business yet. 
 
 ## License
 
