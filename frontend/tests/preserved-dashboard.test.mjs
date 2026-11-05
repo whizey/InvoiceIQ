@@ -39,7 +39,7 @@ test('dashboard dates and balance bridge labels stay readable',()=>{
  const view=api.vals({state:{data},props:{},query:new URLSearchParams()});
  assert.equal(view.asOf,'30 Oct 2026');
  assert.match(view.status,/Report generated/);
- assert.match(view.sourceNote,/Sample workspace/);
+ assert.equal(view.sourceNote,'');
  assert.match(api.vals({state:{data:{...data,fixed_as_of:true}},props:{},query:new URLSearchParams()}).sourceNote,/Historical ledger/);
  assert.match(api.vals({state:{data:{...data,workspace_kind:'customer'}},props:{},query:new URLSearchParams()}).sourceNote,/imported or synced/);
  assert.equal(view.bars[0].label,'Sep 26');

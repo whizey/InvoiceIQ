@@ -177,7 +177,7 @@
       sourceAlert:'Historical Neon data is temporarily unavailable; figures shown only include illustrative operating records. Do not treat this as the complete dataset.',
       asOf:readableDate(d?.as_of||new Date().toISOString().slice(0,10)),
       sourceNote:d?.fixed_as_of?'Historical ledger: this view is fixed at '+readableDate(d.as_of)+' and receives no new transactions.':
-        d?.workspace_kind==='showcase'?'Sample workspace: reopening the dashboard does not create invoices or payments. Figures change only with recorded sample actions or as invoices age.':
+        d?.workspace_kind==='showcase'?'':
         d?.workspace_kind==='customer'?'Figures come from stored invoices and payments. They update when records are imported or synced; reopening the dashboard alone creates no new activity.':
         'This report uses stored records. Reopening it does not create new activity.',
       summary:d?(!logic.state.loading&&m.invoice_count===0?'No data for this selection. ':'')+n(m.invoice_count)+' invoices from '+n(m.company_count)+' companies. '+d.historical_reason:logic.state.error||'Loading original source records…',

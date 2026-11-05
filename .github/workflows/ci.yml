@@ -36,7 +36,17 @@ jobs:
       - name: Fetch runtime model artifacts (exclude raw datasets)
         run: |
           git lfs install --local
-          git lfs pull --include="backend/app/ml/artifacts/**" --exclude="data/**"
+          for attempt in 1 2 3; do
+            if git lfs pull --include="backend/app/ml/artifacts/**" --exclude="data/**"; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Runtime model download failed after 3 attempts" >&2
+              exit 1
+            fi
+            echo "Runtime model download failed; retrying (attempt $((attempt + 1))/3)"
+            sleep "$((attempt * 10))"
+          done
 
       - uses: actions/setup-python@v5
         with:
@@ -202,7 +212,17 @@ jobs:
       - name: Fetch runtime model artifacts (exclude raw datasets)
         run: |
           git lfs install --local
-          git lfs pull --include="backend/app/ml/artifacts/**" --exclude="data/**"
+          for attempt in 1 2 3; do
+            if git lfs pull --include="backend/app/ml/artifacts/**" --exclude="data/**"; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Runtime model download failed after 3 attempts" >&2
+              exit 1
+            fi
+            echo "Runtime model download failed; retrying (attempt $((attempt + 1))/3)"
+            sleep "$((attempt * 10))"
+          done
 
       - name: Build backend image
         run: docker build -f backend/Dockerfile .

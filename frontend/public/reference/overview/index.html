@@ -112,7 +112,9 @@ table.t tr:last-child td{border-bottom:0}
 
   <div style="padding: 24px 32px 48px; display: flex; flex-direction: column; gap: 20px">
 
-    <p style="margin: 0; padding: 11px 14px; border: 1px solid #D9D9D6; border-radius: 8px; background: #FAFAF9; color: #525252; font-size: 12px; line-height: 1.5">{{sourceNote}}</p>
+    <sc-if value="{{sourceNote}}">
+      <p style="margin: 0; padding: 11px 14px; border: 1px solid #D9D9D6; border-radius: 8px; background: #FAFAF9; color: #525252; font-size: 12px; line-height: 1.5">{{sourceNote}}</p>
+    </sc-if>
 
     <section aria-label="Key metrics" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px">
       <sc-for list="{{kpis}}" as="k" hint-placeholder-count="6">
